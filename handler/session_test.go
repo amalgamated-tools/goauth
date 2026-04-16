@@ -133,6 +133,11 @@ func TestSessionRevokeMissingID(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
+	var body map[string]string
+	_ = json.NewDecoder(w.Body).Decode(&body)
+	if body["error"] != "session ID is required" {
+		t.Errorf("unexpected error message: %q", body["error"])
+	}
 }
 
 func TestSessionRevokeNotFound(t *testing.T) {
@@ -190,8 +195,8 @@ func TestSessionRevokeAllSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.RevokeAll(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusNoContent {
+		t.Errorf("expected 204, got %d; body: %s", w.Code, w.Body.String())
 	}
 	if revokedUser != "u1" {
 		t.Errorf("expected revokedUser %q, got %q", "u1", revokedUser)

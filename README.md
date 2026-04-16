@@ -327,8 +327,8 @@ h := &handler.SessionHandler{
 
 // Routes (all require auth middleware)
 GET    /sessions        → h.List       // list active sessions for the current user
-DELETE /sessions/{id}   → h.Revoke     // revoke a specific session
-DELETE /sessions        → h.RevokeAll  // revoke all sessions for the current user
+DELETE /sessions/{id}   → h.Revoke     // revoke a specific session (204 No Content)
+DELETE /sessions        → h.RevokeAll  // revoke all sessions for the current user (204 No Content)
 ```
 
 Each `SessionDTO` in the list response contains `id`, `user_agent`, `ip_address`, `expires_at`, and `created_at`. The `id` can be passed to `Revoke` to force a remote sign-out.

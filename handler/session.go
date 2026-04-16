@@ -57,7 +57,7 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *SessionHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 	id := h.URLParamFunc(r, "id")
 	if id == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "invalid session ID")
+		writeError(r.Context(), w, http.StatusBadRequest, "session ID is required")
 		return
 	}
 	userID := auth.UserIDFromContext(r.Context())
@@ -81,5 +81,5 @@ func (h *SessionHandler) RevokeAll(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to revoke sessions")
 		return
 	}
-	writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "all sessions revoked"})
+	w.WriteHeader(http.StatusNoContent)
 }
