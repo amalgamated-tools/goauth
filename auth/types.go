@@ -14,9 +14,11 @@ import (
 
 // Sentinel errors.
 var (
-	ErrInvalidToken = errors.New("invalid token")
-	ErrExpiredToken = errors.New("token expired")
-	ErrEmailExists  = errors.New("email already exists")
+	ErrInvalidToken    = errors.New("invalid token")
+	ErrExpiredToken    = errors.New("token expired")
+	ErrEmailExists     = errors.New("email already exists")
+	ErrTOTPNotFound    = errors.New("TOTP not configured")
+	ErrInvalidTOTPCode = errors.New("invalid TOTP code")
 )
 
 // User represents an authenticated user. Consuming applications may embed
@@ -97,4 +99,24 @@ type PasskeyStore interface {
 	FindCredentialByIDAndUser(ctx context.Context, id, userID string) (*PasskeyCredential, error)
 	UpdateCredentialData(ctx context.Context, userID, credentialID, credentialData string) error
 	DeleteCredential(ctx context.Context, id, userID string) error
+}
+
+// TOTPSecret represents a stored TOTP secret for a user.
+type TOTPSecret struct {
+	ID        string
+	UserID    string
+	Secret    string // base32-encoded secret; applications may store it encrypted
+	CreatedAt time.Time
+}
+
+// TOTPStore defines data access for TOTP secrets.
+type TOTPStore interface {
+	// CreateTOTPSecret persists a new TOTP secret for a user, replacing any
+	// existing one.
+	CreateTOTPSecret(ctx context.Context, userID, secret string) (*TOTPSecret, error)
+	// GetTOTPSecret retrieves the active TOTP secret for a user.
+	// Returns ErrTOTPNotFound (or sql.ErrNoRows) when none exists.
+	GetTOTPSecret(ctx context.Context, userID string) (*TOTPSecret, error)
+	// DeleteTOTPSecret removes the TOTP secret for a user.
+	DeleteTOTPSecret(ctx context.Context, userID string) error
 }
