@@ -487,58 +487,58 @@ func TestChangePasswordWeakNewPassword(t *testing.T) {
 }
 
 func TestUpdateProfileStoreError(t *testing.T) {
-store := &mockUserStore{
-updateNameFunc: func(_ context.Context, _, _ string) (*auth.User, error) {
-return nil, errors.New("db error")
-},
-}
-req := httptest.NewRequest(http.MethodPut, "/profile", strings.NewReader(`{"name":"Bob"}`))
-req.Header.Set("Content-Type", "application/json")
-req = withUserID(req, "u1")
-w := httptest.NewRecorder()
-newAuthHandler(store).UpdateProfile(w, req)
+	store := &mockUserStore{
+		updateNameFunc: func(_ context.Context, _, _ string) (*auth.User, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	req := httptest.NewRequest(http.MethodPut, "/profile", strings.NewReader(`{"name":"Bob"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = withUserID(req, "u1")
+	w := httptest.NewRecorder()
+	newAuthHandler(store).UpdateProfile(w, req)
 
-if w.Code != http.StatusInternalServerError {
-t.Errorf("expected 500, got %d", w.Code)
-}
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
 }
 
 func TestChangePasswordStoreError(t *testing.T) {
-oldHash := hashPassword(t, "oldpassword123")
-store := &mockUserStore{
-findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return &auth.User{ID: "u1", PasswordHash: oldHash}, nil
-},
-updatePasswordFunc: func(_ context.Context, _, _ string) error {
-return errors.New("db error")
-},
-}
-body := `{"currentPassword":"oldpassword123","newPassword":"newpassword456"}`
-req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
-req.Header.Set("Content-Type", "application/json")
-req = withUserID(req, "u1")
-w := httptest.NewRecorder()
-newAuthHandler(store).ChangePassword(w, req)
+	oldHash := hashPassword(t, "oldpassword123")
+	store := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return &auth.User{ID: "u1", PasswordHash: oldHash}, nil
+		},
+		updatePasswordFunc: func(_ context.Context, _, _ string) error {
+			return errors.New("db error")
+		},
+	}
+	body := `{"currentPassword":"oldpassword123","newPassword":"newpassword456"}`
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = withUserID(req, "u1")
+	w := httptest.NewRecorder()
+	newAuthHandler(store).ChangePassword(w, req)
 
-if w.Code != http.StatusInternalServerError {
-t.Errorf("expected 500, got %d", w.Code)
-}
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
 }
 
 func TestChangePasswordFindUserError(t *testing.T) {
-store := &mockUserStore{
-findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return nil, errors.New("db error")
-},
-}
-body := `{"currentPassword":"oldpassword123","newPassword":"newpassword456"}`
-req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
-req.Header.Set("Content-Type", "application/json")
-req = withUserID(req, "u1")
-w := httptest.NewRecorder()
-newAuthHandler(store).ChangePassword(w, req)
+	store := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	body := `{"currentPassword":"oldpassword123","newPassword":"newpassword456"}`
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = withUserID(req, "u1")
+	w := httptest.NewRecorder()
+	newAuthHandler(store).ChangePassword(w, req)
 
-if w.Code != http.StatusInternalServerError {
-t.Errorf("expected 500, got %d", w.Code)
-}
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
 }

@@ -179,68 +179,68 @@ func TestCreateLinkNonceCleansUpExpiredEntries(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestFindOrCreateUserByOIDCSubject(t *testing.T) {
-existing := &auth.User{ID: "u1", Email: "a@b.com"}
-store := &mockUserStore{
-findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return existing, nil
-},
-}
-h := newTestOIDCHandler()
-h.Users = store
+	existing := &auth.User{ID: "u1", Email: "a@b.com"}
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return existing, nil
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
 
-user, err := h.findOrCreateUser(context.Background(), "sub1", "a@b.com", "Alice")
-if err != nil {
-t.Fatalf("unexpected error: %v", err)
-}
-if user.ID != "u1" {
-t.Errorf("expected u1, got %q", user.ID)
-}
+	user, err := h.findOrCreateUser(context.Background(), "sub1", "a@b.com", "Alice")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if user.ID != "u1" {
+		t.Errorf("expected u1, got %q", user.ID)
+	}
 }
 
 func TestFindOrCreateUserByEmail(t *testing.T) {
-existing := &auth.User{ID: "u2", Email: "b@c.com"}
-store := &mockUserStore{
-findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return nil, sql.ErrNoRows
-},
-findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return existing, nil
-},
-}
-h := newTestOIDCHandler()
-h.Users = store
+	existing := &auth.User{ID: "u2", Email: "b@c.com"}
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, sql.ErrNoRows
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return existing, nil
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
 
-user, err := h.findOrCreateUser(context.Background(), "sub2", "b@c.com", "Bob")
-if err != nil {
-t.Fatalf("unexpected error: %v", err)
-}
-if user.ID != "u2" {
-t.Errorf("expected u2, got %q", user.ID)
-}
+	user, err := h.findOrCreateUser(context.Background(), "sub2", "b@c.com", "Bob")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if user.ID != "u2" {
+		t.Errorf("expected u2, got %q", user.ID)
+	}
 }
 
 func TestFindOrCreateUserCreatesNew(t *testing.T) {
-store := &mockUserStore{
-findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return nil, sql.ErrNoRows
-},
-findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return nil, sql.ErrNoRows
-},
-createOIDCUserFunc: func(_ context.Context, name, email, sub string) (*auth.User, error) {
-return &auth.User{ID: "new-u", Name: name, Email: email}, nil
-},
-}
-h := newTestOIDCHandler()
-h.Users = store
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, sql.ErrNoRows
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, sql.ErrNoRows
+		},
+		createOIDCUserFunc: func(_ context.Context, name, email, sub string) (*auth.User, error) {
+			return &auth.User{ID: "new-u", Name: name, Email: email}, nil
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
 
-user, err := h.findOrCreateUser(context.Background(), "sub-new", "new@example.com", "New User")
-if err != nil {
-t.Fatalf("unexpected error: %v", err)
-}
-if user.ID != "new-u" {
-t.Errorf("expected new-u, got %q", user.ID)
-}
+	user, err := h.findOrCreateUser(context.Background(), "sub-new", "new@example.com", "New User")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if user.ID != "new-u" {
+		t.Errorf("expected new-u, got %q", user.ID)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -248,70 +248,70 @@ t.Errorf("expected new-u, got %q", user.ID)
 // ---------------------------------------------------------------------------
 
 func TestHandleLinkCallbackSuccess(t *testing.T) {
-store := &mockUserStore{
-findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
-return &auth.User{ID: id, OIDCSubject: nil}, nil
-},
-findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return nil, sql.ErrNoRows
-},
-}
-h := newTestOIDCHandler()
-h.Users = store
+	store := &mockUserStore{
+		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
+			return &auth.User{ID: id, OIDCSubject: nil}, nil
+		},
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, sql.ErrNoRows
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-w := httptest.NewRecorder()
-h.handleLinkCallback(w, req, "user-1", "oidc-sub")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	h.handleLinkCallback(w, req, "user-1", "oidc-sub")
 
-if w.Code != http.StatusFound {
-t.Errorf("expected redirect 302, got %d", w.Code)
-}
-if loc := w.Header().Get("Location"); loc != "/?oidc_linked=true" {
-t.Errorf("expected redirect to /?oidc_linked=true, got %q", loc)
-}
+	if w.Code != http.StatusFound {
+		t.Errorf("expected redirect 302, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/?oidc_linked=true" {
+		t.Errorf("expected redirect to /?oidc_linked=true, got %q", loc)
+	}
 }
 
 func TestHandleLinkCallbackUserNotFound(t *testing.T) {
-store := &mockUserStore{
-findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return nil, sql.ErrNoRows
-},
-}
-h := newTestOIDCHandler()
-h.Users = store
+	store := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, sql.ErrNoRows
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-w := httptest.NewRecorder()
-h.handleLinkCallback(w, req, "missing-user", "oidc-sub")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	h.handleLinkCallback(w, req, "missing-user", "oidc-sub")
 
-if w.Code != http.StatusFound {
-t.Errorf("expected redirect, got %d", w.Code)
-}
-loc := w.Header().Get("Location")
-if loc == "/?oidc_linked=true" {
-t.Error("expected error redirect, not success")
-}
+	if w.Code != http.StatusFound {
+		t.Errorf("expected redirect, got %d", w.Code)
+	}
+	loc := w.Header().Get("Location")
+	if loc == "/?oidc_linked=true" {
+		t.Error("expected error redirect, not success")
+	}
 }
 
 func TestHandleLinkCallbackAlreadyLinked(t *testing.T) {
-sub := "existing-sub"
-store := &mockUserStore{
-findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
-return &auth.User{ID: id, OIDCSubject: &sub}, nil
-},
-}
-h := newTestOIDCHandler()
-h.Users = store
+	sub := "existing-sub"
+	store := &mockUserStore{
+		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
+			return &auth.User{ID: id, OIDCSubject: &sub}, nil
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-w := httptest.NewRecorder()
-h.handleLinkCallback(w, req, "user-1", "other-sub")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	h.handleLinkCallback(w, req, "user-1", "other-sub")
 
-if w.Code != http.StatusFound {
-t.Errorf("expected redirect, got %d", w.Code)
-}
-loc := w.Header().Get("Location")
-if loc == "/?oidc_linked=true" {
-t.Error("expected error redirect for already-linked account")
-}
+	if w.Code != http.StatusFound {
+		t.Errorf("expected redirect, got %d", w.Code)
+	}
+	loc := w.Header().Get("Location")
+	if loc == "/?oidc_linked=true" {
+		t.Error("expected error redirect for already-linked account")
+	}
 }

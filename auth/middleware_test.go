@@ -466,92 +466,92 @@ func TestCachingAdminCheckerExpiry(t *testing.T) {
 }
 
 func TestResolveUserAPIKeyStoreError(t *testing.T) {
-ctx := context.Background()
-mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-store := &mockAPIKeyStore{
-validateFunc: func(_ context.Context, _ string) (string, string, error) {
-return "", "", errors.New("db connection error")
-},
-}
+	store := &mockAPIKeyStore{
+		validateFunc: func(_ context.Context, _ string) (string, string, error) {
+			return "", "", errors.New("db connection error")
+		},
+	}
 
-_, err := resolveUser(ctx, "app_somekey", tokenSourceHeader, mgr, store, "app_")
-if err == nil {
-t.Error("expected error from store")
-}
-if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
-t.Error("store error should not be wrapped as ErrInvalidToken/ErrExpiredToken")
-}
+	_, err := resolveUser(ctx, "app_somekey", tokenSourceHeader, mgr, store, "app_")
+	if err == nil {
+		t.Error("expected error from store")
+	}
+	if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
+		t.Error("store error should not be wrapped as ErrInvalidToken/ErrExpiredToken")
+	}
 }
 
 func TestMiddlewareInternalError(t *testing.T) {
-// A store error in resolveUser that is not ErrInvalidToken should return 500.
-mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	// A store error in resolveUser that is not ErrInvalidToken should return 500.
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-store := &mockAPIKeyStore{
-validateFunc: func(_ context.Context, _ string) (string, string, error) {
-return "", "", errors.New("db error")
-},
-}
+	store := &mockAPIKeyStore{
+		validateFunc: func(_ context.Context, _ string) (string, string, error) {
+			return "", "", errors.New("db error")
+		},
+	}
 
-handler := Middleware(mgr, Config{CookieName: "auth", APIKeyPrefix: "app_"}, store)(
-http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-w.WriteHeader(http.StatusOK)
-}),
-)
+	handler := Middleware(mgr, Config{CookieName: "auth", APIKeyPrefix: "app_"}, store)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-req.Header.Set("Authorization", "Bearer app_somevalidhexkey")
-w := httptest.NewRecorder()
-handler.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer app_somevalidhexkey")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
 
-if w.Code != http.StatusInternalServerError {
-t.Errorf("expected 500, got %d", w.Code)
-}
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
 }
 
 func TestAdminMiddlewareInvalidToken(t *testing.T) {
-mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-checker := &mockAdminChecker{}
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	checker := &mockAdminChecker{}
 
-handler := AdminMiddleware(mgr, checker, Config{CookieName: "auth"}, nil)(
-http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-w.WriteHeader(http.StatusOK)
-}),
-)
+	handler := AdminMiddleware(mgr, checker, Config{CookieName: "auth"}, nil)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-req.Header.Set("Authorization", "Bearer not-a-jwt")
-w := httptest.NewRecorder()
-handler.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer not-a-jwt")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
 
-if w.Code != http.StatusUnauthorized {
-t.Errorf("expected 401, got %d", w.Code)
-}
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
 }
 
 func TestAdminMiddlewareInternalError(t *testing.T) {
-mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-store := &mockAPIKeyStore{
-validateFunc: func(_ context.Context, _ string) (string, string, error) {
-return "", "", errors.New("db error")
-},
-}
-checker := &mockAdminChecker{}
+	store := &mockAPIKeyStore{
+		validateFunc: func(_ context.Context, _ string) (string, string, error) {
+			return "", "", errors.New("db error")
+		},
+	}
+	checker := &mockAdminChecker{}
 
-handler := AdminMiddleware(mgr, checker, Config{CookieName: "auth", APIKeyPrefix: "app_"}, store)(
-http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-w.WriteHeader(http.StatusOK)
-}),
-)
+	handler := AdminMiddleware(mgr, checker, Config{CookieName: "auth", APIKeyPrefix: "app_"}, store)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-req.Header.Set("Authorization", "Bearer app_anykeyhere")
-w := httptest.NewRecorder()
-handler.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer app_anykeyhere")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
 
-if w.Code != http.StatusInternalServerError {
-t.Errorf("expected 500, got %d", w.Code)
-}
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
 }

@@ -18,15 +18,15 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockPasskeyStore struct {
-	createChallengeFunc          func(ctx context.Context, userID *string, sessionData string, expiresAt time.Time) (*auth.PasskeyChallenge, error)
-	getAndDeleteChallengeFunc    func(ctx context.Context, id string) (*auth.PasskeyChallenge, error)
-	deleteExpiredChallengesFunc  func(ctx context.Context) error
-	createCredentialFunc         func(ctx context.Context, userID, name, credentialID, credentialData, aaguid string) (*auth.PasskeyCredential, error)
-	listCredentialsByUserFunc    func(ctx context.Context, userID string) ([]auth.PasskeyCredential, error)
-	findCredentialByCredIDFunc   func(ctx context.Context, credentialID string) (*auth.PasskeyCredential, error)
-	findCredentialByIDAndUser    func(ctx context.Context, id, userID string) (*auth.PasskeyCredential, error)
-	updateCredentialDataFunc     func(ctx context.Context, userID, credentialID, credentialData string) error
-	deleteCredentialFunc         func(ctx context.Context, id, userID string) error
+	createChallengeFunc         func(ctx context.Context, userID *string, sessionData string, expiresAt time.Time) (*auth.PasskeyChallenge, error)
+	getAndDeleteChallengeFunc   func(ctx context.Context, id string) (*auth.PasskeyChallenge, error)
+	deleteExpiredChallengesFunc func(ctx context.Context) error
+	createCredentialFunc        func(ctx context.Context, userID, name, credentialID, credentialData, aaguid string) (*auth.PasskeyCredential, error)
+	listCredentialsByUserFunc   func(ctx context.Context, userID string) ([]auth.PasskeyCredential, error)
+	findCredentialByCredIDFunc  func(ctx context.Context, credentialID string) (*auth.PasskeyCredential, error)
+	findCredentialByIDAndUser   func(ctx context.Context, id, userID string) (*auth.PasskeyCredential, error)
+	updateCredentialDataFunc    func(ctx context.Context, userID, credentialID, credentialData string) error
+	deleteCredentialFunc        func(ctx context.Context, id, userID string) error
 }
 
 func (m *mockPasskeyStore) CreateChallenge(ctx context.Context, userID *string, sessionData string, expiresAt time.Time) (*auth.PasskeyChallenge, error) {
@@ -87,11 +87,11 @@ func (m *mockPasskeyStore) DeleteCredential(ctx context.Context, id, userID stri
 // newPasskeyHandler returns a PasskeyHandler with nil WebAuthn (not configured).
 func newPasskeyHandler(passkeys auth.PasskeyStore, users auth.UserStore) *PasskeyHandler {
 	return &PasskeyHandler{
-		Users:    users,
-		Passkeys: passkeys,
-		WebAuthn: nil, // not configured
-		JWT:      newTestJWT(),
-		CookieName:   "auth",
+		Users:      users,
+		Passkeys:   passkeys,
+		WebAuthn:   nil, // not configured
+		JWT:        newTestJWT(),
+		CookieName: "auth",
 		URLParamFunc: func(r *http.Request, key string) string {
 			return r.URL.Query().Get(key)
 		},
@@ -318,16 +318,4 @@ func TestLoadWebAuthnCredentialsSkipsCorrupted(t *testing.T) {
 	}
 }
 
-func TestPasskeyFinishRegistrationMissingSessionID(t *testing.T) {
-h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
-// WebAuthn is nil so 503, but let's test the session_id check separately by
-// temporarily setting WebAuthn to a non-nil value isn't feasible without
-// a real WebAuthn config. Instead, confirm 503 path (already covered above)
-// and leave the internal session_id validation covered by integration.
-_ = h
-}
 
-func TestPasskeyFinishAuthenticationMissingSessionID(t *testing.T) {
-h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
-_ = h
-}
