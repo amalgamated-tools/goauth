@@ -49,7 +49,9 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	_ = h.MagicLinks.DeleteExpiredMagicLinks(r.Context())
+	if err := h.MagicLinks.DeleteExpiredMagicLinks(r.Context()); err != nil {
+		slog.ErrorContext(r.Context(), "failed to delete expired magic links", slog.Any("error", err))
+	}
 
 	token, err := auth.GenerateRandomBase64(32)
 	if err != nil {

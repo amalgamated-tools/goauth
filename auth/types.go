@@ -14,10 +14,9 @@ import (
 
 // Sentinel errors.
 var (
-	ErrInvalidToken     = errors.New("invalid token")
-	ErrExpiredToken     = errors.New("token expired")
-	ErrEmailExists      = errors.New("email already exists")
-	ErrInvalidMagicLink = errors.New("invalid or expired magic link")
+	ErrInvalidToken = errors.New("invalid token")
+	ErrExpiredToken = errors.New("token expired")
+	ErrEmailExists  = errors.New("email already exists")
 )
 
 // User represents an authenticated user. Consuming applications may embed
