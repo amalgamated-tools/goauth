@@ -34,6 +34,15 @@ func GenerateRandomHex(n int) (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+// GenerateRandomBase64 generates n random bytes and returns them as URL-safe base64.
+func GenerateRandomBase64(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate random bytes: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
 // MustGenerateDummyBcryptHash generates a bcrypt hash for timing-safe comparisons
 // when a user is not found.
 func MustGenerateDummyBcryptHash(secret string) []byte {
