@@ -14,9 +14,10 @@ import (
 
 // Sentinel errors.
 var (
-	ErrInvalidToken = errors.New("invalid token")
-	ErrExpiredToken = errors.New("token expired")
-	ErrEmailExists  = errors.New("email already exists")
+	ErrInvalidToken     = errors.New("invalid token")
+	ErrExpiredToken     = errors.New("token expired")
+	ErrEmailExists      = errors.New("email already exists")
+	ErrInvalidMagicLink = errors.New("invalid or expired magic link")
 )
 
 // User represents an authenticated user. Consuming applications may embed
@@ -97,4 +98,24 @@ type PasskeyStore interface {
 	FindCredentialByIDAndUser(ctx context.Context, id, userID string) (*PasskeyCredential, error)
 	UpdateCredentialData(ctx context.Context, userID, credentialID, credentialData string) error
 	DeleteCredential(ctx context.Context, id, userID string) error
+}
+
+// MagicLink represents a one-time email login token.
+type MagicLink struct {
+	ID        string
+	Email     string
+	TokenHash string
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+// MagicLinkStore defines data access for magic link (passwordless) operations.
+type MagicLinkStore interface {
+	// CreateMagicLink stores a new one-time login token for the given email.
+	CreateMagicLink(ctx context.Context, email, tokenHash string, expiresAt time.Time) (*MagicLink, error)
+	// FindAndDeleteMagicLink atomically retrieves and removes the record
+	// matching tokenHash. It returns sql.ErrNoRows when not found.
+	FindAndDeleteMagicLink(ctx context.Context, tokenHash string) (*MagicLink, error)
+	// DeleteExpiredMagicLinks removes all records whose ExpiresAt is in the past.
+	DeleteExpiredMagicLinks(ctx context.Context) error
 }

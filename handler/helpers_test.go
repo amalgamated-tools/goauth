@@ -136,6 +136,31 @@ func (m *mockAPIKeyStore) DeleteAPIKey(ctx context.Context, id, userID string) e
 	return nil
 }
 
+type mockMagicLinkStore struct {
+	createFunc        func(ctx context.Context, email, tokenHash string, expiresAt time.Time) (*auth.MagicLink, error)
+	findAndDeleteFunc func(ctx context.Context, tokenHash string) (*auth.MagicLink, error)
+	deleteExpiredFunc func(ctx context.Context) error
+}
+
+func (m *mockMagicLinkStore) CreateMagicLink(ctx context.Context, email, tokenHash string, expiresAt time.Time) (*auth.MagicLink, error) {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, email, tokenHash, expiresAt)
+	}
+	return &auth.MagicLink{ID: "ml-id", Email: email, TokenHash: tokenHash, ExpiresAt: expiresAt}, nil
+}
+func (m *mockMagicLinkStore) FindAndDeleteMagicLink(ctx context.Context, tokenHash string) (*auth.MagicLink, error) {
+	if m.findAndDeleteFunc != nil {
+		return m.findAndDeleteFunc(ctx, tokenHash)
+	}
+	return nil, nil
+}
+func (m *mockMagicLinkStore) DeleteExpiredMagicLinks(ctx context.Context) error {
+	if m.deleteExpiredFunc != nil {
+		return m.deleteExpiredFunc(ctx)
+	}
+	return nil
+}
+
 // newTestJWT creates a JWTManager for handler tests.
 func newTestJWT() *auth.JWTManager {
 	mgr, _ := auth.NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "test")
