@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 )
 
 // writeJSON sends a JSON response with the given status code.
@@ -21,7 +20,7 @@ func writeJSON(ctx context.Context, w http.ResponseWriter, status int, data any)
 }
 
 // writeError sends a JSON error response.
-func writeError(ctx context.Context, w http.ResponseWriter, status int, message string) {
+func writeError(_ context.Context, w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
@@ -52,14 +51,6 @@ func validatePassword(ctx context.Context, w http.ResponseWriter, password strin
 		return false
 	}
 	return true
-}
-
-func redactEmail(email string) string {
-	at := strings.Index(email, "@")
-	if at <= 1 {
-		return "***"
-	}
-	return email[:1] + "***" + email[at:]
 }
 
 // SetAuthCookie sets an HttpOnly auth cookie.
