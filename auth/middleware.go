@@ -21,6 +21,11 @@ type Config struct {
 	// APIKeyPrefix is the string prefix for API keys (e.g. "bib_", "sch_").
 	// If empty, API key authentication is disabled in the middleware.
 	APIKeyPrefix string
+
+	// Sessions is an optional SessionStore. When set, the middleware validates
+	// the JWT jti claim against the store, enabling server-side session
+	// revocation. API key requests bypass session checks.
+	Sessions SessionStore
 }
 
 type contextKey string
@@ -103,31 +108,32 @@ func shouldTouchAPIKeyLastUsed(id string, now time.Time) bool {
 // resolveUser determines the user ID from the given token. If the token starts
 // with the API key prefix and came from the Authorization header, it's validated
 // as an API key. Otherwise it's validated as a JWT.
-func resolveUser(ctx context.Context, token string, source tokenSource, jwtMgr *JWTManager, apiKeys APIKeyStore, apiKeyPrefix string) (string, error) {
+// Returns (userID, sessionID, error). sessionID is empty for API key requests.
+func resolveUser(ctx context.Context, token string, source tokenSource, jwtMgr *JWTManager, apiKeys APIKeyStore, apiKeyPrefix string) (string, string, error) {
 	if apiKeys != nil && apiKeyPrefix != "" && strings.HasPrefix(token, apiKeyPrefix) {
 		if source != tokenSourceHeader {
-			return "", ErrInvalidToken
+			return "", "", ErrInvalidToken
 		}
 		keyHash := HashHighEntropyToken(token)
 		uid, keyID, err := apiKeys.ValidateAPIKey(ctx, keyHash)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return "", ErrInvalidToken
+				return "", "", ErrInvalidToken
 			}
-			return "", err
+			return "", "", err
 		}
 		if shouldTouchAPIKeyLastUsed(keyID, time.Now()) {
 			if err := apiKeys.TouchAPIKeyLastUsed(ctx, keyID); err != nil {
 				slog.WarnContext(ctx, "failed to touch API key last_used_at", slog.Any("error", err))
 			}
 		}
-		return uid, nil
+		return uid, "", nil
 	}
 	claims, err := jwtMgr.ValidateToken(ctx, token)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return claims.UserID, nil
+	return claims.UserID, claims.ID, nil
 }
 
 // Middleware returns HTTP middleware that validates JWTs and API keys.
@@ -143,7 +149,7 @@ func Middleware(jwtMgr *JWTManager, cfg Config, apiKeys APIKeyStore) func(http.H
 				return
 			}
 
-			userID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
+			userID, sessionID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
 			if err != nil {
 				if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
 					jsonError(w, http.StatusUnauthorized, "invalid or expired token")
@@ -152,6 +158,14 @@ func Middleware(jwtMgr *JWTManager, cfg Config, apiKeys APIKeyStore) func(http.H
 					jsonError(w, http.StatusInternalServerError, "internal server error")
 				}
 				return
+			}
+
+			if cfg.Sessions != nil && sessionID != "" {
+				sess, serr := cfg.Sessions.FindSessionByID(r.Context(), sessionID)
+				if serr != nil || sess == nil || time.Now().After(sess.ExpiresAt) {
+					jsonError(w, http.StatusUnauthorized, "session expired or revoked")
+					return
+				}
 			}
 
 			ctx := context.WithValue(r.Context(), userIDKey, userID)
@@ -226,7 +240,7 @@ func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKe
 				return
 			}
 
-			userID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
+			userID, sessionID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
 			if err != nil {
 				if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
 					jsonError(w, http.StatusUnauthorized, "invalid or expired token")
@@ -234,6 +248,14 @@ func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKe
 					jsonError(w, http.StatusInternalServerError, "internal authentication error")
 				}
 				return
+			}
+
+			if cfg.Sessions != nil && sessionID != "" {
+				sess, serr := cfg.Sessions.FindSessionByID(r.Context(), sessionID)
+				if serr != nil || sess == nil || time.Now().After(sess.ExpiresAt) {
+					jsonError(w, http.StatusUnauthorized, "session expired or revoked")
+					return
+				}
 			}
 
 			isAdmin, err := cachedChecker.IsAdmin(r.Context(), userID)
