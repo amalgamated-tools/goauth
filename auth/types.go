@@ -19,6 +19,15 @@ var (
 	ErrEmailExists  = errors.New("email already exists")
 )
 
+// PasswordResetToken represents a pending email-based password reset request.
+type PasswordResetToken struct {
+	ID        string
+	UserID    string
+	TokenHash string
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
 // User represents an authenticated user. Consuming applications may embed
 // this in a larger struct to add app-specific fields.
 type User struct {
@@ -97,4 +106,17 @@ type PasskeyStore interface {
 	FindCredentialByIDAndUser(ctx context.Context, id, userID string) (*PasskeyCredential, error)
 	UpdateCredentialData(ctx context.Context, userID, credentialID, credentialData string) error
 	DeleteCredential(ctx context.Context, id, userID string) error
+}
+
+// PasswordResetStore defines data access for email-based password reset token operations.
+type PasswordResetStore interface {
+	// CreatePasswordResetToken stores a hashed reset token for userID, expiring at expiresAt.
+	CreatePasswordResetToken(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*PasswordResetToken, error)
+	// FindPasswordResetToken retrieves a token record by its hash.
+	// Returns ErrInvalidToken if no matching record exists.
+	FindPasswordResetToken(ctx context.Context, tokenHash string) (*PasswordResetToken, error)
+	// DeletePasswordResetToken removes a token record by ID, consuming it after use.
+	DeletePasswordResetToken(ctx context.Context, id string) error
+	// DeleteExpiredPasswordResetTokens removes all expired token records.
+	DeleteExpiredPasswordResetTokens(ctx context.Context) error
 }
