@@ -146,3 +146,73 @@ func TestTokenHasCorrectClaims(t *testing.T) {
 	require.NotNil(t, claims.ExpiresAt)
 	require.NotNil(t, claims.IssuedAt)
 }
+
+func TestCreateTokenWithSession(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+
+	tok, err := mgr.CreateTokenWithSession(ctx, "user-xyz", "sess-001")
+	require.NoError(t, err)
+
+	claims, err := mgr.ValidateToken(ctx, tok)
+	require.NoError(t, err)
+	require.Equal(t, "user-xyz", claims.UserID)
+	require.Equal(t, "sess-001", claims.ID)
+}
+
+func TestCreateTokenWithSessionEmptySessionID(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+
+	tok, err := mgr.CreateTokenWithSession(ctx, "user-xyz", "")
+	require.NoError(t, err)
+	claims, err := mgr.ValidateToken(ctx, tok)
+	require.NoError(t, err)
+	require.Empty(t, claims.ID)
+}
+
+func TestParseTokenClaimsValid(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+
+	tok, _ := mgr.CreateTokenWithSession(ctx, "user-parse", "sess-parse")
+	claims, err := mgr.ParseTokenClaims(tok)
+	require.NoError(t, err)
+	require.Equal(t, "user-parse", claims.UserID)
+	require.Equal(t, "sess-parse", claims.ID)
+}
+
+func TestParseTokenClaimsIgnoresExpiry(t *testing.T) {
+	ctx := context.Background()
+	// Negative TTL produces a token that is immediately expired.
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", -time.Hour, "testapp")
+
+	tok, _ := mgr.CreateTokenWithSession(ctx, "user-exp", "sess-exp")
+
+	// ValidateToken should reject it.
+	_, err := mgr.ValidateToken(ctx, tok)
+	require.ErrorIs(t, err, ErrExpiredToken)
+
+	// ParseTokenClaims should still succeed (ignores expiry).
+	claims, err := mgr.ParseTokenClaims(tok)
+	require.NoError(t, err)
+	require.Equal(t, "user-exp", claims.UserID)
+	require.Equal(t, "sess-exp", claims.ID)
+}
+
+func TestParseTokenClaimsInvalidToken(t *testing.T) {
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+
+	_, err := mgr.ParseTokenClaims("this.is.not.a.jwt")
+	require.ErrorIs(t, err, ErrInvalidToken)
+}
+
+func TestParseTokenClaimsWrongSignature(t *testing.T) {
+	ctx := context.Background()
+	mgr1, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	mgr2, _ := NewJWTManager("other-secret-32-bytes-long-here!", time.Hour, "testapp")
+
+	tok, _ := mgr1.CreateToken(ctx, "user-sig")
+	_, err := mgr2.ParseTokenClaims(tok)
+	require.ErrorIs(t, err, ErrInvalidToken)
+}

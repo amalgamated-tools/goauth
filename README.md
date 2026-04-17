@@ -22,23 +22,31 @@ Requires Go 1.21+.
 
 ```go
 // 1. Implement the store interfaces against your database (see "Store interfaces" below).
-var userStore auth.UserStore     // your implementation
-var apiKeyStore auth.APIKeyStore // your implementation
+var userStore    auth.UserStore     // your implementation
+var apiKeyStore  auth.APIKeyStore   // your implementation
+var sessionStore auth.SessionStore  // your implementation (optional)
 
-// 2. Create a JWT manager.
-jwtMgr, err := auth.NewJWTManager("your-secret-at-least-32-bytes-long", 24*time.Hour, "myapp")
+// 2. Create a JWT manager (use a short TTL when refresh tokens are enabled).
+jwtMgr, err := auth.NewJWTManager("your-secret-at-least-32-bytes-long", 15*time.Minute, "myapp")
 
 // 3. Wire up handlers.
 authHandler := &handler.AuthHandler{
-    Users:         userStore,
-    JWT:           jwtMgr,
-    CookieName:    "session",
-    SecureCookies: true,
+    Users:             userStore,
+    JWT:               jwtMgr,
+    CookieName:        "session",
+    SecureCookies:     true,
+    Sessions:          sessionStore,      // enables server-side sessions + refresh tokens
+    RefreshTokenTTL:   7 * 24 * time.Hour,
+    RefreshCookieName: "refresh",         // optional: deliver refresh token via cookie
 }
 apiKeyHandler := &handler.APIKeyHandler{
     APIKeys:      apiKeyStore,
     Prefix:       "myapp_",
     URLParamFunc: chi.URLParam, // or any router's param extractor
+}
+sessionHandler := &handler.SessionHandler{
+    Sessions:     sessionStore,
+    URLParamFunc: chi.URLParam,
 }
 
 // 4. Mount routes (example with chi).
@@ -46,8 +54,9 @@ r := chi.NewRouter()
 r.Post("/auth/signup",   authHandler.Signup)
 r.Post("/auth/login",    authHandler.Login)
 r.Post("/auth/logout",   authHandler.Logout)
+r.Post("/auth/refresh",  authHandler.RefreshToken)
 
-cfg := auth.Config{CookieName: "session", APIKeyPrefix: "myapp_"}
+cfg := auth.Config{CookieName: "session", APIKeyPrefix: "myapp_", Sessions: sessionStore}
 r.Group(func(r chi.Router) {
     r.Use(auth.Middleware(jwtMgr, cfg, apiKeyStore))
     r.Get("/auth/me",    authHandler.Me)
@@ -57,6 +66,10 @@ r.Group(func(r chi.Router) {
     r.Get("/api-keys",         apiKeyHandler.List)
     r.Post("/api-keys",        apiKeyHandler.Create)
     r.Delete("/api-keys/{id}", apiKeyHandler.Delete)
+
+    r.Get("/sessions",        sessionHandler.List)
+    r.Delete("/sessions",     sessionHandler.RevokeAll)
+    r.Delete("/sessions/{id}", sessionHandler.Revoke)
 })
 ```
 
@@ -89,6 +102,7 @@ Sentinel errors: `auth.ErrInvalidToken`, `auth.ErrExpiredToken`.
 cfg := auth.Config{
     CookieName:   "session",  // HttpOnly cookie name
     APIKeyPrefix: "myapp_",   // set to enable API key auth; omit to disable
+    Sessions:     sessionStore, // optional; enables server-side session revocation
 }
 
 // Require authenticated user on a route group.
@@ -102,6 +116,8 @@ userID := auth.UserIDFromContext(r.Context())
 ```
 
 Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header. Admin status is checked via the `UserStore.IsAdmin` method and cached for 5 seconds per user.
+
+When `Sessions` is set the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. API key requests bypass the session check.
 
 ### RateLimiter
 
@@ -148,7 +164,7 @@ plaintext, err  := enc.Decrypt(ciphertext)
 
 ### Store interfaces
 
-The library defines three interfaces that consuming applications implement against their own database.
+The library defines four interfaces that consuming applications implement against their own database.
 
 #### UserStore
 
@@ -185,6 +201,23 @@ type APIKeyStore interface {
 
 `ValidateAPIKey` is given the SHA-256 hex hash of the raw key. Store only the hash — never the plaintext key.
 
+#### SessionStore
+
+```go
+type SessionStore interface {
+    CreateSession(ctx, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error)
+    FindSessionByID(ctx, id string) (*Session, error)
+    FindSessionByRefreshTokenHash(ctx, hash string) (*Session, error)
+    ListSessionsByUser(ctx, userID string) ([]Session, error)
+    DeleteSession(ctx, id, userID string) error
+    DeleteAllSessionsByUser(ctx, userID string) error
+    DeleteExpiredSessions(ctx) error
+}
+```
+
+Each session is bound to one refresh token hash. Only the SHA-256 hash of the refresh token is persisted.  
+Return `database/sql.ErrNoRows` from `FindSessionByID`, `FindSessionByRefreshTokenHash`, and `DeleteSession` when the record is not found.
+
 #### PasskeyStore
 
 ```go
@@ -213,23 +246,37 @@ All handlers use `net/http` only and are compatible with any router. Router-spec
 
 ```go
 h := &handler.AuthHandler{
-    Users:         userStore,
-    JWT:           jwtMgr,
-    CookieName:    "session",
-    SecureCookies: true,
-    DisableSignup: false, // set true to prevent self-registration
+    Users:             userStore,
+    JWT:               jwtMgr,
+    CookieName:        "session",
+    SecureCookies:     true,
+    DisableSignup:     false,    // set true to prevent self-registration
+    Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
+    RefreshTokenTTL:   7 * 24 * time.Hour, // defaults to 7 days when Sessions is set
+    RefreshCookieName: "refresh",  // optional; stores refresh token in an HttpOnly cookie
 }
 
 // Routes
-POST   /auth/signup          → h.Signup         // creates account, returns token + user
-POST   /auth/login           → h.Login          // returns token + user
-POST   /auth/logout          → h.Logout         // clears cookie
+POST   /auth/signup          → h.Signup         // creates account, returns token + user (+ refresh_token when Sessions set)
+POST   /auth/login           → h.Login          // returns token + user (+ refresh_token when Sessions set)
+POST   /auth/logout          → h.Logout         // clears cookie; revokes session when Sessions set
+POST   /auth/refresh         → h.RefreshToken   // rotate refresh token → new access + refresh token (requires Sessions)
 GET    /auth/me              → h.Me             // current user profile (requires auth)
 PUT    /auth/me              → h.UpdateProfile  // update display name (requires auth)
 POST   /auth/password        → h.ChangePassword // change password (requires auth)
 ```
 
 Password constraints: 8–72 bytes. Bcrypt cost 12.
+
+#### Session tracking and refresh token rotation
+
+When `Sessions` is set on `AuthHandler`:
+
+- `Signup` and `Login` create a server-side session, embed the session ID as the JWT `jti` claim, and return a `refresh_token` alongside the short-lived access token.
+- `Logout` revokes the current session by parsing the session ID from the access token (even if expired).
+- `RefreshToken` validates the refresh token, atomically revokes the old session, creates a new session, and returns a fresh access token and a new refresh token (rotation). The consumed token is never reusable.
+- Setting `RefreshCookieName` causes the refresh token to also be delivered and expected via an HttpOnly cookie, in addition to the response body.
+- Pass `auth.Config{Sessions: sessionStore}` to `Middleware` so that revoked sessions are rejected on every request.
 
 ### OIDCHandler – SSO / OpenID Connect
 
@@ -269,6 +316,22 @@ DELETE /api-keys/{id}   → h.Delete
 ```
 
 Keys are 160-bit random values prefixed with the configured string. Only the SHA-256 hash is persisted. The raw key is returned in the `key` field of the creation response only.
+
+### SessionHandler – session listing and revocation
+
+```go
+h := &handler.SessionHandler{
+    Sessions:     sessionStore,
+    URLParamFunc: chi.URLParam,
+}
+
+// Routes (all require auth middleware)
+GET    /sessions        → h.List       // list active sessions for the current user
+DELETE /sessions/{id}   → h.Revoke     // revoke a specific session (204 No Content)
+DELETE /sessions        → h.RevokeAll  // revoke all sessions for the current user (204 No Content)
+```
+
+Each `SessionDTO` in the list response contains `id`, `user_agent`, `ip_address`, `expires_at`, and `created_at`. The `id` can be passed to `Revoke` to force a remote sign-out.
 
 ### PasskeyHandler – WebAuthn
 
@@ -348,3 +411,5 @@ if cfg.Enabled() {
 - **Rate limiting** – Apply `RateLimiter.Middleware` to login, signup, and passkey endpoints to limit brute-force attempts.
 - **Cookie security** – Set `SecureCookies: true` in production. Auth cookies use `HttpOnly` and `SameSite=Strict`.
 - **Trusted proxies** – If your application runs behind a load balancer, use `NewRateLimiterWithTrustedProxies` and restrict the trusted CIDR list to your actual proxy addresses.
+- **Session revocation** – When `Sessions` is configured, short-lived access tokens (e.g. 15 minutes) are paired with long-lived refresh tokens. Revoking a session (via `SessionHandler.Revoke` or `Logout`) instantly invalidates the bound access token on the next request when the middleware is configured with the same `SessionStore`.
+- **Refresh token rotation** – Each `RefreshToken` call atomically replaces the refresh token. The old token is consumed and cannot be reused, limiting the impact of token theft.

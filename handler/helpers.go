@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 )
 
 // writeJSON sends a JSON response with the given status code.
@@ -67,4 +68,38 @@ func ClearAuthCookie(w http.ResponseWriter, cookieName string, secure bool) {
 		Name: cookieName, Value: "", Path: "/",
 		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: secure,
 	})
+}
+
+// SetRefreshCookie sets an HttpOnly refresh token cookie.
+func SetRefreshCookie(w http.ResponseWriter, token, cookieName string, secure bool, maxAge int) {
+	http.SetCookie(w, &http.Cookie{
+		Name: cookieName, Value: token, Path: "/",
+		MaxAge: maxAge, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: secure,
+	})
+}
+
+// ClearRefreshCookie removes the refresh token cookie.
+func ClearRefreshCookie(w http.ResponseWriter, cookieName string, secure bool) {
+	http.SetCookie(w, &http.Cookie{
+		Name: cookieName, Value: "", Path: "/",
+		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: secure,
+	})
+}
+
+// tokenFromRequest extracts a bearer or cookie token from the request.
+func tokenFromRequest(r *http.Request, cookieName string) string {
+	if header := r.Header.Get("Authorization"); header != "" {
+		header = strings.TrimSpace(header)
+		if after, ok := strings.CutPrefix(header, "Bearer "); ok {
+			if tok := strings.TrimSpace(after); tok != "" {
+				return tok
+			}
+		}
+	}
+	if cookieName != "" {
+		if c, err := r.Cookie(cookieName); err == nil && c.Value != "" {
+			return c.Value
+		}
+	}
+	return ""
 }

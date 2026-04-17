@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,11 +20,19 @@ type Config struct {
 	// APIKeyPrefix is the string prefix for API keys (e.g. "bib_", "sch_").
 	// If empty, API key authentication is disabled in the middleware.
 	APIKeyPrefix string
+
+	// Sessions is an optional SessionStore. When set, the middleware validates
+	// the JWT jti claim against the store, enabling server-side session
+	// revocation. API key requests bypass session checks.
+	Sessions SessionStore
 }
 
 type contextKey string
 
-const userIDKey contextKey = "userID"
+const (
+	userIDKey contextKey = "userID"
+	rolesKey  contextKey = "roles"
+)
 
 // UserIDFromContext extracts the user ID set by the auth middleware.
 func UserIDFromContext(ctx context.Context) string {
@@ -38,11 +45,26 @@ func ContextWithUserID(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, userIDKey, userID)
 }
 
+// RolesFromContext returns the roles explicitly stored in the context with
+// ContextWithRoles. These values reflect whatever roles a middleware or caller
+// chose to record for downstream use; they are not guaranteed to be the user's
+// complete assigned roles. Returns nil if no roles have been stored.
+func RolesFromContext(ctx context.Context) []Role {
+	v, _ := ctx.Value(rolesKey).([]Role)
+	return v
+}
+
+// ContextWithRoles returns a new context with the given caller-supplied roles
+// stored for downstream use.
+func ContextWithRoles(ctx context.Context, roles []Role) context.Context {
+	return context.WithValue(ctx, rolesKey, roles)
+}
+
 // tokenSource indicates where a token was extracted from.
 type tokenSource int
 
 const (
-	tokenSourceNone   tokenSource = iota
+	tokenSourceNone tokenSource = iota
 	tokenSourceHeader
 	tokenSourceCookie
 )
@@ -79,6 +101,10 @@ var (
 
 const apiKeyTouchInterval = 5 * time.Minute
 
+// defaultMiddlewareCacheTTL is the TTL used by AdminMiddleware, RequireRole,
+// and RequirePermission for their internal caching checkers.
+const defaultMiddlewareCacheTTL = 5 * time.Second
+
 func shouldTouchAPIKeyLastUsed(id string, now time.Time) bool {
 	apiKeyTouchMu.Lock()
 	defer apiKeyTouchMu.Unlock()
@@ -103,31 +129,32 @@ func shouldTouchAPIKeyLastUsed(id string, now time.Time) bool {
 // resolveUser determines the user ID from the given token. If the token starts
 // with the API key prefix and came from the Authorization header, it's validated
 // as an API key. Otherwise it's validated as a JWT.
-func resolveUser(ctx context.Context, token string, source tokenSource, jwtMgr *JWTManager, apiKeys APIKeyStore, apiKeyPrefix string) (string, error) {
+// Returns (userID, sessionID, error). sessionID is empty for API key requests.
+func resolveUser(ctx context.Context, token string, source tokenSource, jwtMgr *JWTManager, apiKeys APIKeyStore, apiKeyPrefix string) (string, string, error) {
 	if apiKeys != nil && apiKeyPrefix != "" && strings.HasPrefix(token, apiKeyPrefix) {
 		if source != tokenSourceHeader {
-			return "", ErrInvalidToken
+			return "", "", ErrInvalidToken
 		}
 		keyHash := HashHighEntropyToken(token)
 		uid, keyID, err := apiKeys.ValidateAPIKey(ctx, keyHash)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return "", ErrInvalidToken
+			if errors.Is(err, ErrNotFound) {
+				return "", "", ErrInvalidToken
 			}
-			return "", err
+			return "", "", err
 		}
 		if shouldTouchAPIKeyLastUsed(keyID, time.Now()) {
 			if err := apiKeys.TouchAPIKeyLastUsed(ctx, keyID); err != nil {
 				slog.WarnContext(ctx, "failed to touch API key last_used_at", slog.Any("error", err))
 			}
 		}
-		return uid, nil
+		return uid, "", nil
 	}
 	claims, err := jwtMgr.ValidateToken(ctx, token)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return claims.UserID, nil
+	return claims.UserID, claims.ID, nil
 }
 
 // Middleware returns HTTP middleware that validates JWTs and API keys.
@@ -143,7 +170,7 @@ func Middleware(jwtMgr *JWTManager, cfg Config, apiKeys APIKeyStore) func(http.H
 				return
 			}
 
-			userID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
+			userID, sessionID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
 			if err != nil {
 				if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
 					jsonError(w, http.StatusUnauthorized, "invalid or expired token")
@@ -152,6 +179,23 @@ func Middleware(jwtMgr *JWTManager, cfg Config, apiKeys APIKeyStore) func(http.H
 					jsonError(w, http.StatusInternalServerError, "internal server error")
 				}
 				return
+			}
+
+			if cfg.Sessions != nil && sessionID != "" {
+				sess, serr := cfg.Sessions.FindSessionByID(r.Context(), sessionID)
+				if serr != nil {
+					if errors.Is(serr, ErrNotFound) {
+						jsonError(w, http.StatusUnauthorized, "session expired or revoked")
+					} else {
+						slog.ErrorContext(r.Context(), "failed to look up session", slog.Any("error", serr))
+						jsonError(w, http.StatusInternalServerError, "internal server error")
+					}
+					return
+				}
+				if sess == nil || sess.UserID != userID || time.Now().After(sess.ExpiresAt) {
+					jsonError(w, http.StatusUnauthorized, "session expired or revoked")
+					return
+				}
 			}
 
 			ctx := context.WithValue(r.Context(), userIDKey, userID)
@@ -177,7 +221,7 @@ type cachingAdminChecker struct {
 
 func newCachingAdminChecker(delegate AdminChecker, ttl time.Duration) AdminChecker {
 	if ttl <= 0 {
-		ttl = 5 * time.Second
+		ttl = defaultMiddlewareCacheTTL
 	}
 	return &cachingAdminChecker{
 		delegate: delegate,
@@ -214,25 +258,51 @@ func (c *cachingAdminChecker) IsAdmin(ctx context.Context, userID string) (bool,
 	return isAdmin, nil
 }
 
+// authenticate extracts and validates the token from r, including optional
+// session validation when cfg.Sessions is set. On failure it writes an
+// appropriate error response to w and returns ("", false).
+func authenticate(w http.ResponseWriter, r *http.Request, jwtMgr *JWTManager, apiKeys APIKeyStore, cfg Config) (string, bool) {
+	token, source, _ := extractToken(r, cfg.CookieName)
+	if token == "" {
+		jsonError(w, http.StatusUnauthorized, "authentication required")
+		return "", false
+	}
+	userID, sessionID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
+	if err != nil {
+		if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
+			jsonError(w, http.StatusUnauthorized, "invalid or expired token")
+		} else {
+			jsonError(w, http.StatusInternalServerError, "internal authentication error")
+		}
+		return "", false
+	}
+	if cfg.Sessions != nil && sessionID != "" {
+		sess, serr := cfg.Sessions.FindSessionByID(r.Context(), sessionID)
+		if serr != nil {
+			if errors.Is(serr, ErrNotFound) {
+				jsonError(w, http.StatusUnauthorized, "session expired or revoked")
+			} else {
+				slog.ErrorContext(r.Context(), "failed to look up session", slog.Any("error", serr))
+				jsonError(w, http.StatusInternalServerError, "internal server error")
+			}
+			return "", false
+		}
+		if sess == nil || sess.UserID != userID || time.Now().After(sess.ExpiresAt) {
+			jsonError(w, http.StatusUnauthorized, "session expired or revoked")
+			return "", false
+		}
+	}
+	return userID, true
+}
+
 // AdminMiddleware returns middleware that checks admin privileges.
 func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKeys APIKeyStore) func(http.Handler) http.Handler {
-	cachedChecker := newCachingAdminChecker(checker, 5*time.Second)
+	cachedChecker := newCachingAdminChecker(checker, defaultMiddlewareCacheTTL)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token, source, _ := extractToken(r, cfg.CookieName)
-			if token == "" {
-				jsonError(w, http.StatusUnauthorized, "authentication required")
-				return
-			}
-
-			userID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
-			if err != nil {
-				if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
-					jsonError(w, http.StatusUnauthorized, "invalid or expired token")
-				} else {
-					jsonError(w, http.StatusInternalServerError, "internal authentication error")
-				}
+			userID, ok := authenticate(w, r, jwtMgr, apiKeys, cfg)
+			if !ok {
 				return
 			}
 
@@ -250,4 +320,78 @@ func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKe
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// RequireRole returns middleware that verifies the authenticated user has the
+// specified role. The resolved user ID is stored in context via ContextWithUserID.
+func RequireRole(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiKeys APIKeyStore, role Role) func(http.Handler) http.Handler {
+	cachedChecker := NewCachingRoleChecker(checker, defaultMiddlewareCacheTTL)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userID, ok := authenticate(w, r, jwtMgr, apiKeys, cfg)
+			if !ok {
+				return
+			}
+
+			hasRole, err := cachedChecker.HasRole(r.Context(), userID, role)
+			if err != nil {
+				jsonError(w, http.StatusInternalServerError, "failed to verify role")
+				return
+			}
+			if !hasRole {
+				jsonError(w, http.StatusForbidden, "insufficient role")
+				return
+			}
+
+			ctx := ContextWithUserID(r.Context(), userID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// RequirePermission returns middleware that verifies the authenticated user has
+// the specified permission (via any of their assigned roles). The resolved user
+// ID is stored in context via ContextWithUserID.
+func RequirePermission(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiKeys APIKeyStore, perm Permission) func(http.Handler) http.Handler {
+	cachedChecker := NewCachingRoleChecker(checker, defaultMiddlewareCacheTTL)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userID, ok := authenticate(w, r, jwtMgr, apiKeys, cfg)
+			if !ok {
+				return
+			}
+
+			hasPerm, err := cachedChecker.HasPermission(r.Context(), userID, perm)
+			if err != nil {
+				jsonError(w, http.StatusInternalServerError, "failed to verify permission")
+				return
+			}
+			if !hasPerm {
+				jsonError(w, http.StatusForbidden, "insufficient permission")
+				return
+			}
+
+			ctx := ContextWithUserID(r.Context(), userID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// adminCheckerFromRoleChecker adapts a RoleChecker to satisfy AdminChecker by
+// mapping the RoleAdmin role to the IsAdmin result.
+type adminCheckerFromRoleChecker struct {
+	rc RoleChecker
+}
+
+// NewAdminCheckerFromRoleChecker returns an AdminChecker that delegates to rc,
+// treating users with RoleAdmin as admins. This lets consumers who have adopted
+// RoleChecker continue to use AdminMiddleware without duplicating logic.
+func NewAdminCheckerFromRoleChecker(rc RoleChecker) AdminChecker {
+	return &adminCheckerFromRoleChecker{rc: rc}
+}
+
+func (a *adminCheckerFromRoleChecker) IsAdmin(ctx context.Context, userID string) (bool, error) {
+	return a.rc.HasRole(ctx, userID, RoleAdmin)
 }

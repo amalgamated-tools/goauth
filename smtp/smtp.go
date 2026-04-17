@@ -133,10 +133,10 @@ func Send(ctx context.Context, params Params, to string, msg []byte) error {
 
 	client, err := netsmtp.NewClient(conn, host)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return fmt.Errorf("SMTP client failed: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if params.TLS == "starttls" {
 		if err := client.StartTLS(tlsConfig); err != nil {

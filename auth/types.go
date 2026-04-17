@@ -14,9 +14,11 @@ import (
 
 // Sentinel errors.
 var (
-	ErrInvalidToken    = errors.New("invalid token")
-	ErrExpiredToken    = errors.New("token expired")
-	ErrEmailExists     = errors.New("email already exists")
+	ErrInvalidToken     = errors.New("invalid token")
+	ErrExpiredToken     = errors.New("token expired")
+	ErrEmailExists      = errors.New("email already exists")
+	ErrEmailNotVerified = errors.New("email not verified")
+	ErrSessionRevoked   = errors.New("session revoked")
 	// ErrNotFound is returned by store methods when the requested record does
 	// not exist. Implementations must return this (or wrap it) instead of
 	// driver-specific errors such as sql.ErrNoRows.
@@ -37,13 +39,23 @@ type PasswordResetToken struct {
 // User represents an authenticated user. Consuming applications may embed
 // this in a larger struct to add app-specific fields.
 type User struct {
-	ID           string
-	Name         string
-	Email        string
-	PasswordHash string
-	OIDCSubject  *string
-	IsAdmin      bool
-	CreatedAt    time.Time
+	ID            string
+	Name          string
+	Email         string
+	PasswordHash  string
+	OIDCSubject   *string
+	IsAdmin       bool
+	EmailVerified bool
+	CreatedAt     time.Time
+}
+
+// EmailVerificationToken represents an email address verification request.
+type EmailVerificationToken struct {
+	ID        string
+	UserID    string
+	TokenHash string
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 // APIKey represents a long-lived authentication token.
@@ -102,6 +114,36 @@ type APIKeyStore interface {
 	DeleteAPIKey(ctx context.Context, id, userID string) error
 }
 
+// Session represents an active user session. Each session is bound to a
+// single refresh token hash, enabling server-side revocation.
+type Session struct {
+	ID               string
+	UserID           string
+	RefreshTokenHash string
+	UserAgent        string
+	IPAddress        string
+	ExpiresAt        time.Time
+	CreatedAt        time.Time
+}
+
+// SessionStore defines data access for session operations.
+type SessionStore interface {
+	// CreateSession persists a new session and returns it.
+	CreateSession(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error)
+	// FindSessionByID returns a session by its ID. Returns sql.ErrNoRows when not found.
+	FindSessionByID(ctx context.Context, id string) (*Session, error)
+	// FindSessionByRefreshTokenHash returns a session by its refresh token hash. Returns sql.ErrNoRows when not found.
+	FindSessionByRefreshTokenHash(ctx context.Context, refreshTokenHash string) (*Session, error)
+	// ListSessionsByUser returns all sessions belonging to a user.
+	ListSessionsByUser(ctx context.Context, userID string) ([]Session, error)
+	// DeleteSession removes a session by ID, scoped to a user. Returns sql.ErrNoRows when not found.
+	DeleteSession(ctx context.Context, id, userID string) error
+	// DeleteAllSessionsByUser removes all sessions for a user.
+	DeleteAllSessionsByUser(ctx context.Context, userID string) error
+	// DeleteExpiredSessions removes sessions past their expiry time.
+	DeleteExpiredSessions(ctx context.Context) error
+}
+
 // PasskeyStore defines data access for WebAuthn operations.
 type PasskeyStore interface {
 	CreateChallenge(ctx context.Context, userID *string, sessionData string, expiresAt time.Time) (*PasskeyChallenge, error)
@@ -113,6 +155,37 @@ type PasskeyStore interface {
 	FindCredentialByIDAndUser(ctx context.Context, id, userID string) (*PasskeyCredential, error)
 	UpdateCredentialData(ctx context.Context, userID, credentialID, credentialData string) error
 	DeleteCredential(ctx context.Context, id, userID string) error
+}
+
+// MagicLink represents a one-time email login token.
+type MagicLink struct {
+	ID        string
+	Email     string
+	TokenHash string
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+// MagicLinkStore defines data access for magic link (passwordless) operations.
+type MagicLinkStore interface {
+	// CreateMagicLink stores a new one-time login token for the given email.
+	CreateMagicLink(ctx context.Context, email, tokenHash string, expiresAt time.Time) (*MagicLink, error)
+	// FindAndDeleteMagicLink atomically retrieves and removes the record
+	// matching tokenHash. Returns ErrNotFound when not found.
+	FindAndDeleteMagicLink(ctx context.Context, tokenHash string) (*MagicLink, error)
+	// DeleteExpiredMagicLinks removes all records whose ExpiresAt is in the past.
+	DeleteExpiredMagicLinks(ctx context.Context) error
+}
+
+// EmailVerificationStore defines data access for email verification tokens.
+type EmailVerificationStore interface {
+	// CreateEmailVerification stores a new hashed token for the given user.
+	CreateEmailVerification(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*EmailVerificationToken, error)
+	// ConsumeEmailVerification looks up the token by its hash, deletes it, and
+	// returns it. Returns sql.ErrNoRows when not found.
+	ConsumeEmailVerification(ctx context.Context, tokenHash string) (*EmailVerificationToken, error)
+	// SetEmailVerified marks the user's email address as verified.
+	SetEmailVerified(ctx context.Context, userID string) error
 }
 
 // TOTPSecret represents a stored TOTP secret for a user.
