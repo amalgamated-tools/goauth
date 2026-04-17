@@ -66,7 +66,7 @@ func tokenHashFor(plaintext string) string {
 // SendVerification
 // ---------------------------------------------------------------------------
 
-func TestSendVerificationSuccess(t *testing.T) {
+func TestSendVerification_success(t *testing.T) {
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return &auth.User{ID: "u1", Email: "alice@test.com", EmailVerified: false}, nil
@@ -86,7 +86,7 @@ func TestSendVerificationSuccess(t *testing.T) {
 	require.NotEmpty(t, sentToken)
 }
 
-func TestSendVerificationAlreadyVerified(t *testing.T) {
+func TestSendVerification_alreadyVerified(t *testing.T) {
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return &auth.User{ID: "u1", Email: "alice@test.com", EmailVerified: true}, nil
@@ -104,7 +104,7 @@ func TestSendVerificationAlreadyVerified(t *testing.T) {
 	require.False(t, emailSent)
 }
 
-func TestSendVerificationUserNotFound(t *testing.T) {
+func TestSendVerification_userNotFound(t *testing.T) {
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, auth.ErrNotFound
@@ -123,19 +123,19 @@ func TestSendVerificationUserNotFound(t *testing.T) {
 	require.False(t, emailSent)
 }
 
-func TestSendVerificationMissingEmail(t *testing.T) {
+func TestSendVerification_missingEmail(t *testing.T) {
 	h := newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{})
 	w := postJSON(t, h.SendVerification, `{"email":""}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestSendVerificationInvalidJSON(t *testing.T) {
+func TestSendVerification_invalidJSON(t *testing.T) {
 	h := newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{})
 	w := postJSON(t, h.SendVerification, "not-json")
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestSendVerificationStoreError(t *testing.T) {
+func TestSendVerification_storeError(t *testing.T) {
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return &auth.User{ID: "u1", Email: "alice@test.com", EmailVerified: false}, nil
@@ -150,18 +150,18 @@ func TestSendVerificationStoreError(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestSendVerificationUserStoreError(t *testing.T) {
+func TestSendVerification_userStoreError(t *testing.T) {
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, errors.New("db error")
 		},
 	}
-	// Non-ErrNotFound errors log and return 200 to avoid leaking info.
+	// Non-auth.ErrNotFound errors log and return 200 to avoid leaking info.
 	w := postJSON(t, newEmailVerificationHandler(store, &mockEmailVerificationStore{}).SendVerification, `{"email":"alice@test.com"}`)
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestSendVerificationNoSendEmailFunc(t *testing.T) {
+func TestSendVerification_noSendEmailFunc(t *testing.T) {
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return &auth.User{ID: "u1", Email: "alice@test.com", EmailVerified: false}, nil
@@ -177,7 +177,7 @@ func TestSendVerificationNoSendEmailFunc(t *testing.T) {
 // VerifyEmail
 // ---------------------------------------------------------------------------
 
-func TestVerifyEmailSuccess(t *testing.T) {
+func TestVerifyEmail_success(t *testing.T) {
 	verStore := &mockEmailVerificationStore{
 		consumeFunc: func(_ context.Context, hash string) (*auth.EmailVerificationToken, error) {
 			if hash != tokenHashFor(validToken) {
@@ -196,7 +196,7 @@ func TestVerifyEmailSuccess(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestVerifyEmailMissingToken(t *testing.T) {
+func TestVerifyEmail_missingToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/verify-email", nil)
 	w := httptest.NewRecorder()
 	newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{}).VerifyEmail(w, req)
@@ -204,7 +204,7 @@ func TestVerifyEmailMissingToken(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestVerifyEmailInvalidToken(t *testing.T) {
+func TestVerifyEmail_invalidToken(t *testing.T) {
 	verStore := &mockEmailVerificationStore{
 		consumeFunc: func(_ context.Context, _ string) (*auth.EmailVerificationToken, error) {
 			return nil, auth.ErrNotFound
@@ -217,7 +217,7 @@ func TestVerifyEmailInvalidToken(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestVerifyEmailExpiredToken(t *testing.T) {
+func TestVerifyEmail_expiredToken(t *testing.T) {
 	verStore := &mockEmailVerificationStore{
 		consumeFunc: func(_ context.Context, hash string) (*auth.EmailVerificationToken, error) {
 			return &auth.EmailVerificationToken{
@@ -233,7 +233,7 @@ func TestVerifyEmailExpiredToken(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestVerifyEmailConsumeStoreError(t *testing.T) {
+func TestVerifyEmail_consumeStoreError(t *testing.T) {
 	verStore := &mockEmailVerificationStore{
 		consumeFunc: func(_ context.Context, _ string) (*auth.EmailVerificationToken, error) {
 			return nil, errors.New("db error")
@@ -246,7 +246,7 @@ func TestVerifyEmailConsumeStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestVerifyEmailSetVerifiedStoreError(t *testing.T) {
+func TestVerifyEmail_setVerifiedStoreError(t *testing.T) {
 	verStore := &mockEmailVerificationStore{
 		consumeFunc: func(_ context.Context, hash string) (*auth.EmailVerificationToken, error) {
 			return &auth.EmailVerificationToken{
@@ -269,7 +269,7 @@ func TestVerifyEmailSetVerifiedStoreError(t *testing.T) {
 // Login with RequireVerification
 // ---------------------------------------------------------------------------
 
-func TestLoginBlockedWhenUnverified(t *testing.T) {
+func TestLogin_blockedWhenUnverified(t *testing.T) {
 	hash := hashPassword(t, "goodpassword123")
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -283,7 +283,7 @@ func TestLoginBlockedWhenUnverified(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
-func TestLoginAllowedWhenVerified(t *testing.T) {
+func TestLogin_allowedWhenVerified(t *testing.T) {
 	hash := hashPassword(t, "goodpassword123")
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -297,7 +297,7 @@ func TestLoginAllowedWhenVerified(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestLoginVerificationNotRequired(t *testing.T) {
+func TestLogin_verificationNotRequired(t *testing.T) {
 	hash := hashPassword(t, "goodpassword123")
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -312,7 +312,7 @@ func TestLoginVerificationNotRequired(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestUserDTOEmailVerifiedField(t *testing.T) {
+func TestUserDTO_emailVerifiedField(t *testing.T) {
 	u := &auth.User{ID: "u1", Name: "Alice", Email: "a@b.com", EmailVerified: true}
 	dto := ToUserDTO(u)
 	require.True(t, dto.EmailVerified)

@@ -11,7 +11,7 @@ import (
 // LoadConfig
 // ---------------------------------------------------------------------------
 
-func TestLoadConfigDefaults(t *testing.T) {
+func TestLoadConfig_defaults(t *testing.T) {
 	// Ensure no SMTP env vars are set.
 	for _, k := range []string{"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_TLS"} {
 		require.NoErrorf(t, os.Unsetenv(k), "unsetenv %s", k)
@@ -25,7 +25,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 	require.Empty(t, cfg.From)
 }
 
-func TestLoadConfigFromEnv(t *testing.T) {
+func TestLoadConfig_fromEnv(t *testing.T) {
 	t.Setenv("SMTP_HOST", "mail.example.com")
 	t.Setenv("SMTP_PORT", "465")
 	t.Setenv("SMTP_USERNAME", "user@example.com")
@@ -47,17 +47,17 @@ func TestLoadConfigFromEnv(t *testing.T) {
 // Enabled
 // ---------------------------------------------------------------------------
 
-func TestEnabledTrue(t *testing.T) {
+func TestEnabled_true(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", From: "no-reply@example.com"}
 	require.True(t, cfg.Enabled())
 }
 
-func TestEnabledNoHost(t *testing.T) {
+func TestEnabled_noHost(t *testing.T) {
 	cfg := Config{From: "no-reply@example.com"}
 	require.False(t, cfg.Enabled())
 }
 
-func TestEnabledNoFrom(t *testing.T) {
+func TestEnabled_noFrom(t *testing.T) {
 	cfg := Config{Host: "mail.example.com"}
 	require.False(t, cfg.Enabled())
 }
@@ -66,7 +66,7 @@ func TestEnabledNoFrom(t *testing.T) {
 // Validate
 // ---------------------------------------------------------------------------
 
-func TestValidateSuccess(t *testing.T) {
+func TestValidate_success(t *testing.T) {
 	cfg := Config{
 		Host: "mail.example.com",
 		Port: "587",
@@ -80,7 +80,7 @@ func TestValidateSuccess(t *testing.T) {
 	require.Equal(t, "starttls", p.TLS)
 }
 
-func TestValidateWithDisplayName(t *testing.T) {
+func TestValidate_withDisplayName(t *testing.T) {
 	cfg := Config{
 		Host: "mail.example.com",
 		Port: "587",
@@ -93,25 +93,25 @@ func TestValidateWithDisplayName(t *testing.T) {
 	require.NotEmpty(t, p.FromHeader)
 }
 
-func TestValidateNoHost(t *testing.T) {
+func TestValidate_noHost(t *testing.T) {
 	cfg := Config{Port: "587", From: "no-reply@example.com", TLS: "starttls"}
 	_, err := cfg.Validate()
 	require.Error(t, err)
 }
 
-func TestValidateNoFrom(t *testing.T) {
+func TestValidate_noFrom(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "587", TLS: "starttls"}
 	_, err := cfg.Validate()
 	require.Error(t, err)
 }
 
-func TestValidateInvalidFromAddress(t *testing.T) {
+func TestValidate_invalidFromAddress(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "587", From: "not-an-email", TLS: "starttls"}
 	_, err := cfg.Validate()
 	require.Error(t, err)
 }
 
-func TestValidateBadPort(t *testing.T) {
+func TestValidate_badPort(t *testing.T) {
 	for _, port := range []string{"abc", "0", "99999", "-1"} {
 		cfg := Config{Host: "mail.example.com", Port: port, From: "a@b.com", TLS: "starttls"}
 		_, err := cfg.Validate()
@@ -119,20 +119,20 @@ func TestValidateBadPort(t *testing.T) {
 	}
 }
 
-func TestValidateDefaultPortWhenEmpty(t *testing.T) {
+func TestValidate_defaultPortWhenEmpty(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "", From: "a@b.com", TLS: "starttls"}
 	p, err := cfg.Validate()
 	require.NoError(t, err)
 	require.Equal(t, "mail.example.com:587", p.Addr)
 }
 
-func TestValidateBadTLSMode(t *testing.T) {
+func TestValidate_badTLSMode(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "587", From: "a@b.com", TLS: "ssl"}
 	_, err := cfg.Validate()
 	require.Error(t, err)
 }
 
-func TestValidateAllTLSModes(t *testing.T) {
+func TestValidate_allTLSModes(t *testing.T) {
 	for _, mode := range []string{"none", "starttls", "tls"} {
 		cfg := Config{Host: "mail.example.com", Port: "587", From: "a@b.com", TLS: mode}
 		p, err := cfg.Validate()
@@ -141,14 +141,14 @@ func TestValidateAllTLSModes(t *testing.T) {
 	}
 }
 
-func TestValidateDefaultTLSWhenEmpty(t *testing.T) {
+func TestValidate_defaultTLSWhenEmpty(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "587", From: "a@b.com", TLS: ""}
 	p, err := cfg.Validate()
 	require.NoError(t, err)
 	require.Equal(t, "starttls", p.TLS)
 }
 
-func TestValidateWithAuth(t *testing.T) {
+func TestValidate_withAuth(t *testing.T) {
 	cfg := Config{
 		Host:     "mail.example.com",
 		Port:     "587",
@@ -162,14 +162,14 @@ func TestValidateWithAuth(t *testing.T) {
 	require.NotNil(t, p.Auth)
 }
 
-func TestValidateNoAuth(t *testing.T) {
+func TestValidate_noAuth(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "587", From: "a@b.com", TLS: "starttls"}
 	p, err := cfg.Validate()
 	require.NoError(t, err)
 	require.Nil(t, p.Auth)
 }
 
-func TestValidatePortBoundaries(t *testing.T) {
+func TestValidate_portBoundaries(t *testing.T) {
 	for _, tc := range []struct {
 		port    string
 		wantErr bool

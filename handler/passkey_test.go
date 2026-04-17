@@ -102,7 +102,7 @@ func newPasskeyHandler(passkeys auth.PasskeyStore, users auth.UserStore) *Passke
 // Enabled
 // ---------------------------------------------------------------------------
 
-func TestPasskeyEnabledFalse(t *testing.T) {
+func TestPasskey_enabled_false(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
 	req := httptest.NewRequest(http.MethodGet, "/passkeys/enabled", nil)
 	w := httptest.NewRecorder()
@@ -119,7 +119,7 @@ func TestPasskeyEnabledFalse(t *testing.T) {
 // — when WebAuthn is not configured these should return 503.
 // ---------------------------------------------------------------------------
 
-func TestPasskeyBeginRegistrationNotConfigured(t *testing.T) {
+func TestPasskey_beginRegistration_notConfigured(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
 	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
 		r = withUserID(r, "u1")
@@ -129,7 +129,7 @@ func TestPasskeyBeginRegistrationNotConfigured(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
-func TestPasskeyFinishRegistrationNotConfigured(t *testing.T) {
+func TestPasskey_finishRegistration_notConfigured(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
 	req := httptest.NewRequest(http.MethodPost, "/passkeys/register/finish?session_id=abc", nil)
 	req = withUserID(req, "u1")
@@ -139,7 +139,7 @@ func TestPasskeyFinishRegistrationNotConfigured(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
-func TestPasskeyBeginAuthenticationNotConfigured(t *testing.T) {
+func TestPasskey_beginAuthentication_notConfigured(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
 	req := httptest.NewRequest(http.MethodPost, "/passkeys/auth/begin", nil)
 	w := httptest.NewRecorder()
@@ -148,7 +148,7 @@ func TestPasskeyBeginAuthenticationNotConfigured(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
-func TestPasskeyFinishAuthenticationNotConfigured(t *testing.T) {
+func TestPasskey_finishAuthentication_notConfigured(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
 	req := httptest.NewRequest(http.MethodPost, "/passkeys/auth/finish?session_id=abc", nil)
 	w := httptest.NewRecorder()
@@ -161,7 +161,7 @@ func TestPasskeyFinishAuthenticationNotConfigured(t *testing.T) {
 // ListCredentials
 // ---------------------------------------------------------------------------
 
-func TestPasskeyListCredentialsEmpty(t *testing.T) {
+func TestPasskey_listCredentials_empty(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
 	req := httptest.NewRequest(http.MethodGet, "/passkeys", nil)
 	req = withUserID(req, "u1")
@@ -174,7 +174,7 @@ func TestPasskeyListCredentialsEmpty(t *testing.T) {
 	require.Len(t, result, 0)
 }
 
-func TestPasskeyListCredentialsReturnsItems(t *testing.T) {
+func TestPasskey_listCredentials_returnsItems(t *testing.T) {
 	now := time.Now()
 	store := &mockPasskeyStore{
 		listCredentialsByUserFunc: func(_ context.Context, _ string) ([]auth.PasskeyCredential, error) {
@@ -197,7 +197,7 @@ func TestPasskeyListCredentialsReturnsItems(t *testing.T) {
 	require.Equal(t, "My Key", result[0].Name)
 }
 
-func TestPasskeyListCredentialsStoreError(t *testing.T) {
+func TestPasskey_listCredentials_storeError(t *testing.T) {
 	store := &mockPasskeyStore{
 		listCredentialsByUserFunc: func(_ context.Context, _ string) ([]auth.PasskeyCredential, error) {
 			return nil, errors.New("db error")
@@ -216,7 +216,7 @@ func TestPasskeyListCredentialsStoreError(t *testing.T) {
 // DeleteCredential
 // ---------------------------------------------------------------------------
 
-func TestPasskeyDeleteCredentialSuccess(t *testing.T) {
+func TestPasskey_deleteCredential_success(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
 	req := httptest.NewRequest(http.MethodDelete, "/passkeys?id=cred-1", nil)
 	req = withUserID(req, "u1")
@@ -226,7 +226,7 @@ func TestPasskeyDeleteCredentialSuccess(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, w.Code)
 }
 
-func TestPasskeyDeleteCredentialMissingID(t *testing.T) {
+func TestPasskey_deleteCredential_missingID(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
 	req := httptest.NewRequest(http.MethodDelete, "/passkeys", nil) // no id
 	req = withUserID(req, "u1")
@@ -236,7 +236,7 @@ func TestPasskeyDeleteCredentialMissingID(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestPasskeyDeleteCredentialNotFound(t *testing.T) {
+func TestPasskey_deleteCredential_notFound(t *testing.T) {
 	store := &mockPasskeyStore{
 		deleteCredentialFunc: func(_ context.Context, _, _ string) error {
 			return auth.ErrNotFound
@@ -251,7 +251,7 @@ func TestPasskeyDeleteCredentialNotFound(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestPasskeyDeleteCredentialStoreError(t *testing.T) {
+func TestPasskey_deleteCredential_storeError(t *testing.T) {
 	store := &mockPasskeyStore{
 		deleteCredentialFunc: func(_ context.Context, _, _ string) error {
 			return errors.New("db error")
@@ -270,12 +270,12 @@ func TestPasskeyDeleteCredentialStoreError(t *testing.T) {
 // loadWebAuthnCredentials
 // ---------------------------------------------------------------------------
 
-func TestLoadWebAuthnCredentialsEmpty(t *testing.T) {
+func TestLoadWebAuthnCredentials_empty(t *testing.T) {
 	result := loadWebAuthnCredentials(nil)
 	require.Len(t, result, 0)
 }
 
-func TestLoadWebAuthnCredentialsSkipsCorrupted(t *testing.T) {
+func TestLoadWebAuthnCredentials_skipsCorrupted(t *testing.T) {
 	creds := []auth.PasskeyCredential{
 		{ID: "bad", CredentialData: "not valid json"},
 	}

@@ -21,10 +21,8 @@ func writeJSON(ctx context.Context, w http.ResponseWriter, status int, data any)
 }
 
 // writeError sends a JSON error response.
-func writeError(_ context.Context, w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+func writeError(ctx context.Context, w http.ResponseWriter, status int, message string) {
+	writeJSON(ctx, w, status, map[string]string{"error": message})
 }
 
 // decodeJSON reads and decodes the JSON request body.
