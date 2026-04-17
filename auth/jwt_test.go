@@ -4,44 +4,30 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewJWTManagerEmptySecret(t *testing.T) {
 	mgr, err := NewJWTManager("", time.Hour, "test")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if mgr == nil {
-		t.Fatal("expected non-nil manager")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, mgr)
 	// A 32-byte random key should have been generated.
-	if len(mgr.secret) != 32 {
-		t.Errorf("expected 32-byte generated secret, got %d bytes", len(mgr.secret))
-	}
+	require.Len(t, mgr.secret, 32)
 }
 
 func TestNewJWTManagerWithSecret(t *testing.T) {
 	secret := "my-32-byte-test-secret-for-jwt!!"
 	mgr, err := NewJWTManager(secret, 15*time.Minute, "myapp")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if mgr.issuer != "myapp" {
-		t.Errorf("expected issuer %q, got %q", "myapp", mgr.issuer)
-	}
-	if mgr.ttl != 15*time.Minute {
-		t.Errorf("expected TTL 15m, got %v", mgr.ttl)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "myapp", mgr.issuer)
+	require.Equal(t, 15*time.Minute, mgr.ttl)
 }
 
 func TestNewJWTManagerDefaultIssuer(t *testing.T) {
 	mgr, err := NewJWTManager("any-secret", time.Hour, "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if mgr.issuer != "goauth" {
-		t.Errorf("expected default issuer %q, got %q", "goauth", mgr.issuer)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "goauth", mgr.issuer)
 }
 
 func TestCreateAndValidateToken(t *testing.T) {
@@ -49,20 +35,12 @@ func TestCreateAndValidateToken(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	token, err := mgr.CreateToken(ctx, "user123")
-	if err != nil {
-		t.Fatalf("CreateToken: %v", err)
-	}
-	if token == "" {
-		t.Fatal("expected non-empty token string")
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
 
 	claims, err := mgr.ValidateToken(ctx, token)
-	if err != nil {
-		t.Fatalf("ValidateToken: %v", err)
-	}
-	if claims.UserID != "user123" {
-		t.Errorf("expected UserID %q, got %q", "user123", claims.UserID)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "user123", claims.UserID)
 }
 
 func TestValidateExpiredToken(t *testing.T) {
@@ -72,12 +50,8 @@ func TestValidateExpiredToken(t *testing.T) {
 
 	token, _ := mgr.CreateToken(ctx, "user123")
 	_, err := mgr.ValidateToken(ctx, token)
-	if err == nil {
-		t.Fatal("expected error for expired token")
-	}
-	if err != ErrExpiredToken {
-		t.Errorf("expected ErrExpiredToken, got %v", err)
-	}
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrExpiredToken)
 }
 
 func TestValidateInvalidToken(t *testing.T) {
@@ -85,9 +59,7 @@ func TestValidateInvalidToken(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	_, err := mgr.ValidateToken(ctx, "this.is.not.a.jwt")
-	if err != ErrInvalidToken {
-		t.Errorf("expected ErrInvalidToken, got %v", err)
-	}
+	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestValidateWrongAlgorithmToken(t *testing.T) {
@@ -97,9 +69,7 @@ func TestValidateWrongAlgorithmToken(t *testing.T) {
 	// A syntactically valid but RS256-signed token (header claims RS256).
 	badToken := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.invalidsig"
 	_, err := mgr.ValidateToken(ctx, badToken)
-	if err != ErrInvalidToken {
-		t.Errorf("expected ErrInvalidToken for wrong algorithm, got %v", err)
-	}
+	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestValidateWrongIssuerToken(t *testing.T) {
@@ -109,9 +79,7 @@ func TestValidateWrongIssuerToken(t *testing.T) {
 
 	token, _ := mgr1.CreateToken(ctx, "user123")
 	_, err := mgr2.ValidateToken(ctx, token)
-	if err != ErrInvalidToken {
-		t.Errorf("expected ErrInvalidToken for wrong issuer, got %v", err)
-	}
+	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestHMACSignAndVerify(t *testing.T) {
@@ -119,18 +87,12 @@ func TestHMACSignAndVerify(t *testing.T) {
 
 	data := []byte("test-payload")
 	sig := mgr.HMACSign(data)
-	if len(sig) == 0 {
-		t.Error("expected non-empty signature")
-	}
+	require.NotEmpty(t, sig)
 
-	if !mgr.HMACVerify(data, sig) {
-		t.Error("signature should verify correctly")
-	}
+	require.True(t, mgr.HMACVerify(data, sig))
 
 	// Tampered data must not verify.
-	if mgr.HMACVerify([]byte("tampered-payload"), sig) {
-		t.Error("tampered data should not verify")
-	}
+	require.False(t, mgr.HMACVerify([]byte("tampered-payload"), sig))
 }
 
 func TestHMACSignTamperedSignature(t *testing.T) {
@@ -143,9 +105,7 @@ func TestHMACSignTamperedSignature(t *testing.T) {
 	tampered := make([]byte, len(sig))
 	copy(tampered, sig)
 	tampered[0] ^= 0xFF
-	if mgr.HMACVerify(data, tampered) {
-		t.Error("tampered signature should not verify")
-	}
+	require.False(t, mgr.HMACVerify(data, tampered))
 }
 
 func TestHMACSignDifferentManagers(t *testing.T) {
@@ -154,31 +114,21 @@ func TestHMACSignDifferentManagers(t *testing.T) {
 
 	data := []byte("test-payload")
 	sig1 := mgr1.HMACSign(data)
-	if mgr2.HMACVerify(data, sig1) {
-		t.Error("signature from manager1 should not verify with manager2's key")
-	}
+	require.False(t, mgr2.HMACVerify(data, sig1))
 }
 
 func TestNewSecretEncrypterFromJWT(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	enc, err := mgr.NewSecretEncrypter()
-	if err != nil {
-		t.Fatalf("NewSecretEncrypter: %v", err)
-	}
+	require.NoError(t, err)
 
 	ct, err := enc.Encrypt("my-secret-value")
-	if err != nil {
-		t.Fatalf("Encrypt: %v", err)
-	}
+	require.NoError(t, err)
 
 	pt, err := enc.Decrypt(ct)
-	if err != nil {
-		t.Fatalf("Decrypt: %v", err)
-	}
-	if pt != "my-secret-value" {
-		t.Errorf("expected %q, got %q", "my-secret-value", pt)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "my-secret-value", pt)
 }
 
 func TestTokenHasCorrectClaims(t *testing.T) {
@@ -188,22 +138,11 @@ func TestTokenHasCorrectClaims(t *testing.T) {
 
 	tokenStr, _ := mgr.CreateToken(ctx, "user-abc")
 	claims, err := mgr.ValidateToken(ctx, tokenStr)
-	if err != nil {
-		t.Fatalf("ValidateToken: %v", err)
-	}
-	if claims.Issuer != issuer {
-		t.Errorf("expected issuer %q, got %q", issuer, claims.Issuer)
-	}
-	if len(claims.Audience) == 0 || claims.Audience[0] != issuer {
-		t.Errorf("expected audience [%q], got %v", issuer, claims.Audience)
-	}
-	if claims.UserID != "user-abc" {
-		t.Errorf("expected UserID %q, got %q", "user-abc", claims.UserID)
-	}
-	if claims.ExpiresAt == nil {
-		t.Error("expected non-nil ExpiresAt")
-	}
-	if claims.IssuedAt == nil {
-		t.Error("expected non-nil IssuedAt")
-	}
+	require.NoError(t, err)
+	require.Equal(t, issuer, claims.Issuer)
+	require.NotEmpty(t, claims.Audience)
+	require.Equal(t, issuer, claims.Audience[0])
+	require.Equal(t, "user-abc", claims.UserID)
+	require.NotNil(t, claims.ExpiresAt)
+	require.NotNil(t, claims.IssuedAt)
 }

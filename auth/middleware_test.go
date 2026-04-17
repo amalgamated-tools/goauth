@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -48,16 +47,12 @@ func (m *mockAPIKeyStore) DeleteAPIKey(ctx context.Context, id, userID string) e
 
 func TestUserIDFromContextEmpty(t *testing.T) {
 	ctx := context.Background()
-	if got := UserIDFromContext(ctx); got != "" {
-		t.Errorf("expected empty string, got %q", got)
-	}
+	require.Empty(t, UserIDFromContext(ctx))
 }
 
 func TestContextWithUserID(t *testing.T) {
 	ctx := ContextWithUserID(context.Background(), "user-42")
-	if got := UserIDFromContext(ctx); got != "user-42" {
-		t.Errorf("expected %q, got %q", "user-42", got)
-	}
+	require.Equal(t, "user-42", UserIDFromContext(ctx))
 }
 
 // --- extractToken --------------------------------------------------------------
@@ -67,12 +62,8 @@ func TestExtractTokenFromHeader(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer mytoken123")
 
 	tok, src, _ := extractToken(req, "auth")
-	if tok != "mytoken123" {
-		t.Errorf("expected %q, got %q", "mytoken123", tok)
-	}
-	if src != tokenSourceHeader {
-		t.Errorf("expected tokenSourceHeader, got %v", src)
-	}
+	require.Equal(t, "mytoken123", tok)
+	require.Equal(t, tokenSourceHeader, src)
 }
 
 func TestExtractTokenFromCookie(t *testing.T) {
@@ -80,27 +71,17 @@ func TestExtractTokenFromCookie(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "auth", Value: "cookietoken"})
 
 	tok, src, _ := extractToken(req, "auth")
-	if tok != "cookietoken" {
-		t.Errorf("expected %q, got %q", "cookietoken", tok)
-	}
-	if src != tokenSourceCookie {
-		t.Errorf("expected tokenSourceCookie, got %v", src)
-	}
+	require.Equal(t, "cookietoken", tok)
+	require.Equal(t, tokenSourceCookie, src)
 }
 
 func TestExtractTokenMissing(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	tok, src, reason := extractToken(req, "auth")
-	if tok != "" {
-		t.Errorf("expected empty token, got %q", tok)
-	}
-	if src != tokenSourceNone {
-		t.Errorf("expected tokenSourceNone, got %v", src)
-	}
-	if reason == "" {
-		t.Error("expected non-empty reason")
-	}
+	require.Empty(t, tok)
+	require.Equal(t, tokenSourceNone, src)
+	require.NotEmpty(t, reason)
 }
 
 func TestExtractTokenHeaderTakesPrecedence(t *testing.T) {
@@ -109,12 +90,8 @@ func TestExtractTokenHeaderTakesPrecedence(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "auth", Value: "cookietoken"})
 
 	tok, src, _ := extractToken(req, "auth")
-	if tok != "headertoken" {
-		t.Errorf("expected header token, got %q", tok)
-	}
-	if src != tokenSourceHeader {
-		t.Errorf("expected tokenSourceHeader, got %v", src)
-	}
+	require.Equal(t, "headertoken", tok)
+	require.Equal(t, tokenSourceHeader, src)
 }
 
 func TestExtractTokenEmptyBearer(t *testing.T) {
@@ -122,12 +99,8 @@ func TestExtractTokenEmptyBearer(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer   ")
 
 	tok, src, _ := extractToken(req, "auth")
-	if tok != "" {
-		t.Errorf("expected empty token for whitespace bearer, got %q", tok)
-	}
-	if src != tokenSourceNone {
-		t.Errorf("expected tokenSourceNone, got %v", src)
-	}
+	require.Empty(t, tok)
+	require.Equal(t, tokenSourceNone, src)
 }
 
 // --- shouldTouchAPIKeyLastUsed ------------------------------------------------
@@ -141,9 +114,7 @@ func init() {
 
 func TestShouldTouchAPIKeyLastUsedFirstTime(t *testing.T) {
 	id := "apikey-first-time-" + t.Name()
-	if !shouldTouchAPIKeyLastUsed(id, time.Now()) {
-		t.Error("first call should return true")
-	}
+	require.True(t, shouldTouchAPIKeyLastUsed(id, time.Now()))
 }
 
 func TestShouldTouchAPIKeyLastUsedWithinInterval(t *testing.T) {
@@ -152,9 +123,7 @@ func TestShouldTouchAPIKeyLastUsedWithinInterval(t *testing.T) {
 	shouldTouchAPIKeyLastUsed(id, now) // record first touch
 
 	// Call again within the interval – should be suppressed.
-	if shouldTouchAPIKeyLastUsed(id, now.Add(time.Minute)) {
-		t.Error("second call within interval should return false")
-	}
+	require.False(t, shouldTouchAPIKeyLastUsed(id, now.Add(time.Minute)))
 }
 
 func TestShouldTouchAPIKeyLastUsedAfterInterval(t *testing.T) {
@@ -163,9 +132,7 @@ func TestShouldTouchAPIKeyLastUsedAfterInterval(t *testing.T) {
 	shouldTouchAPIKeyLastUsed(id, now) // record first touch
 
 	// Call again after the full interval has passed.
-	if !shouldTouchAPIKeyLastUsed(id, now.Add(apiKeyTouchInterval+time.Second)) {
-		t.Error("call after full interval should return true")
-	}
+	require.True(t, shouldTouchAPIKeyLastUsed(id, now.Add(apiKeyTouchInterval+time.Second)))
 }
 
 // --- resolveUser --------------------------------------------------------------
@@ -176,12 +143,8 @@ func TestResolveUserValidJWT(t *testing.T) {
 
 	token, _ := mgr.CreateToken(ctx, "user-jwt")
 	uid, err := resolveUser(ctx, token, tokenSourceHeader, mgr, nil, "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if uid != "user-jwt" {
-		t.Errorf("expected %q, got %q", "user-jwt", uid)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "user-jwt", uid)
 }
 
 func TestResolveUserInvalidJWT(t *testing.T) {
@@ -189,9 +152,7 @@ func TestResolveUserInvalidJWT(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	_, err := resolveUser(ctx, "bad.token", tokenSourceHeader, mgr, nil, "")
-	if !errors.Is(err, ErrInvalidToken) {
-		t.Errorf("expected ErrInvalidToken, got %v", err)
-	}
+	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestResolveUserAPIKeyFromHeader(t *testing.T) {
@@ -205,12 +166,8 @@ func TestResolveUserAPIKeyFromHeader(t *testing.T) {
 	}
 
 	uid, err := resolveUser(ctx, "app_somehexkey", tokenSourceHeader, mgr, store, "app_")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if uid != "user-from-key" {
-		t.Errorf("expected %q, got %q", "user-from-key", uid)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "user-from-key", uid)
 }
 
 func TestResolveUserAPIKeyFromCookieRejected(t *testing.T) {
@@ -225,9 +182,7 @@ func TestResolveUserAPIKeyFromCookieRejected(t *testing.T) {
 
 	// API keys in cookies must be rejected.
 	_, err := resolveUser(ctx, "app_somehexkey", tokenSourceCookie, mgr, store, "app_")
-	if !errors.Is(err, ErrInvalidToken) {
-		t.Errorf("expected ErrInvalidToken for API key from cookie, got %v", err)
-	}
+	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestResolveUserAPIKeyNotFound(t *testing.T) {
@@ -237,9 +192,7 @@ func TestResolveUserAPIKeyNotFound(t *testing.T) {
 	store := &mockAPIKeyStore{} // returns sql.ErrNoRows by default
 
 	_, err := resolveUser(ctx, "app_unknownkey", tokenSourceHeader, mgr, store, "app_")
-	if !errors.Is(err, ErrInvalidToken) {
-		t.Errorf("expected ErrInvalidToken, got %v", err)
-	}
+	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 // --- Middleware ---------------------------------------------------------------
@@ -260,9 +213,7 @@ func TestMiddlewareNoToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := makeMiddlewareRequest(mgr, Config{CookieName: "auth"}, nil, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestMiddlewareInvalidToken(t *testing.T) {
@@ -271,14 +222,10 @@ func TestMiddlewareInvalidToken(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer not-a-jwt")
 	w := makeMiddlewareRequest(mgr, Config{CookieName: "auth"}, nil, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 	var body map[string]string
 	_ = json.NewDecoder(w.Body).Decode(&body)
-	if !strings.Contains(body["error"], "invalid or expired") {
-		t.Errorf("unexpected error message: %q", body["error"])
-	}
+	require.Contains(t, body["error"], "invalid or expired")
 }
 
 func TestMiddlewareValidJWT(t *testing.T) {
@@ -290,12 +237,8 @@ func TestMiddlewareValidJWT(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := makeMiddlewareRequest(mgr, Config{CookieName: "auth"}, nil, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if got := w.Header().Get("X-User-ID"); got != "user-mw" {
-		t.Errorf("expected userID %q in context, got %q", "user-mw", got)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "user-mw", w.Header().Get("X-User-ID"))
 }
 
 func TestMiddlewareValidCookieJWT(t *testing.T) {
@@ -307,9 +250,7 @@ func TestMiddlewareValidCookieJWT(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "auth", Value: token})
 	w := makeMiddlewareRequest(mgr, Config{CookieName: "auth"}, nil, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 // --- AdminMiddleware ----------------------------------------------------------
@@ -340,9 +281,7 @@ func TestAdminMiddlewareNoToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := makeAdminRequest(mgr, checker, Config{CookieName: "auth"}, nil, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestAdminMiddlewareNonAdmin(t *testing.T) {
@@ -355,9 +294,7 @@ func TestAdminMiddlewareNonAdmin(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := makeAdminRequest(mgr, checker, Config{CookieName: "auth"}, nil, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
 func TestAdminMiddlewareAdmin(t *testing.T) {
@@ -370,9 +307,7 @@ func TestAdminMiddlewareAdmin(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := makeAdminRequest(mgr, checker, Config{CookieName: "auth"}, nil, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestAdminMiddlewareCheckerError(t *testing.T) {
@@ -389,9 +324,7 @@ func TestAdminMiddlewareCheckerError(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := makeAdminRequest(mgr, checker, Config{CookieName: "auth"}, nil, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // --- cachingAdminChecker ------------------------------------------------------
@@ -409,22 +342,17 @@ func TestCachingAdminCheckerCachesResult(t *testing.T) {
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
 		ok, err := cached.IsAdmin(ctx, "user-1")
-		if err != nil || !ok {
-			t.Fatalf("call %d: unexpected result err=%v ok=%v", i, err, ok)
-		}
+		require.NoErrorf(t, err, "call %d", i)
+		require.Truef(t, ok, "call %d", i)
 	}
-	if calls != 1 {
-		t.Errorf("expected 1 delegate call, got %d", calls)
-	}
+	require.Equal(t, 1, calls)
 }
 
 func TestCachingAdminCheckerDefaultTTL(t *testing.T) {
 	// TTL <= 0 should default to 5s without panicking.
 	delegate := &mockAdminChecker{}
 	cached := newCachingAdminChecker(delegate, 0)
-	if cached == nil {
-		t.Fatal("expected non-nil checker")
-	}
+	require.NotNil(t, cached)
 }
 
 func TestCachingAdminCheckerDelegateError(t *testing.T) {
@@ -435,9 +363,7 @@ func TestCachingAdminCheckerDelegateError(t *testing.T) {
 	}
 	cached := newCachingAdminChecker(delegate, time.Hour)
 	_, err := cached.IsAdmin(context.Background(), "u")
-	if err == nil {
-		t.Error("expected error from delegate")
-	}
+	require.Error(t, err)
 }
 
 func TestCachingAdminCheckerExpiry(t *testing.T) {
@@ -466,9 +392,7 @@ func TestCachingAdminCheckerExpiry(t *testing.T) {
 	c, err := cached.IsAdmin(ctx, "u")
 	require.NoError(t, err)
 	require.True(t, c)
-	if calls != 2 {
-		t.Errorf("expected 2 delegate calls after expiry, got %d", calls)
-	}
+	require.Equal(t, 2, calls)
 }
 
 func TestResolveUserAPIKeyStoreError(t *testing.T) {
@@ -482,12 +406,8 @@ func TestResolveUserAPIKeyStoreError(t *testing.T) {
 	}
 
 	_, err := resolveUser(ctx, "app_somekey", tokenSourceHeader, mgr, store, "app_")
-	if err == nil {
-		t.Error("expected error from store")
-	}
-	if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
-		t.Error("store error should not be wrapped as ErrInvalidToken/ErrExpiredToken")
-	}
+	require.Error(t, err)
+	require.False(t, errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken))
 }
 
 func TestMiddlewareInternalError(t *testing.T) {
@@ -511,9 +431,7 @@ func TestMiddlewareInternalError(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestAdminMiddlewareInvalidToken(t *testing.T) {
@@ -531,9 +449,7 @@ func TestAdminMiddlewareInvalidToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestAdminMiddlewareInternalError(t *testing.T) {
@@ -557,7 +473,5 @@ func TestAdminMiddlewareInternalError(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }

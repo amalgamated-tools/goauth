@@ -4,109 +4,68 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 )
 
 func TestHashHighEntropyToken(t *testing.T) {
 	h1 := HashHighEntropyToken("token123")
 	h2 := HashHighEntropyToken("token123")
-	if h1 != h2 {
-		t.Error("same input should produce same hash")
-	}
+	require.Equal(t, h1, h2)
 
 	h3 := HashHighEntropyToken("differenttoken")
-	if h1 == h3 {
-		t.Error("different inputs should produce different hashes")
-	}
+	require.NotEqual(t, h1, h3)
 
 	// SHA-256 produces 32 bytes = 64 hex chars.
-	if len(h1) != 64 {
-		t.Errorf("expected 64 hex chars, got %d", len(h1))
-	}
+	require.Len(t, h1, 64)
 
 	// Empty token should still produce a valid hash.
 	h4 := HashHighEntropyToken("")
-	if len(h4) != 64 {
-		t.Errorf("empty-token hash should be 64 chars, got %d", len(h4))
-	}
-	if h1 == h4 {
-		t.Error("different inputs should not collide")
-	}
+	require.Len(t, h4, 64)
+	require.NotEqual(t, h1, h4)
 }
 
 func TestGenerateRandomHex(t *testing.T) {
 	h1, err := GenerateRandomHex(16)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	// 16 bytes → 32 hex chars.
-	if len(h1) != 32 {
-		t.Errorf("expected 32 hex chars for n=16, got %d", len(h1))
-	}
+	require.Len(t, h1, 32)
 
 	h2, err := GenerateRandomHex(16)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if h1 == h2 {
-		t.Error("successive calls should produce different values")
-	}
+	require.NoError(t, err)
+	require.NotEqual(t, h1, h2)
 
 	// n=0 should return an empty string without error.
 	h3, err := GenerateRandomHex(0)
-	if err != nil {
-		t.Fatalf("unexpected error for n=0: %v", err)
-	}
-	if h3 != "" {
-		t.Errorf("expected empty string for n=0, got %q", h3)
-	}
+	require.NoError(t, err)
+	require.Empty(t, h3)
 
 	// n=20 → 40 hex chars (used by the API key handler).
 	h4, err := GenerateRandomHex(20)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(h4) != 40 {
-		t.Errorf("expected 40 hex chars for n=20, got %d", len(h4))
-	}
+	require.NoError(t, err)
+	require.Len(t, h4, 40)
 }
 
 func TestMustGenerateDummyBcryptHash(t *testing.T) {
 	hash := MustGenerateDummyBcryptHash("some-secret")
-	if len(hash) == 0 {
-		t.Error("expected non-empty bcrypt hash")
-	}
-	if err := bcrypt.CompareHashAndPassword(hash, []byte("some-secret")); err != nil {
-		t.Errorf("hash should match source password: %v", err)
-	}
+	require.NotEmpty(t, hash)
+	require.NoError(t, bcrypt.CompareHashAndPassword(hash, []byte("some-secret")))
 	// Different password must not match.
-	if err := bcrypt.CompareHashAndPassword(hash, []byte("wrong")); err == nil {
-		t.Error("wrong password should not match")
-	}
+	require.Error(t, bcrypt.CompareHashAndPassword(hash, []byte("wrong")))
 }
 
 func TestSecretEncrypterRoundtrip(t *testing.T) {
 	enc, err := newSecretEncrypter([]byte("test-secret-key-32-bytes-long!!!"))
-	if err != nil {
-		t.Fatalf("newSecretEncrypter: %v", err)
-	}
+	require.NoError(t, err)
 
 	plaintext := "hello, world"
 	ciphertext, err := enc.Encrypt(plaintext)
-	if err != nil {
-		t.Fatalf("Encrypt: %v", err)
-	}
-	if !strings.HasPrefix(ciphertext, secretEncryptPrefix) {
-		t.Errorf("ciphertext should have prefix %q", secretEncryptPrefix)
-	}
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(ciphertext, secretEncryptPrefix))
 
 	decrypted, err := enc.Decrypt(ciphertext)
-	if err != nil {
-		t.Fatalf("Decrypt: %v", err)
-	}
-	if decrypted != plaintext {
-		t.Errorf("expected %q, got %q", plaintext, decrypted)
-	}
+	require.NoError(t, err)
+	require.Equal(t, plaintext, decrypted)
 }
 
 func TestSecretEncrypterEncryptProducesUniqueValues(t *testing.T) {
@@ -114,21 +73,15 @@ func TestSecretEncrypterEncryptProducesUniqueValues(t *testing.T) {
 	ct1, _ := enc.Encrypt("same-value")
 	ct2, _ := enc.Encrypt("same-value")
 	// AES-GCM uses a random nonce, so two encryptions of the same plaintext differ.
-	if ct1 == ct2 {
-		t.Error("successive encryptions of same plaintext should differ")
-	}
+	require.NotEqual(t, ct1, ct2)
 }
 
 func TestSecretEncrypterEmptyString(t *testing.T) {
 	enc, _ := newSecretEncrypter([]byte("test-key"))
 
 	result, err := enc.Encrypt("")
-	if err != nil {
-		t.Fatalf("Encrypt empty string: %v", err)
-	}
-	if result != "" {
-		t.Errorf("expected empty string, got %q", result)
-	}
+	require.NoError(t, err)
+	require.Empty(t, result)
 }
 
 func TestSecretEncrypterDecryptNonPrefixed(t *testing.T) {
@@ -137,12 +90,8 @@ func TestSecretEncrypterDecryptNonPrefixed(t *testing.T) {
 	// A value that lacks the prefix is returned as-is.
 	val := "plain-text-value"
 	result, err := enc.Decrypt(val)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result != val {
-		t.Errorf("expected %q unchanged, got %q", val, result)
-	}
+	require.NoError(t, err)
+	require.Equal(t, val, result)
 }
 
 func TestSecretEncrypterDecryptTooShort(t *testing.T) {
@@ -151,9 +100,7 @@ func TestSecretEncrypterDecryptTooShort(t *testing.T) {
 	// Prefix present but ciphertext body is too short to contain a nonce.
 	val := secretEncryptPrefix + "aGVs" // base64 of 3 bytes – shorter than GCM nonce
 	_, err := enc.Decrypt(val)
-	if err == nil {
-		t.Error("expected error for too-short ciphertext")
-	}
+	require.Error(t, err)
 }
 
 func TestSecretEncrypterWrongKey(t *testing.T) {
@@ -162,7 +109,5 @@ func TestSecretEncrypterWrongKey(t *testing.T) {
 
 	ciphertext, _ := enc1.Encrypt("secret-data")
 	_, err := enc2.Decrypt(ciphertext)
-	if err == nil {
-		t.Error("expected error when decrypting with wrong key")
-	}
+	require.Error(t, err)
 }
