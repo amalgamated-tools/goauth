@@ -63,11 +63,11 @@ func (c Config) Enabled() bool {
 // Validate checks the config and returns Params ready for Send.
 func (c Config) Validate() (Params, error) {
 	if c.Host == "" {
-		return Params{}, fmt.Errorf("SMTP host required")
+		return Params{}, fmt.Errorf("host required")
 	}
 	from := strings.TrimSpace(c.From)
 	if from == "" {
-		return Params{}, fmt.Errorf("SMTP from address required")
+		return Params{}, fmt.Errorf("from address required")
 	}
 	parsed, err := mail.ParseAddress(from)
 	if err != nil {
