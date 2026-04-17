@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -32,75 +33,56 @@ func TestSignupSuccess(t *testing.T) {
 	h := newAuthHandler(store)
 
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
-	if w.Code != http.StatusCreated {
-		t.Errorf("expected 201, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusCreated, w.Code)
 	var resp AuthResponse
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Token == "" {
-		t.Error("expected non-empty token in response")
-	}
-	if resp.User.Email != "alice@test.com" {
-		t.Errorf("expected email alice@test.com, got %q", resp.User.Email)
-	}
+	require.NotEmpty(t, resp.Token)
+	require.Equal(t, "alice@test.com", resp.User.Email)
 }
 
 func TestSignupSetsAuthCookie(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusCreated, w.Code)
 	var found *http.Cookie
 	for _, c := range w.Result().Cookies() {
 		if c.Name == "auth" {
 			found = c
 		}
 	}
-	if found == nil || found.Value == "" {
-		t.Error("expected auth cookie to be set on signup")
-	}
+	require.NotNil(t, found)
+	require.NotEmpty(t, found.Value)
 }
 
 func TestSignupDisabled(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	h.DisableSignup = true
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
 func TestSignupMissingName(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Signup,
 		`{"name":"","email":"a@b.com","password":"password123"}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestSignupMissingEmail(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Signup,
 		`{"name":"Alice","email":"","password":"password123"}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestSignupMissingPassword(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Signup,
 		`{"name":"Alice","email":"a@b.com","password":""}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestSignupWeakPassword(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Signup,
 		`{"name":"Alice","email":"a@b.com","password":"short"}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestSignupEmailConflict(t *testing.T) {
@@ -111,9 +93,7 @@ func TestSignupEmailConflict(t *testing.T) {
 	}
 	w := postJSON(t, newAuthHandler(store).Signup,
 		`{"name":"Alice","email":"alice@test.com","password":"password123"}`)
-	if w.Code != http.StatusConflict {
-		t.Errorf("expected 409, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusConflict, w.Code)
 }
 
 func TestSignupStoreError(t *testing.T) {
@@ -124,16 +104,12 @@ func TestSignupStoreError(t *testing.T) {
 	}
 	w := postJSON(t, newAuthHandler(store).Signup,
 		`{"name":"Alice","email":"alice@test.com","password":"password123"}`)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestSignupInvalidJSON(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Signup, "not-json")
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -143,9 +119,7 @@ func TestSignupInvalidJSON(t *testing.T) {
 func hashPassword(t *testing.T, pw string) string {
 	t.Helper()
 	h, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.MinCost)
-	if err != nil {
-		t.Fatalf("bcrypt: %v", err)
-	}
+	require.NoError(t, err)
 	return string(h)
 }
 
@@ -158,14 +132,10 @@ func TestLoginSuccess(t *testing.T) {
 	}
 	w := postJSON(t, newAuthHandler(store).Login,
 		`{"email":"alice@test.com","password":"goodpassword123"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp AuthResponse
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Token == "" {
-		t.Error("expected non-empty token")
-	}
+	require.NotEmpty(t, resp.Token)
 }
 
 func TestLoginSetsAuthCookie(t *testing.T) {
@@ -183,9 +153,8 @@ func TestLoginSetsAuthCookie(t *testing.T) {
 			found = c
 		}
 	}
-	if found == nil || found.Value == "" {
-		t.Error("expected auth cookie on login")
-	}
+	require.NotNil(t, found)
+	require.NotEmpty(t, found.Value)
 }
 
 func TestLoginMissingFields(t *testing.T) {
@@ -195,9 +164,7 @@ func TestLoginMissingFields(t *testing.T) {
 		`{"email":"a@b.com","password":""}`,
 	} {
 		w := postJSON(t, h.Login, body)
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("body %s: expected 400, got %d", body, w.Code)
-		}
+		require.Equalf(t, http.StatusBadRequest, w.Code, "body %s", body)
 	}
 }
 
@@ -209,9 +176,7 @@ func TestLoginUserNotFound(t *testing.T) {
 	}
 	w := postJSON(t, newAuthHandler(store).Login,
 		`{"email":"nope@test.com","password":"goodpassword123"}`)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestLoginWrongPassword(t *testing.T) {
@@ -223,9 +188,7 @@ func TestLoginWrongPassword(t *testing.T) {
 	}
 	w := postJSON(t, newAuthHandler(store).Login,
 		`{"email":"a@b.com","password":"wrongpassword123"}`)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestLoginOIDCOnlyAccount(t *testing.T) {
@@ -237,9 +200,7 @@ func TestLoginOIDCOnlyAccount(t *testing.T) {
 	}
 	w := postJSON(t, newAuthHandler(store).Login,
 		`{"email":"a@b.com","password":"goodpassword123"}`)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 for OIDC-only account, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestLoginStoreError(t *testing.T) {
@@ -250,16 +211,12 @@ func TestLoginStoreError(t *testing.T) {
 	}
 	w := postJSON(t, newAuthHandler(store).Login,
 		`{"email":"a@b.com","password":"goodpassword123"}`)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestLoginInvalidJSON(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Login, "not-json")
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -272,21 +229,15 @@ func TestLogout(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Logout(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var found *http.Cookie
 	for _, c := range w.Result().Cookies() {
 		if c.Name == "auth" {
 			found = c
 		}
 	}
-	if found == nil {
-		t.Fatal("expected auth cookie to be cleared")
-	}
-	if found.MaxAge != -1 {
-		t.Errorf("expected MaxAge=-1, got %d", found.MaxAge)
-	}
+	require.NotNil(t, found)
+	require.Equal(t, -1, found.MaxAge)
 }
 
 // ---------------------------------------------------------------------------
@@ -305,14 +256,10 @@ func TestMeSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Me(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var dto UserDTO
 	_ = json.NewDecoder(w.Body).Decode(&dto)
-	if dto.Email != "alice@test.com" {
-		t.Errorf("expected email, got %q", dto.Email)
-	}
+	require.Equal(t, "alice@test.com", dto.Email)
 }
 
 func TestMeNotFound(t *testing.T) {
@@ -326,9 +273,7 @@ func TestMeNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	newAuthHandler(store).Me(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestMeStoreError(t *testing.T) {
@@ -342,9 +287,7 @@ func TestMeStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	newAuthHandler(store).Me(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -361,14 +304,10 @@ func TestUpdateProfileSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.UpdateProfile(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var dto UserDTO
 	_ = json.NewDecoder(w.Body).Decode(&dto)
-	if dto.Name != "Bob" {
-		t.Errorf("expected name Bob, got %q", dto.Name)
-	}
+	require.Equal(t, "Bob", dto.Name)
 }
 
 func TestUpdateProfileEmptyName(t *testing.T) {
@@ -378,9 +317,7 @@ func TestUpdateProfileEmptyName(t *testing.T) {
 	w := httptest.NewRecorder()
 	newAuthHandler(&mockUserStore{}).UpdateProfile(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestUpdateProfileInvalidJSON(t *testing.T) {
@@ -389,9 +326,7 @@ func TestUpdateProfileInvalidJSON(t *testing.T) {
 	w := httptest.NewRecorder()
 	newAuthHandler(&mockUserStore{}).UpdateProfile(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -414,9 +349,7 @@ func TestChangePasswordSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.ChangePassword(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestChangePasswordMissingFields(t *testing.T) {
@@ -430,9 +363,7 @@ func TestChangePasswordMissingFields(t *testing.T) {
 		req = withUserID(req, "u1")
 		w := httptest.NewRecorder()
 		h.ChangePassword(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("body %s: expected 400, got %d", body, w.Code)
-		}
+		require.Equalf(t, http.StatusBadRequest, w.Code, "body %s", body)
 	}
 }
 
@@ -449,9 +380,7 @@ func TestChangePasswordOIDCAccount(t *testing.T) {
 	w := httptest.NewRecorder()
 	newAuthHandler(store).ChangePassword(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for OIDC account, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestChangePasswordWrongCurrentPassword(t *testing.T) {
@@ -468,9 +397,7 @@ func TestChangePasswordWrongCurrentPassword(t *testing.T) {
 	w := httptest.NewRecorder()
 	newAuthHandler(store).ChangePassword(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestChangePasswordWeakNewPassword(t *testing.T) {
@@ -481,9 +408,7 @@ func TestChangePasswordWeakNewPassword(t *testing.T) {
 	w := httptest.NewRecorder()
 	newAuthHandler(&mockUserStore{}).ChangePassword(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for weak new password, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestUpdateProfileStoreError(t *testing.T) {
@@ -498,9 +423,7 @@ func TestUpdateProfileStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	newAuthHandler(store).UpdateProfile(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestChangePasswordStoreError(t *testing.T) {
@@ -520,9 +443,7 @@ func TestChangePasswordStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	newAuthHandler(store).ChangePassword(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestChangePasswordFindUserError(t *testing.T) {
@@ -538,9 +459,7 @@ func TestChangePasswordFindUserError(t *testing.T) {
 	w := httptest.NewRecorder()
 	newAuthHandler(store).ChangePassword(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -558,17 +477,11 @@ func TestLoginCreatesSessionAndReturnsRefreshToken(t *testing.T) {
 	h := newAuthHandlerWithSessions(store, sessions)
 
 	w := postJSON(t, h.Login, `{"email":"alice@test.com","password":"goodpassword123"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp AuthResponse
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Token == "" {
-		t.Error("expected non-empty access token")
-	}
-	if resp.RefreshToken == "" {
-		t.Error("expected non-empty refresh token when sessions enabled")
-	}
+	require.NotEmpty(t, resp.Token)
+	require.NotEmpty(t, resp.RefreshToken)
 }
 
 func TestSignupCreatesSessionAndReturnsRefreshToken(t *testing.T) {
@@ -576,30 +489,20 @@ func TestSignupCreatesSessionAndReturnsRefreshToken(t *testing.T) {
 	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
 
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
-	if w.Code != http.StatusCreated {
-		t.Errorf("expected 201, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusCreated, w.Code)
 	var resp AuthResponse
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Token == "" {
-		t.Error("expected non-empty access token")
-	}
-	if resp.RefreshToken == "" {
-		t.Error("expected non-empty refresh token when sessions enabled")
-	}
+	require.NotEmpty(t, resp.Token)
+	require.NotEmpty(t, resp.RefreshToken)
 }
 
 func TestSignupNoRefreshTokenWithoutSessions(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusCreated, w.Code)
 	var resp AuthResponse
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp.RefreshToken != "" {
-		t.Error("expected empty refresh_token when sessions not configured")
-	}
+	require.Empty(t, resp.RefreshToken)
 }
 
 func TestLoginSessionCreateError(t *testing.T) {
@@ -617,9 +520,7 @@ func TestLoginSessionCreateError(t *testing.T) {
 	h := newAuthHandlerWithSessions(store, sessions)
 
 	w := postJSON(t, h.Login, `{"email":"alice@test.com","password":"goodpassword123"}`)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestLogoutRevokesSession(t *testing.T) {
@@ -640,12 +541,8 @@ func TestLogoutRevokesSession(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Logout(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if deletedID != "sess-logout" {
-		t.Errorf("expected session %q to be revoked, got %q", "sess-logout", deletedID)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "sess-logout", deletedID)
 }
 
 func TestLogoutClearsRefreshCookie(t *testing.T) {
@@ -666,9 +563,7 @@ func TestLogoutClearsRefreshCookie(t *testing.T) {
 			refreshCleared = true
 		}
 	}
-	if !refreshCleared {
-		t.Error("expected refresh cookie to be cleared on logout")
-	}
+	require.True(t, refreshCleared)
 }
 
 // ---------------------------------------------------------------------------
@@ -699,38 +594,25 @@ func TestRefreshTokenSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.RefreshToken(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp AuthResponse
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Token == "" {
-		t.Error("expected new access token")
-	}
-	if resp.RefreshToken == "" {
-		t.Error("expected new refresh token")
-	}
-	// New refresh token must differ from the original.
-	if resp.RefreshToken == rawRefresh {
-		t.Error("refresh token should be rotated")
-	}
+	require.NotEmpty(t, resp.Token)
+	require.NotEmpty(t, resp.RefreshToken)
+	require.NotEqual(t, rawRefresh, resp.RefreshToken)
 }
 
 func TestRefreshTokenSessionsDisabled(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	w := postJSON(t, h.RefreshToken, `{"refresh_token":"anytoken"}`)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404 when sessions not configured, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestRefreshTokenMissing(t *testing.T) {
 	sessions := &mockSessionStore{}
 	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
 	w := postJSON(t, h.RefreshToken, `{"refresh_token":""}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for missing refresh token, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestRefreshTokenInvalidToken(t *testing.T) {
@@ -741,9 +623,7 @@ func TestRefreshTokenInvalidToken(t *testing.T) {
 	}
 	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
 	w := postJSON(t, h.RefreshToken, `{"refresh_token":"unknowntoken"}`)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 for unknown refresh token, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestRefreshTokenExpiredSession(t *testing.T) {
@@ -765,9 +645,7 @@ func TestRefreshTokenExpiredSession(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.RefreshToken(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 for expired refresh token, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestRefreshTokenFromCookie(t *testing.T) {
@@ -794,9 +672,7 @@ func TestRefreshTokenFromCookie(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.RefreshToken(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 with refresh cookie, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestRefreshTokenStoreError(t *testing.T) {
@@ -807,7 +683,5 @@ func TestRefreshTokenStoreError(t *testing.T) {
 	}
 	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
 	w := postJSON(t, h.RefreshToken, `{"refresh_token":"anytoken"}`)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }

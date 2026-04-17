@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -81,15 +82,9 @@ func TestSendVerificationSuccess(t *testing.T) {
 	}
 
 	w := postJSON(t, h.SendVerification, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
-	if sentTo != "alice@test.com" {
-		t.Errorf("expected email sent to alice@test.com, got %q", sentTo)
-	}
-	if sentToken == "" {
-		t.Error("expected non-empty token to be passed to SendEmail")
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "alice@test.com", sentTo)
+	require.NotEmpty(t, sentToken)
 }
 
 func TestSendVerificationAlreadyVerified(t *testing.T) {
@@ -106,12 +101,8 @@ func TestSendVerificationAlreadyVerified(t *testing.T) {
 	}
 
 	w := postJSON(t, h.SendVerification, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if emailSent {
-		t.Error("expected no email sent for already-verified user")
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.False(t, emailSent)
 }
 
 func TestSendVerificationUserNotFound(t *testing.T) {
@@ -129,28 +120,20 @@ func TestSendVerificationUserNotFound(t *testing.T) {
 
 	// Should still return 200 to avoid leaking account existence.
 	w := postJSON(t, h.SendVerification, `{"email":"nobody@test.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if emailSent {
-		t.Error("expected no email sent when user not found")
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.False(t, emailSent)
 }
 
 func TestSendVerificationMissingEmail(t *testing.T) {
 	h := newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{})
 	w := postJSON(t, h.SendVerification, `{"email":""}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestSendVerificationInvalidJSON(t *testing.T) {
 	h := newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{})
 	w := postJSON(t, h.SendVerification, "not-json")
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestSendVerificationStoreError(t *testing.T) {
@@ -165,9 +148,7 @@ func TestSendVerificationStoreError(t *testing.T) {
 		},
 	}
 	w := postJSON(t, newEmailVerificationHandler(store, verStore).SendVerification, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestSendVerificationUserStoreError(t *testing.T) {
@@ -178,9 +159,7 @@ func TestSendVerificationUserStoreError(t *testing.T) {
 	}
 	// Non-sql.ErrNoRows errors log and return 200 to avoid leaking info.
 	w := postJSON(t, newEmailVerificationHandler(store, &mockEmailVerificationStore{}).SendVerification, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestSendVerificationNoSendEmailFunc(t *testing.T) {
@@ -192,9 +171,7 @@ func TestSendVerificationNoSendEmailFunc(t *testing.T) {
 	// SendEmail is nil — token still created, no panic.
 	h := newEmailVerificationHandler(store, &mockEmailVerificationStore{})
 	w := postJSON(t, h.SendVerification, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -217,9 +194,7 @@ func TestVerifyEmailSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	newEmailVerificationHandler(&mockUserStore{}, verStore).VerifyEmail(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestVerifyEmailMissingToken(t *testing.T) {
@@ -227,9 +202,7 @@ func TestVerifyEmailMissingToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{}).VerifyEmail(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestVerifyEmailInvalidToken(t *testing.T) {
@@ -242,9 +215,7 @@ func TestVerifyEmailInvalidToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	newEmailVerificationHandler(&mockUserStore{}, verStore).VerifyEmail(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestVerifyEmailExpiredToken(t *testing.T) {
@@ -260,9 +231,7 @@ func TestVerifyEmailExpiredToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	newEmailVerificationHandler(&mockUserStore{}, verStore).VerifyEmail(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for expired token, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestVerifyEmailConsumeStoreError(t *testing.T) {
@@ -275,9 +244,7 @@ func TestVerifyEmailConsumeStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	newEmailVerificationHandler(&mockUserStore{}, verStore).VerifyEmail(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestVerifyEmailSetVerifiedStoreError(t *testing.T) {
@@ -296,9 +263,7 @@ func TestVerifyEmailSetVerifiedStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	newEmailVerificationHandler(&mockUserStore{}, verStore).VerifyEmail(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -316,9 +281,7 @@ func TestLoginBlockedWhenUnverified(t *testing.T) {
 	h.RequireVerification = true
 
 	w := postJSON(t, h.Login, `{"email":"alice@test.com","password":"goodpassword123"}`)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403 for unverified user, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
 func TestLoginAllowedWhenVerified(t *testing.T) {
@@ -332,9 +295,7 @@ func TestLoginAllowedWhenVerified(t *testing.T) {
 	h.RequireVerification = true
 
 	w := postJSON(t, h.Login, `{"email":"alice@test.com","password":"goodpassword123"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 for verified user, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestLoginVerificationNotRequired(t *testing.T) {
@@ -349,21 +310,15 @@ func TestLoginVerificationNotRequired(t *testing.T) {
 	// RequireVerification defaults to false.
 
 	w := postJSON(t, h.Login, `{"email":"alice@test.com","password":"goodpassword123"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 when RequireVerification=false, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestUserDTOEmailVerifiedField(t *testing.T) {
 	u := &auth.User{ID: "u1", Name: "Alice", Email: "a@b.com", EmailVerified: true}
 	dto := ToUserDTO(u)
-	if !dto.EmailVerified {
-		t.Error("expected EmailVerified=true in UserDTO")
-	}
+	require.True(t, dto.EmailVerified)
 
 	u2 := &auth.User{ID: "u2", Name: "Bob", Email: "b@c.com", EmailVerified: false}
 	dto2 := ToUserDTO(u2)
-	if dto2.EmailVerified {
-		t.Error("expected EmailVerified=false in UserDTO")
-	}
+	require.False(t, dto2.EmailVerified)
 }

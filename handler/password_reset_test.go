@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/stretchr/testify/require"
 )
 
 func newPasswordResetHandler(users auth.UserStore, resets auth.PasswordResetStore) *PasswordResetHandler {
@@ -63,12 +64,8 @@ func TestRequestResetSuccess(t *testing.T) {
 	}
 
 	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
-	if !emailSent {
-		t.Error("expected SendResetEmail to be called")
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.True(t, emailSent)
 }
 
 func TestRequestResetUnknownEmail(t *testing.T) {
@@ -87,28 +84,20 @@ func TestRequestResetUnknownEmail(t *testing.T) {
 	}
 
 	w := postJSON(t, h.RequestReset, `{"email":"unknown@test.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 for unknown email, got %d", w.Code)
-	}
-	if emailSent {
-		t.Error("expected SendResetEmail NOT to be called for unknown email")
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.False(t, emailSent)
 }
 
 func TestRequestResetMissingEmail(t *testing.T) {
 	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
 	w := postJSON(t, h.RequestReset, `{"email":""}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestRequestResetInvalidJSON(t *testing.T) {
 	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
 	w := postJSON(t, h.RequestReset, "not-json")
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestRequestResetUserStoreError(t *testing.T) {
@@ -119,9 +108,7 @@ func TestRequestResetUserStoreError(t *testing.T) {
 	}
 	h := newPasswordResetHandler(users, &mockPasswordResetStore{})
 	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestRequestResetCreateTokenError(t *testing.T) {
@@ -137,9 +124,7 @@ func TestRequestResetCreateTokenError(t *testing.T) {
 	}
 	h := newPasswordResetHandler(users, resets)
 	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestRequestResetSendEmailErrorStillOK(t *testing.T) {
@@ -163,12 +148,8 @@ func TestRequestResetSendEmailErrorStillOK(t *testing.T) {
 	}
 
 	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 even when SendResetEmail fails, got %d", w.Code)
-	}
-	if !tokenDeleted {
-		t.Error("expected orphaned token to be deleted after email failure")
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.True(t, tokenDeleted)
 }
 
 func TestRequestResetResponseMessage(t *testing.T) {
@@ -182,9 +163,7 @@ func TestRequestResetResponseMessage(t *testing.T) {
 
 	var body map[string]string
 	_ = json.NewDecoder(w.Body).Decode(&body)
-	if body["message"] == "" {
-		t.Error("expected non-empty message in response")
-	}
+	require.NotEmpty(t, body["message"])
 }
 
 func TestRequestResetNilSendResetEmail(t *testing.T) {
@@ -198,9 +177,7 @@ func TestRequestResetNilSendResetEmail(t *testing.T) {
 	h := newPasswordResetHandler(users, resets) // SendResetEmail is nil
 
 	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -214,30 +191,22 @@ func TestResetPasswordSuccess(t *testing.T) {
 
 	body := `{"token":"somerawtoken","newPassword":"newpassword123"}`
 	w := postJSON(t, h.ResetPassword, body)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]string
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp["message"] == "" {
-		t.Error("expected non-empty message in response")
-	}
+	require.NotEmpty(t, resp["message"])
 }
 
 func TestResetPasswordMissingToken(t *testing.T) {
 	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
 	w := postJSON(t, h.ResetPassword, `{"token":"","newPassword":"newpassword123"}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestResetPasswordWeakNewPassword(t *testing.T) {
 	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
 	w := postJSON(t, h.ResetPassword, `{"token":"sometoken","newPassword":"weak"}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestResetPasswordInvalidToken(t *testing.T) {
@@ -248,9 +217,7 @@ func TestResetPasswordInvalidToken(t *testing.T) {
 	}
 	h := newPasswordResetHandler(&mockUserStore{}, resets)
 	w := postJSON(t, h.ResetPassword, `{"token":"badtoken","newPassword":"newpassword123"}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestResetPasswordExpiredToken(t *testing.T) {
@@ -265,9 +232,7 @@ func TestResetPasswordExpiredToken(t *testing.T) {
 	}
 	h := newPasswordResetHandler(&mockUserStore{}, resets)
 	w := postJSON(t, h.ResetPassword, `{"token":"expiredtoken","newPassword":"newpassword123"}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for expired token, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestResetPasswordFindTokenStoreError(t *testing.T) {
@@ -278,9 +243,7 @@ func TestResetPasswordFindTokenStoreError(t *testing.T) {
 	}
 	h := newPasswordResetHandler(&mockUserStore{}, resets)
 	w := postJSON(t, h.ResetPassword, `{"token":"sometoken","newPassword":"newpassword123"}`)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestResetPasswordUpdatePasswordStoreError(t *testing.T) {
@@ -295,9 +258,7 @@ func TestResetPasswordUpdatePasswordStoreError(t *testing.T) {
 	resets := validResetStore("u1")
 	h := newPasswordResetHandler(users, resets)
 	w := postJSON(t, h.ResetPassword, `{"token":"sometoken","newPassword":"newpassword123"}`)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestResetPasswordDeleteTokenErrorStillSucceeds(t *testing.T) {
@@ -316,9 +277,7 @@ func TestResetPasswordDeleteTokenErrorStillSucceeds(t *testing.T) {
 	}
 	h := newPasswordResetHandler(passwordUserStore("u1"), resets)
 	w := postJSON(t, h.ResetPassword, `{"token":"sometoken","newPassword":"newpassword123"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 even when token deletion fails, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestResetPasswordInvalidJSON(t *testing.T) {
@@ -326,9 +285,7 @@ func TestResetPasswordInvalidJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("not-json"))
 	w := httptest.NewRecorder()
 	h.ResetPassword(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestRequestResetTokenTTL(t *testing.T) {
@@ -355,14 +312,10 @@ func TestRequestResetTokenTTL(t *testing.T) {
 	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
 	after := time.Now()
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	minExpiry := before.Add(ttl)
 	maxExpiry := after.Add(ttl)
-	if capturedExpiresAt.Before(minExpiry) || capturedExpiresAt.After(maxExpiry) {
-		t.Errorf("expiresAt %v not in expected range [%v, %v]", capturedExpiresAt, minExpiry, maxExpiry)
-	}
+	require.False(t, capturedExpiresAt.Before(minExpiry) || capturedExpiresAt.After(maxExpiry))
 }
 
 func TestRequestResetDefaultTokenTTL(t *testing.T) {
@@ -384,14 +337,10 @@ func TestRequestResetDefaultTokenTTL(t *testing.T) {
 	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
 	after := time.Now()
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	minExpiry := before.Add(defaultPasswordResetTTL)
 	maxExpiry := after.Add(defaultPasswordResetTTL)
-	if capturedExpiresAt.Before(minExpiry) || capturedExpiresAt.After(maxExpiry) {
-		t.Errorf("expiresAt %v not in expected range [%v, %v]", capturedExpiresAt, minExpiry, maxExpiry)
-	}
+	require.False(t, capturedExpiresAt.Before(minExpiry) || capturedExpiresAt.After(maxExpiry))
 }
 
 func TestRequestResetOIDCOnlyUserSkipsToken(t *testing.T) {
@@ -416,15 +365,9 @@ func TestRequestResetOIDCOnlyUserSkipsToken(t *testing.T) {
 	}
 
 	w := postJSON(t, h.RequestReset, `{"email":"oidc@test.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if tokenCreated {
-		t.Error("expected no token to be created for OIDC-only account")
-	}
-	if emailSent {
-		t.Error("expected no email to be sent for OIDC-only account")
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.False(t, tokenCreated)
+	require.False(t, emailSent)
 }
 
 func TestRequestResetRateLimited(t *testing.T) {
@@ -436,9 +379,7 @@ func TestRequestResetRateLimited(t *testing.T) {
 	}
 	postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`) // consumes the burst
 	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusTooManyRequests {
-		t.Errorf("expected 429, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusTooManyRequests, w.Code)
 }
 
 func TestResetPasswordExpiredTokenSentinel(t *testing.T) {
@@ -451,9 +392,7 @@ func TestResetPasswordExpiredTokenSentinel(t *testing.T) {
 	}
 	h := newPasswordResetHandler(&mockUserStore{}, resets)
 	w := postJSON(t, h.ResetPassword, `{"token":"expiredtoken","newPassword":"newpassword123"}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for ErrExpiredToken, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestResetPasswordOIDCOnlyUser(t *testing.T) {
@@ -466,7 +405,5 @@ func TestResetPasswordOIDCOnlyUser(t *testing.T) {
 	resets := validResetStore("u1")
 	h := newPasswordResetHandler(users, resets)
 	w := postJSON(t, h.ResetPassword, `{"token":"sometoken","newPassword":"newpassword123"}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for OIDC-only account, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }

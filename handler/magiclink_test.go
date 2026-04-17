@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/stretchr/testify/require"
 )
 
 func newMagicLinkHandler(users auth.UserStore, links auth.MagicLinkStore, sender MagicLinkSender) *MagicLinkHandler {
@@ -40,44 +41,30 @@ func TestRequestMagicLinkSuccess(t *testing.T) {
 	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, sender)
 
 	w := postJSON(t, h.RequestMagicLink, `{"email":"alice@example.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
-	if sentEmail != "alice@example.com" {
-		t.Errorf("expected sender called with alice@example.com, got %q", sentEmail)
-	}
-	if sentToken == "" {
-		t.Error("expected non-empty token passed to sender")
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "alice@example.com", sentEmail)
+	require.NotEmpty(t, sentToken)
 	var resp map[string]string
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp["message"] == "" {
-		t.Error("expected non-empty message in response")
-	}
+	require.NotEmpty(t, resp["message"])
 }
 
 func TestRequestMagicLinkMissingEmail(t *testing.T) {
 	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
 	w := postJSON(t, h.RequestMagicLink, `{"email":""}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestRequestMagicLinkEmailWhitespaceOnly(t *testing.T) {
 	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
 	w := postJSON(t, h.RequestMagicLink, `{"email":"   "}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestRequestMagicLinkInvalidJSON(t *testing.T) {
 	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
 	w := postJSON(t, h.RequestMagicLink, "not-json")
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestRequestMagicLinkStoreError(t *testing.T) {
@@ -88,9 +75,7 @@ func TestRequestMagicLinkStoreError(t *testing.T) {
 	}
 	h := newMagicLinkHandler(&mockUserStore{}, store, noopSender)
 	w := postJSON(t, h.RequestMagicLink, `{"email":"alice@example.com"}`)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestRequestMagicLinkSenderErrorStillReturns200(t *testing.T) {
@@ -99,9 +84,7 @@ func TestRequestMagicLinkSenderErrorStillReturns200(t *testing.T) {
 	}
 	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, sender)
 	w := postJSON(t, h.RequestMagicLink, `{"email":"alice@example.com"}`)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 even when sender fails, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -132,17 +115,11 @@ func TestVerifyMagicLinkSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp AuthResponse
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Token == "" {
-		t.Error("expected non-empty JWT token")
-	}
-	if resp.User.Email != "alice@example.com" {
-		t.Errorf("expected email alice@example.com, got %q", resp.User.Email)
-	}
+	require.NotEmpty(t, resp.Token)
+	require.Equal(t, "alice@example.com", resp.User.Email)
 }
 
 func TestVerifyMagicLinkSetsAuthCookie(t *testing.T) {
@@ -163,9 +140,8 @@ func TestVerifyMagicLinkSetsAuthCookie(t *testing.T) {
 			found = c
 		}
 	}
-	if found == nil || found.Value == "" {
-		t.Error("expected auth cookie to be set on successful verification")
-	}
+	require.NotNil(t, found)
+	require.NotEmpty(t, found.Value)
 }
 
 func TestVerifyMagicLinkAutoProvision(t *testing.T) {
@@ -185,12 +161,8 @@ func TestVerifyMagicLinkAutoProvision(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
-	if createdEmail != "new@example.com" {
-		t.Errorf("expected auto-provisioned user with email new@example.com, got %q", createdEmail)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "new@example.com", createdEmail)
 }
 
 func TestVerifyMagicLinkAutoProvisionRace(t *testing.T) {
@@ -220,9 +192,7 @@ func TestVerifyMagicLinkAutoProvisionRace(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 on race retry, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestVerifyMagicLinkMissingToken(t *testing.T) {
@@ -230,9 +200,7 @@ func TestVerifyMagicLinkMissingToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify", nil)
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestVerifyMagicLinkInvalidToken(t *testing.T) {
@@ -245,9 +213,7 @@ func TestVerifyMagicLinkInvalidToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=bad", nil)
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestVerifyMagicLinkExpiredToken(t *testing.T) {
@@ -264,9 +230,7 @@ func TestVerifyMagicLinkExpiredToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=sometoken", nil)
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 for expired token, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestVerifyMagicLinkStoreError(t *testing.T) {
@@ -279,9 +243,7 @@ func TestVerifyMagicLinkStoreError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=sometoken", nil)
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestVerifyMagicLinkUserStoreError(t *testing.T) {
@@ -294,7 +256,5 @@ func TestVerifyMagicLinkUserStoreError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=sometoken", nil)
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500 on user store error, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }

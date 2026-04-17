@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -58,9 +59,7 @@ func newTOTPHandler(totp auth.TOTPStore, users auth.UserStore) *TOTPHandler {
 func totpCode(t *testing.T, secret string) string {
 	t.Helper()
 	code, err := auth.GenerateTOTPCode(secret, time.Now())
-	if err != nil {
-		t.Fatalf("generate TOTP code: %v", err)
-	}
+	require.NoError(t, err)
 	return code
 }
 
@@ -75,14 +74,10 @@ func TestTOTPStatusNotEnrolled(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Status(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]bool
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp["enrolled"] {
-		t.Error("expected enrolled=false when TOTP store returns no rows")
-	}
+	require.False(t, resp["enrolled"])
 }
 
 func TestTOTPStatusEnrolled(t *testing.T) {
@@ -97,14 +92,10 @@ func TestTOTPStatusEnrolled(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Status(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]bool
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if !resp["enrolled"] {
-		t.Error("expected enrolled=true when TOTP secret exists")
-	}
+	require.True(t, resp["enrolled"])
 }
 
 func TestTOTPStatusStoreError(t *testing.T) {
@@ -119,9 +110,7 @@ func TestTOTPStatusStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Status(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -140,23 +129,13 @@ func TestTOTPGenerateSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Generate(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp totpGenerateResponse
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Secret == "" {
-		t.Error("expected non-empty secret")
-	}
-	if resp.ProvisioningURI == "" {
-		t.Error("expected non-empty provisioning URI")
-	}
-	if w.Header().Get("Cache-Control") != "no-store" {
-		t.Error("expected Cache-Control: no-store")
-	}
-	if w.Header().Get("Pragma") != "no-cache" {
-		t.Error("expected Pragma: no-cache")
-	}
+	require.NotEmpty(t, resp.Secret)
+	require.NotEmpty(t, resp.ProvisioningURI)
+	require.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+	require.Equal(t, "no-cache", w.Header().Get("Pragma"))
 }
 
 func TestTOTPGenerateUserNotFound(t *testing.T) {
@@ -171,9 +150,7 @@ func TestTOTPGenerateUserNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Generate(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -182,9 +159,7 @@ func TestTOTPGenerateUserNotFound(t *testing.T) {
 
 func TestTOTPEnrollSuccess(t *testing.T) {
 	secret, err := auth.GenerateTOTPSecret()
-	if err != nil {
-		t.Fatalf("generate secret: %v", err)
-	}
+	require.NoError(t, err)
 	code := totpCode(t, secret)
 
 	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
@@ -193,14 +168,10 @@ func TestTOTPEnrollSuccess(t *testing.T) {
 		h.Enroll(w, r)
 	}, `{"secret":"`+secret+`","code":"`+code+`"}`)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]bool
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if !resp["enrolled"] {
-		t.Error("expected enrolled=true")
-	}
+	require.True(t, resp["enrolled"])
 }
 
 func TestTOTPEnrollMissingFields(t *testing.T) {
@@ -213,9 +184,7 @@ func TestTOTPEnrollMissingFields(t *testing.T) {
 			r = withUserID(r, "u1")
 			h.Enroll(w, r)
 		}, body)
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("body %s: expected 400, got %d", body, w.Code)
-		}
+		require.Equalf(t, http.StatusBadRequest, w.Code, "body %s", body)
 	}
 }
 
@@ -226,16 +195,12 @@ func TestTOTPEnrollInvalidSecret(t *testing.T) {
 		h.Enroll(w, r)
 	}, `{"secret":"not-valid-base32!!!","code":"123456"}`)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestTOTPEnrollWrongCode(t *testing.T) {
 	secret, err := auth.GenerateTOTPSecret()
-	if err != nil {
-		t.Fatalf("generate secret: %v", err)
-	}
+	require.NoError(t, err)
 	// Craft a code that cannot be the current TOTP value by inverting the last digit.
 	valid := totpCode(t, secret)
 	last := valid[5] - '0'
@@ -247,16 +212,12 @@ func TestTOTPEnrollWrongCode(t *testing.T) {
 		h.Enroll(w, r)
 	}, `{"secret":"`+secret+`","code":"`+wrong+`"}`)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestTOTPEnrollStoreError(t *testing.T) {
 	secret, err := auth.GenerateTOTPSecret()
-	if err != nil {
-		t.Fatalf("generate secret: %v", err)
-	}
+	require.NoError(t, err)
 	code := totpCode(t, secret)
 
 	store := &mockTOTPStore{
@@ -270,9 +231,7 @@ func TestTOTPEnrollStoreError(t *testing.T) {
 		h.Enroll(w, r)
 	}, `{"secret":"`+secret+`","code":"`+code+`"}`)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestTOTPEnrollInvalidJSON(t *testing.T) {
@@ -282,9 +241,7 @@ func TestTOTPEnrollInvalidJSON(t *testing.T) {
 		h.Enroll(w, r)
 	}, "not-json")
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -293,9 +250,7 @@ func TestTOTPEnrollInvalidJSON(t *testing.T) {
 
 func TestTOTPVerifySuccess(t *testing.T) {
 	secret, err := auth.GenerateTOTPSecret()
-	if err != nil {
-		t.Fatalf("generate secret: %v", err)
-	}
+	require.NoError(t, err)
 	code := totpCode(t, secret)
 
 	store := &mockTOTPStore{
@@ -309,14 +264,10 @@ func TestTOTPVerifySuccess(t *testing.T) {
 		h.Verify(w, r)
 	}, `{"code":"`+code+`"}`)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]bool
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if !resp["valid"] {
-		t.Error("expected valid=true")
-	}
+	require.True(t, resp["valid"])
 }
 
 func TestTOTPVerifyMissingCode(t *testing.T) {
@@ -326,9 +277,7 @@ func TestTOTPVerifyMissingCode(t *testing.T) {
 		h.Verify(w, r)
 	}, `{"code":""}`)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestTOTPVerifyNotEnrolled(t *testing.T) {
@@ -338,9 +287,7 @@ func TestTOTPVerifyNotEnrolled(t *testing.T) {
 		h.Verify(w, r)
 	}, `{"code":"123456"}`)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestTOTPVerifyNotEnrolledCustomError(t *testing.T) {
@@ -355,9 +302,7 @@ func TestTOTPVerifyNotEnrolledCustomError(t *testing.T) {
 		h.Verify(w, r)
 	}, `{"code":"123456"}`)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestTOTPVerifyStoreError(t *testing.T) {
@@ -372,16 +317,12 @@ func TestTOTPVerifyStoreError(t *testing.T) {
 		h.Verify(w, r)
 	}, `{"code":"123456"}`)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestTOTPVerifyWrongCode(t *testing.T) {
 	secret, err := auth.GenerateTOTPSecret()
-	if err != nil {
-		t.Fatalf("generate secret: %v", err)
-	}
+	require.NoError(t, err)
 	// Craft an invalid code.
 	valid := totpCode(t, secret)
 	last := valid[5] - '0'
@@ -398,9 +339,7 @@ func TestTOTPVerifyWrongCode(t *testing.T) {
 		h.Verify(w, r)
 	}, `{"code":"`+wrong+`"}`)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestTOTPVerifyInvalidJSON(t *testing.T) {
@@ -410,9 +349,7 @@ func TestTOTPVerifyInvalidJSON(t *testing.T) {
 		h.Verify(w, r)
 	}, "not-json")
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -426,9 +363,7 @@ func TestTOTPDisableSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Disable(w, req)
 
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNoContent, w.Code)
 }
 
 func TestTOTPDisableNotEnrolled(t *testing.T) {
@@ -443,9 +378,7 @@ func TestTOTPDisableNotEnrolled(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Disable(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestTOTPDisableNotEnrolledCustomError(t *testing.T) {
@@ -460,9 +393,7 @@ func TestTOTPDisableNotEnrolledCustomError(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Disable(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestTOTPDisableStoreError(t *testing.T) {
@@ -477,7 +408,5 @@ func TestTOTPDisableStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Disable(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }

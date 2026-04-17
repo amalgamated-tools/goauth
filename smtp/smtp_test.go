@@ -3,6 +3,8 @@ package smtp
 import (
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -12,22 +14,15 @@ import (
 func TestLoadConfigDefaults(t *testing.T) {
 	// Ensure no SMTP env vars are set.
 	for _, k := range []string{"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_TLS"} {
-		if err := os.Unsetenv(k); err != nil {
-			t.Fatalf("unsetenv %s: %v", k, err)
-		}
+		require.NoErrorf(t, os.Unsetenv(k), "unsetenv %s", k)
 	}
 
 	cfg := LoadConfig()
 
-	if cfg.Port != "587" {
-		t.Errorf("expected default port 587, got %q", cfg.Port)
-	}
-	if cfg.TLS != "starttls" {
-		t.Errorf("expected default TLS mode starttls, got %q", cfg.TLS)
-	}
-	if cfg.Host != "" || cfg.From != "" {
-		t.Errorf("expected empty host and from, got host=%q from=%q", cfg.Host, cfg.From)
-	}
+	require.Equal(t, "587", cfg.Port)
+	require.Equal(t, "starttls", cfg.TLS)
+	require.Empty(t, cfg.Host)
+	require.Empty(t, cfg.From)
 }
 
 func TestLoadConfigFromEnv(t *testing.T) {
@@ -40,24 +35,12 @@ func TestLoadConfigFromEnv(t *testing.T) {
 
 	cfg := LoadConfig()
 
-	if cfg.Host != "mail.example.com" {
-		t.Errorf("expected host mail.example.com, got %q", cfg.Host)
-	}
-	if cfg.Port != "465" {
-		t.Errorf("expected port 465, got %q", cfg.Port)
-	}
-	if cfg.Username != "user@example.com" {
-		t.Errorf("expected username, got %q", cfg.Username)
-	}
-	if cfg.Password != "secret" {
-		t.Errorf("expected password, got %q", cfg.Password)
-	}
-	if cfg.From != "no-reply@example.com" {
-		t.Errorf("expected from, got %q", cfg.From)
-	}
-	if cfg.TLS != "tls" {
-		t.Errorf("expected TLS mode tls, got %q", cfg.TLS)
-	}
+	require.Equal(t, "mail.example.com", cfg.Host)
+	require.Equal(t, "465", cfg.Port)
+	require.Equal(t, "user@example.com", cfg.Username)
+	require.Equal(t, "secret", cfg.Password)
+	require.Equal(t, "no-reply@example.com", cfg.From)
+	require.Equal(t, "tls", cfg.TLS)
 }
 
 // ---------------------------------------------------------------------------
@@ -66,23 +49,17 @@ func TestLoadConfigFromEnv(t *testing.T) {
 
 func TestEnabledTrue(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", From: "no-reply@example.com"}
-	if !cfg.Enabled() {
-		t.Error("expected Enabled()=true when both Host and From are set")
-	}
+	require.True(t, cfg.Enabled())
 }
 
 func TestEnabledNoHost(t *testing.T) {
 	cfg := Config{From: "no-reply@example.com"}
-	if cfg.Enabled() {
-		t.Error("expected Enabled()=false when Host is empty")
-	}
+	require.False(t, cfg.Enabled())
 }
 
 func TestEnabledNoFrom(t *testing.T) {
 	cfg := Config{Host: "mail.example.com"}
-	if cfg.Enabled() {
-		t.Error("expected Enabled()=false when From is empty")
-	}
+	require.False(t, cfg.Enabled())
 }
 
 // ---------------------------------------------------------------------------
@@ -97,18 +74,10 @@ func TestValidateSuccess(t *testing.T) {
 		TLS:  "starttls",
 	}
 	p, err := cfg.Validate()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if p.Addr != "mail.example.com:587" {
-		t.Errorf("expected addr mail.example.com:587, got %q", p.Addr)
-	}
-	if p.From != "no-reply@example.com" {
-		t.Errorf("expected from no-reply@example.com, got %q", p.From)
-	}
-	if p.TLS != "starttls" {
-		t.Errorf("expected TLS starttls, got %q", p.TLS)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "mail.example.com:587", p.Addr)
+	require.Equal(t, "no-reply@example.com", p.From)
+	require.Equal(t, "starttls", p.TLS)
 }
 
 func TestValidateWithDisplayName(t *testing.T) {
@@ -119,92 +88,64 @@ func TestValidateWithDisplayName(t *testing.T) {
 		TLS:  "starttls",
 	}
 	p, err := cfg.Validate()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if p.From != "no-reply@example.com" {
-		t.Errorf("expected bare address, got %q", p.From)
-	}
-	if p.FromHeader == "" {
-		t.Error("expected non-empty FromHeader when display name is set")
-	}
+	require.NoError(t, err)
+	require.Equal(t, "no-reply@example.com", p.From)
+	require.NotEmpty(t, p.FromHeader)
 }
 
 func TestValidateNoHost(t *testing.T) {
 	cfg := Config{Port: "587", From: "no-reply@example.com", TLS: "starttls"}
 	_, err := cfg.Validate()
-	if err == nil {
-		t.Error("expected error when Host is empty")
-	}
+	require.Error(t, err)
 }
 
 func TestValidateNoFrom(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "587", TLS: "starttls"}
 	_, err := cfg.Validate()
-	if err == nil {
-		t.Error("expected error when From is empty")
-	}
+	require.Error(t, err)
 }
 
 func TestValidateInvalidFromAddress(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "587", From: "not-an-email", TLS: "starttls"}
 	_, err := cfg.Validate()
-	if err == nil {
-		t.Error("expected error for invalid from address")
-	}
+	require.Error(t, err)
 }
 
 func TestValidateBadPort(t *testing.T) {
 	for _, port := range []string{"abc", "0", "99999", "-1"} {
 		cfg := Config{Host: "mail.example.com", Port: port, From: "a@b.com", TLS: "starttls"}
 		_, err := cfg.Validate()
-		if err == nil {
-			t.Errorf("port %q: expected error", port)
-		}
+		require.Errorf(t, err, "port %q", port)
 	}
 }
 
 func TestValidateDefaultPortWhenEmpty(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "", From: "a@b.com", TLS: "starttls"}
 	p, err := cfg.Validate()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if p.Addr != "mail.example.com:587" {
-		t.Errorf("expected default port 587, got %q", p.Addr)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "mail.example.com:587", p.Addr)
 }
 
 func TestValidateBadTLSMode(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "587", From: "a@b.com", TLS: "ssl"}
 	_, err := cfg.Validate()
-	if err == nil {
-		t.Error("expected error for invalid TLS mode ssl")
-	}
+	require.Error(t, err)
 }
 
 func TestValidateAllTLSModes(t *testing.T) {
 	for _, mode := range []string{"none", "starttls", "tls"} {
 		cfg := Config{Host: "mail.example.com", Port: "587", From: "a@b.com", TLS: mode}
 		p, err := cfg.Validate()
-		if err != nil {
-			t.Errorf("mode %q: unexpected error: %v", mode, err)
-		}
-		if p.TLS != mode {
-			t.Errorf("mode %q: expected TLS=%q, got %q", mode, mode, p.TLS)
-		}
+		require.NoErrorf(t, err, "mode %q", mode)
+		require.Equalf(t, mode, p.TLS, "mode %q", mode)
 	}
 }
 
 func TestValidateDefaultTLSWhenEmpty(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "587", From: "a@b.com", TLS: ""}
 	p, err := cfg.Validate()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if p.TLS != "starttls" {
-		t.Errorf("expected default TLS starttls, got %q", p.TLS)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "starttls", p.TLS)
 }
 
 func TestValidateWithAuth(t *testing.T) {
@@ -217,23 +158,15 @@ func TestValidateWithAuth(t *testing.T) {
 		Password: "pass",
 	}
 	p, err := cfg.Validate()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if p.Auth == nil {
-		t.Error("expected non-nil auth when username and password are set")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, p.Auth)
 }
 
 func TestValidateNoAuth(t *testing.T) {
 	cfg := Config{Host: "mail.example.com", Port: "587", From: "a@b.com", TLS: "starttls"}
 	p, err := cfg.Validate()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if p.Auth != nil {
-		t.Error("expected nil auth when no credentials are provided")
-	}
+	require.NoError(t, err)
+	require.Nil(t, p.Auth)
 }
 
 func TestValidatePortBoundaries(t *testing.T) {
@@ -248,8 +181,6 @@ func TestValidatePortBoundaries(t *testing.T) {
 	} {
 		cfg := Config{Host: "h", Port: tc.port, From: "a@b.com", TLS: "starttls"}
 		_, err := cfg.Validate()
-		if (err != nil) != tc.wantErr {
-			t.Errorf("port %q: wantErr=%v, got err=%v", tc.port, tc.wantErr, err)
-		}
+		require.Equalf(t, tc.wantErr, err != nil, "port %q", tc.port)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestOIDCHandler() *OIDCHandler {
@@ -33,14 +34,10 @@ func TestSignAndParseLinkState(t *testing.T) {
 	userID := "user-abc"
 
 	signed := h.signLinkState(randomState, userID)
-	if signed == "" {
-		t.Fatal("expected non-empty signed state")
-	}
+	require.NotEmpty(t, signed)
 
 	parsed := h.parseLinkState(signed)
-	if parsed != userID {
-		t.Errorf("expected %q, got %q", userID, parsed)
-	}
+	require.Equal(t, userID, parsed)
 }
 
 func TestParseLinkStateInvalidFormat(t *testing.T) {
@@ -52,9 +49,7 @@ func TestParseLinkStateInvalidFormat(t *testing.T) {
 		"only-one-part",
 		"two.parts",
 	} {
-		if got := h.parseLinkState(bad); got != "" {
-			t.Errorf("input %q: expected empty, got %q", bad, got)
-		}
+		require.Emptyf(t, h.parseLinkState(bad), "input %q", bad)
 	}
 }
 
@@ -64,9 +59,7 @@ func TestParseLinkStateTamperedSignature(t *testing.T) {
 	signed := h.signLinkState("randomstate", "user-1")
 	// Corrupt the last character of the signature (third dot-separated part).
 	tampered := signed[:len(signed)-1] + "X"
-	if got := h.parseLinkState(tampered); got != "" {
-		t.Errorf("tampered signature should not parse, got %q", got)
-	}
+	require.Empty(t, h.parseLinkState(tampered))
 }
 
 func TestParseLinkStateWrongKey(t *testing.T) {
@@ -80,9 +73,7 @@ func TestParseLinkStateWrongKey(t *testing.T) {
 	h2.JWT = mgr2
 
 	signed := h1.signLinkState("state123", "user-xyz")
-	if got := h2.parseLinkState(signed); got != "" {
-		t.Errorf("signed by h1 should not verify with h2's key, got %q", got)
-	}
+	require.Empty(t, h2.parseLinkState(signed))
 }
 
 // ---------------------------------------------------------------------------
@@ -96,14 +87,10 @@ func TestConsumeLinkNonce(t *testing.T) {
 	h.linkNonces[nonce] = linkNonce{UserID: "user-1", ExpiresAt: time.Now().Add(time.Minute)}
 
 	got := h.consumeLinkNonce(nonce)
-	if got != "user-1" {
-		t.Errorf("expected user-1, got %q", got)
-	}
+	require.Equal(t, "user-1", got)
 
 	// Second consumption of the same nonce should return empty.
-	if got2 := h.consumeLinkNonce(nonce); got2 != "" {
-		t.Errorf("nonce should be consumed, got %q", got2)
-	}
+	require.Empty(t, h.consumeLinkNonce(nonce))
 }
 
 func TestConsumeLinkNonceExpired(t *testing.T) {
@@ -112,16 +99,12 @@ func TestConsumeLinkNonceExpired(t *testing.T) {
 	nonce := "expired-nonce"
 	h.linkNonces[nonce] = linkNonce{UserID: "user-1", ExpiresAt: time.Now().Add(-time.Second)}
 
-	if got := h.consumeLinkNonce(nonce); got != "" {
-		t.Errorf("expired nonce should return empty, got %q", got)
-	}
+	require.Empty(t, h.consumeLinkNonce(nonce))
 }
 
 func TestConsumeLinkNonceNotFound(t *testing.T) {
 	h := newTestOIDCHandler()
-	if got := h.consumeLinkNonce("does-not-exist"); got != "" {
-		t.Errorf("unknown nonce should return empty, got %q", got)
-	}
+	require.Empty(t, h.consumeLinkNonce("does-not-exist"))
 }
 
 func TestCreateLinkNonce(t *testing.T) {
@@ -132,23 +115,15 @@ func TestCreateLinkNonce(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.CreateLinkNonce(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]string
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	nonce := resp["nonce"]
-	if nonce == "" {
-		t.Fatal("expected non-empty nonce")
-	}
+	require.NotEmpty(t, nonce)
 
 	// The nonce should be consumable.
 	got := h.consumeLinkNonce(nonce)
-	if got != "user-42" {
-		t.Errorf("expected user-42, got %q", got)
-	}
+	require.Equal(t, "user-42", got)
 }
 
 func TestCreateLinkNonceCleansUpExpiredEntries(t *testing.T) {
@@ -162,16 +137,12 @@ func TestCreateLinkNonceCleansUpExpiredEntries(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.CreateLinkNonce(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 
 	h.linkNoncesMu.Lock()
 	_, exists := h.linkNonces["old-nonce"]
 	h.linkNoncesMu.Unlock()
-	if exists {
-		t.Error("expected expired nonce to be cleaned up")
-	}
+	require.False(t, exists)
 }
 
 // ---------------------------------------------------------------------------
@@ -189,12 +160,8 @@ func TestFindOrCreateUserByOIDCSubject(t *testing.T) {
 	h.Users = store
 
 	user, err := h.findOrCreateUser(context.Background(), "sub1", "a@b.com", "Alice")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if user.ID != "u1" {
-		t.Errorf("expected u1, got %q", user.ID)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "u1", user.ID)
 }
 
 func TestFindOrCreateUserByEmail(t *testing.T) {
@@ -211,12 +178,8 @@ func TestFindOrCreateUserByEmail(t *testing.T) {
 	h.Users = store
 
 	user, err := h.findOrCreateUser(context.Background(), "sub2", "b@c.com", "Bob")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if user.ID != "u2" {
-		t.Errorf("expected u2, got %q", user.ID)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "u2", user.ID)
 }
 
 func TestFindOrCreateUserCreatesNew(t *testing.T) {
@@ -235,12 +198,8 @@ func TestFindOrCreateUserCreatesNew(t *testing.T) {
 	h.Users = store
 
 	user, err := h.findOrCreateUser(context.Background(), "sub-new", "new@example.com", "New User")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if user.ID != "new-u" {
-		t.Errorf("expected new-u, got %q", user.ID)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "new-u", user.ID)
 }
 
 // ---------------------------------------------------------------------------
@@ -263,12 +222,8 @@ func TestHandleLinkCallbackSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.handleLinkCallback(w, req, "user-1", "oidc-sub")
 
-	if w.Code != http.StatusFound {
-		t.Errorf("expected redirect 302, got %d", w.Code)
-	}
-	if loc := w.Header().Get("Location"); loc != "/?oidc_linked=true" {
-		t.Errorf("expected redirect to /?oidc_linked=true, got %q", loc)
-	}
+	require.Equal(t, http.StatusFound, w.Code)
+	require.Equal(t, "/?oidc_linked=true", w.Header().Get("Location"))
 }
 
 func TestHandleLinkCallbackUserNotFound(t *testing.T) {
@@ -284,13 +239,9 @@ func TestHandleLinkCallbackUserNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.handleLinkCallback(w, req, "missing-user", "oidc-sub")
 
-	if w.Code != http.StatusFound {
-		t.Errorf("expected redirect, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusFound, w.Code)
 	loc := w.Header().Get("Location")
-	if loc == "/?oidc_linked=true" {
-		t.Error("expected error redirect, not success")
-	}
+	require.NotEqual(t, "/?oidc_linked=true", loc)
 }
 
 func TestHandleLinkCallbackAlreadyLinked(t *testing.T) {
@@ -307,11 +258,7 @@ func TestHandleLinkCallbackAlreadyLinked(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.handleLinkCallback(w, req, "user-1", "other-sub")
 
-	if w.Code != http.StatusFound {
-		t.Errorf("expected redirect, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusFound, w.Code)
 	loc := w.Header().Get("Location")
-	if loc == "/?oidc_linked=true" {
-		t.Error("expected error redirect for already-linked account")
-	}
+	require.NotEqual(t, "/?oidc_linked=true", loc)
 }

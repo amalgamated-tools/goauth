@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -108,14 +109,10 @@ func TestPasskeyEnabledFalse(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Enabled(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]bool
 	_ = json.NewDecoder(w.Body).Decode(&resp)
-	if resp["enabled"] {
-		t.Error("expected enabled=false when WebAuthn is nil")
-	}
+	require.False(t, resp["enabled"])
 }
 
 // ---------------------------------------------------------------------------
@@ -130,9 +127,7 @@ func TestPasskeyBeginRegistrationNotConfigured(t *testing.T) {
 		h.BeginRegistration(w, r)
 	}, `{"name":"my-passkey"}`)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Errorf("expected 503, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
 func TestPasskeyFinishRegistrationNotConfigured(t *testing.T) {
@@ -142,9 +137,7 @@ func TestPasskeyFinishRegistrationNotConfigured(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.FinishRegistration(w, req)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Errorf("expected 503, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
 func TestPasskeyBeginAuthenticationNotConfigured(t *testing.T) {
@@ -153,9 +146,7 @@ func TestPasskeyBeginAuthenticationNotConfigured(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.BeginAuthentication(w, req)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Errorf("expected 503, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
 func TestPasskeyFinishAuthenticationNotConfigured(t *testing.T) {
@@ -164,9 +155,7 @@ func TestPasskeyFinishAuthenticationNotConfigured(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.FinishAuthentication(w, req)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Errorf("expected 503, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -180,14 +169,10 @@ func TestPasskeyListCredentialsEmpty(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.ListCredentials(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var result []any
 	_ = json.NewDecoder(w.Body).Decode(&result)
-	if len(result) != 0 {
-		t.Errorf("expected empty list, got %d items", len(result))
-	}
+	require.Len(t, result, 0)
 }
 
 func TestPasskeyListCredentialsReturnsItems(t *testing.T) {
@@ -205,17 +190,12 @@ func TestPasskeyListCredentialsReturnsItems(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.ListCredentials(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var result []PasskeyCredentialDTO
 	_ = json.NewDecoder(w.Body).Decode(&result)
-	if len(result) != 1 {
-		t.Fatalf("expected 1 credential, got %d", len(result))
-	}
-	if result[0].ID != "cred-1" || result[0].Name != "My Key" {
-		t.Errorf("unexpected DTO: %+v", result[0])
-	}
+	require.Len(t, result, 1)
+	require.Equal(t, "cred-1", result[0].ID)
+	require.Equal(t, "My Key", result[0].Name)
 }
 
 func TestPasskeyListCredentialsStoreError(t *testing.T) {
@@ -230,9 +210,7 @@ func TestPasskeyListCredentialsStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.ListCredentials(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -246,9 +224,7 @@ func TestPasskeyDeleteCredentialSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.DeleteCredential(w, req)
 
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNoContent, w.Code)
 }
 
 func TestPasskeyDeleteCredentialMissingID(t *testing.T) {
@@ -258,9 +234,7 @@ func TestPasskeyDeleteCredentialMissingID(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.DeleteCredential(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestPasskeyDeleteCredentialNotFound(t *testing.T) {
@@ -275,9 +249,7 @@ func TestPasskeyDeleteCredentialNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.DeleteCredential(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestPasskeyDeleteCredentialStoreError(t *testing.T) {
@@ -292,9 +264,7 @@ func TestPasskeyDeleteCredentialStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.DeleteCredential(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -303,9 +273,7 @@ func TestPasskeyDeleteCredentialStoreError(t *testing.T) {
 
 func TestLoadWebAuthnCredentialsEmpty(t *testing.T) {
 	result := loadWebAuthnCredentials(nil)
-	if len(result) != 0 {
-		t.Errorf("expected empty slice for nil input, got %d items", len(result))
-	}
+	require.Len(t, result, 0)
 }
 
 func TestLoadWebAuthnCredentialsSkipsCorrupted(t *testing.T) {
@@ -313,7 +281,5 @@ func TestLoadWebAuthnCredentialsSkipsCorrupted(t *testing.T) {
 		{ID: "bad", CredentialData: "not valid json"},
 	}
 	result := loadWebAuthnCredentials(creds)
-	if len(result) != 0 {
-		t.Errorf("expected 0 valid credentials, got %d", len(result))
-	}
+	require.Len(t, result, 0)
 }

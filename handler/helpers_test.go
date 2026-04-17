@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -286,33 +287,21 @@ func TestWriteJSON(t *testing.T) {
 	w := httptest.NewRecorder()
 	writeJSON(context.Background(), w, http.StatusCreated, map[string]string{"key": "val"})
 
-	if w.Code != http.StatusCreated {
-		t.Errorf("expected 201, got %d", w.Code)
-	}
-	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
-		t.Errorf("expected application/json, got %q", ct)
-	}
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.Equal(t, "application/json", w.Header().Get("Content-Type"))
 	var body map[string]string
-	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if body["key"] != "val" {
-		t.Errorf("expected key=val, got %v", body)
-	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "val", body["key"])
 }
 
 func TestWriteError(t *testing.T) {
 	w := httptest.NewRecorder()
 	writeError(context.Background(), w, http.StatusBadRequest, "bad input")
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 	var body map[string]string
 	_ = json.NewDecoder(w.Body).Decode(&body)
-	if body["error"] != "bad input" {
-		t.Errorf("expected error %q, got %q", "bad input", body["error"])
-	}
+	require.Equal(t, "bad input", body["error"])
 }
 
 // ---------------------------------------------------------------------------
@@ -323,23 +312,15 @@ func TestDecodeJSONValid(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"Alice"}`))
 	w := httptest.NewRecorder()
 	var v struct{ Name string }
-	if !decodeJSON(req, w, &v) {
-		t.Fatal("expected true for valid JSON")
-	}
-	if v.Name != "Alice" {
-		t.Errorf("expected Name=Alice, got %q", v.Name)
-	}
+	require.True(t, decodeJSON(req, w, &v))
+	require.Equal(t, "Alice", v.Name)
 }
 
 func TestDecodeJSONInvalid(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("not-json"))
 	w := httptest.NewRecorder()
-	if decodeJSON(req, w, &struct{}{}) {
-		t.Fatal("expected false for invalid JSON")
-	}
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.False(t, decodeJSON(req, w, &struct{}{}))
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -348,22 +329,14 @@ func TestDecodeJSONInvalid(t *testing.T) {
 
 func TestValidatePasswordTooShort(t *testing.T) {
 	w := httptest.NewRecorder()
-	if validatePassword(context.Background(), w, "short") {
-		t.Error("expected false for too-short password")
-	}
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.False(t, validatePassword(context.Background(), w, "short"))
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestValidatePasswordTooLong(t *testing.T) {
 	w := httptest.NewRecorder()
-	if validatePassword(context.Background(), w, strings.Repeat("a", 73)) {
-		t.Error("expected false for too-long password")
-	}
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.False(t, validatePassword(context.Background(), w, strings.Repeat("a", 73)))
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestValidatePasswordBoundaries(t *testing.T) {
@@ -378,9 +351,7 @@ func TestValidatePasswordBoundaries(t *testing.T) {
 	} {
 		w := httptest.NewRecorder()
 		got := validatePassword(context.Background(), w, tc.pw)
-		if got != tc.want {
-			t.Errorf("len=%d: expected %v, got %v", len(tc.pw), tc.want, got)
-		}
+		require.Equalf(t, tc.want, got, "len=%d", len(tc.pw))
 	}
 }
 
@@ -398,18 +369,10 @@ func TestSetAuthCookie(t *testing.T) {
 			found = c
 		}
 	}
-	if found == nil {
-		t.Fatal("auth cookie not set")
-	}
-	if found.Value != "mytoken" {
-		t.Errorf("expected value %q, got %q", "mytoken", found.Value)
-	}
-	if !found.HttpOnly {
-		t.Error("expected HttpOnly=true")
-	}
-	if found.SameSite != http.SameSiteStrictMode {
-		t.Error("expected SameSite=Strict")
-	}
+	require.NotNil(t, found)
+	require.Equal(t, "mytoken", found.Value)
+	require.True(t, found.HttpOnly)
+	require.Equal(t, http.SameSiteStrictMode, found.SameSite)
 }
 
 func TestClearAuthCookie(t *testing.T) {
@@ -422,15 +385,9 @@ func TestClearAuthCookie(t *testing.T) {
 			found = c
 		}
 	}
-	if found == nil {
-		t.Fatal("auth cookie not set for clearing")
-	}
-	if found.MaxAge != -1 {
-		t.Errorf("expected MaxAge=-1, got %d", found.MaxAge)
-	}
-	if found.Value != "" {
-		t.Errorf("expected empty value, got %q", found.Value)
-	}
+	require.NotNil(t, found)
+	require.Equal(t, -1, found.MaxAge)
+	require.Empty(t, found.Value)
 }
 
 // ---------------------------------------------------------------------------
@@ -441,24 +398,16 @@ func TestToUserDTOWithOIDC(t *testing.T) {
 	sub := "oidc-sub"
 	u := &auth.User{ID: "u1", Name: "Alice", Email: "alice@example.com", OIDCSubject: &sub, IsAdmin: true}
 	dto := ToUserDTO(u)
-	if dto.ID != "u1" || dto.Name != "Alice" || dto.Email != "alice@example.com" {
-		t.Errorf("unexpected DTO values: %+v", dto)
-	}
-	if !dto.OIDCLinked {
-		t.Error("expected OIDCLinked=true")
-	}
-	if !dto.IsAdmin {
-		t.Error("expected IsAdmin=true")
-	}
+	require.Equal(t, "u1", dto.ID)
+	require.Equal(t, "Alice", dto.Name)
+	require.Equal(t, "alice@example.com", dto.Email)
+	require.True(t, dto.OIDCLinked)
+	require.True(t, dto.IsAdmin)
 }
 
 func TestToUserDTOWithoutOIDC(t *testing.T) {
 	u := &auth.User{ID: "u2", Name: "Bob", Email: "bob@example.com"}
 	dto := ToUserDTO(u)
-	if dto.OIDCLinked {
-		t.Error("expected OIDCLinked=false when OIDCSubject is nil")
-	}
-	if dto.IsAdmin {
-		t.Error("expected IsAdmin=false")
-	}
+	require.False(t, dto.OIDCLinked)
+	require.False(t, dto.IsAdmin)
 }

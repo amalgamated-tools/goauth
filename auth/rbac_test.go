@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // --- mock RBACUserStore -------------------------------------------------------
@@ -50,14 +52,12 @@ func TestStoreRoleCheckerHasRole(t *testing.T) {
 	ctx := context.Background()
 
 	ok, err := checker.HasRole(ctx, "u1", RoleEditor)
-	if err != nil || !ok {
-		t.Errorf("expected (true, nil), got (%v, %v)", ok, err)
-	}
+	require.NoError(t, err)
+	require.True(t, ok)
 
 	ok, err = checker.HasRole(ctx, "u1", RoleAdmin)
-	if err != nil || ok {
-		t.Errorf("expected (false, nil), got (%v, %v)", ok, err)
-	}
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestStoreRoleCheckerHasRoleError(t *testing.T) {
@@ -68,9 +68,7 @@ func TestStoreRoleCheckerHasRoleError(t *testing.T) {
 	}
 	checker := NewStoreRoleChecker(store)
 	_, err := checker.HasRole(context.Background(), "u1", RoleAdmin)
-	if err == nil {
-		t.Error("expected error")
-	}
+	require.Error(t, err)
 }
 
 func TestStoreRoleCheckerHasPermission(t *testing.T) {
@@ -83,14 +81,12 @@ func TestStoreRoleCheckerHasPermission(t *testing.T) {
 	ctx := context.Background()
 
 	ok, err := checker.HasPermission(ctx, "u1", PermReadContent)
-	if err != nil || !ok {
-		t.Errorf("expected (true, nil), got (%v, %v)", ok, err)
-	}
+	require.NoError(t, err)
+	require.True(t, ok)
 
 	ok, err = checker.HasPermission(ctx, "u1", PermManageUsers)
-	if err != nil || ok {
-		t.Errorf("expected (false, nil), got (%v, %v)", ok, err)
-	}
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestStoreRoleCheckerHasPermissionMultiRole(t *testing.T) {
@@ -104,9 +100,8 @@ func TestStoreRoleCheckerHasPermissionMultiRole(t *testing.T) {
 	ctx := context.Background()
 
 	ok, err := checker.HasPermission(ctx, "u1", PermWriteContent)
-	if err != nil || !ok {
-		t.Errorf("expected (true, nil), got (%v, %v)", ok, err)
-	}
+	require.NoError(t, err)
+	require.True(t, ok)
 }
 
 func TestStoreRoleCheckerHasPermissionUnknownRole(t *testing.T) {
@@ -117,9 +112,8 @@ func TestStoreRoleCheckerHasPermissionUnknownRole(t *testing.T) {
 	}
 	checker := NewStoreRoleChecker(store)
 	ok, err := checker.HasPermission(context.Background(), "u1", PermReadContent)
-	if err != nil || ok {
-		t.Errorf("expected (false, nil) for unknown role, got (%v, %v)", ok, err)
-	}
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestStoreRoleCheckerHasPermissionError(t *testing.T) {
@@ -130,9 +124,7 @@ func TestStoreRoleCheckerHasPermissionError(t *testing.T) {
 	}
 	checker := NewStoreRoleChecker(store)
 	_, err := checker.HasPermission(context.Background(), "u1", PermReadContent)
-	if err == nil {
-		t.Error("expected error")
-	}
+	require.Error(t, err)
 }
 
 // --- RegisterRolePermissions --------------------------------------------------
@@ -158,9 +150,8 @@ func TestRegisterRolePermissions(t *testing.T) {
 	}
 	checker := NewStoreRoleChecker(store)
 	ok, err := checker.HasPermission(context.Background(), "u1", customPerm)
-	if err != nil || !ok {
-		t.Errorf("expected (true, nil) for custom role/perm, got (%v, %v)", ok, err)
-	}
+	require.NoError(t, err)
+	require.True(t, ok)
 }
 
 // --- NewCachingRoleChecker ----------------------------------------------------
@@ -178,15 +169,12 @@ func TestCachingRoleCheckerCachesHasRole(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		ok, err := checker.HasRole(ctx, "u1", RoleAdmin)
-		if err != nil || !ok {
-			t.Fatalf("call %d: unexpected result err=%v ok=%v", i, err, ok)
-		}
+		require.NoErrorf(t, err, "call %d", i)
+		require.Truef(t, ok, "call %d", i)
 	}
 	// StoreRoleChecker calls GetRoles once per HasRole, but caching wrapper
 	// should only call through on the first request.
-	if calls != 1 {
-		t.Errorf("expected 1 delegate call, got %d", calls)
-	}
+	require.Equal(t, 1, calls)
 }
 
 func TestCachingRoleCheckerCachesHasPermission(t *testing.T) {
@@ -202,21 +190,16 @@ func TestCachingRoleCheckerCachesHasPermission(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		ok, err := checker.HasPermission(ctx, "u1", PermWriteContent)
-		if err != nil || !ok {
-			t.Fatalf("call %d: unexpected result err=%v ok=%v", i, err, ok)
-		}
+		require.NoErrorf(t, err, "call %d", i)
+		require.Truef(t, ok, "call %d", i)
 	}
-	if calls != 1 {
-		t.Errorf("expected 1 delegate call, got %d", calls)
-	}
+	require.Equal(t, 1, calls)
 }
 
 func TestCachingRoleCheckerDefaultTTL(t *testing.T) {
 	store := &mockRBACUserStore{}
 	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), 0)
-	if checker == nil {
-		t.Fatal("expected non-nil checker")
-	}
+	require.NotNil(t, checker)
 }
 
 func TestCachingRoleCheckerExpiryHasRole(t *testing.T) {
@@ -230,9 +213,8 @@ func TestCachingRoleCheckerExpiryHasRole(t *testing.T) {
 	crc := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Nanosecond).(*cachingRoleChecker)
 	ctx := context.Background()
 
-	if _, err := crc.HasRole(ctx, "u1", RoleAdmin); err != nil {
-		t.Fatal(err)
-	}
+	_, err := crc.HasRole(ctx, "u1", RoleAdmin)
+	require.NoError(t, err)
 
 	// Manually expire the entry.
 	crc.roleMu.Lock()
@@ -242,12 +224,9 @@ func TestCachingRoleCheckerExpiryHasRole(t *testing.T) {
 	crc.roleEntries[key] = e
 	crc.roleMu.Unlock()
 
-	if _, err := crc.HasRole(ctx, "u1", RoleAdmin); err != nil {
-		t.Fatal(err)
-	}
-	if calls != 2 {
-		t.Errorf("expected 2 delegate calls after expiry, got %d", calls)
-	}
+	_, err = crc.HasRole(ctx, "u1", RoleAdmin)
+	require.NoError(t, err)
+	require.Equal(t, 2, calls)
 }
 
 func TestCachingRoleCheckerExpiryHasPermission(t *testing.T) {
@@ -261,9 +240,8 @@ func TestCachingRoleCheckerExpiryHasPermission(t *testing.T) {
 	crc := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Nanosecond).(*cachingRoleChecker)
 	ctx := context.Background()
 
-	if _, err := crc.HasPermission(ctx, "u1", PermWriteContent); err != nil {
-		t.Fatal(err)
-	}
+	_, err := crc.HasPermission(ctx, "u1", PermWriteContent)
+	require.NoError(t, err)
 
 	// Manually expire the entry.
 	crc.permMu.Lock()
@@ -273,28 +251,23 @@ func TestCachingRoleCheckerExpiryHasPermission(t *testing.T) {
 	crc.permEntries[key] = e
 	crc.permMu.Unlock()
 
-	if _, err := crc.HasPermission(ctx, "u1", PermWriteContent); err != nil {
-		t.Fatal(err)
-	}
-	if calls != 2 {
-		t.Errorf("expected 2 delegate calls after expiry, got %d", calls)
-	}
+	_, err = crc.HasPermission(ctx, "u1", PermWriteContent)
+	require.NoError(t, err)
+	require.Equal(t, 2, calls)
 }
 
 // --- RolesFromContext / ContextWithRoles -------------------------------------
 
 func TestRolesFromContextEmpty(t *testing.T) {
-	if roles := RolesFromContext(context.Background()); roles != nil {
-		t.Errorf("expected nil, got %v", roles)
-	}
+	require.Nil(t, RolesFromContext(context.Background()))
 }
 
 func TestContextWithRoles(t *testing.T) {
 	ctx := ContextWithRoles(context.Background(), []Role{RoleAdmin, RoleEditor})
 	roles := RolesFromContext(ctx)
-	if len(roles) != 2 || roles[0] != RoleAdmin || roles[1] != RoleEditor {
-		t.Errorf("unexpected roles: %v", roles)
-	}
+	require.Len(t, roles, 2)
+	require.Equal(t, RoleAdmin, roles[0])
+	require.Equal(t, RoleEditor, roles[1])
 }
 
 // --- RequireRole middleware ---------------------------------------------------
@@ -332,9 +305,7 @@ func TestRequireRoleNoToken(t *testing.T) {
 	checker := &mockRoleChecker{}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := makeRequireRoleRequest(mgr, checker, Config{CookieName: "auth"}, nil, RoleAdmin, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestRequireRoleWrongRole(t *testing.T) {
@@ -348,9 +319,7 @@ func TestRequireRoleWrongRole(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := makeRequireRoleRequest(mgr, checker, Config{CookieName: "auth"}, nil, RoleAdmin, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
 func TestRequireRoleCorrectRole(t *testing.T) {
@@ -364,9 +333,7 @@ func TestRequireRoleCorrectRole(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := makeRequireRoleRequest(mgr, checker, Config{CookieName: "auth"}, nil, RoleAdmin, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestRequireRoleCheckerError(t *testing.T) {
@@ -382,9 +349,7 @@ func TestRequireRoleCheckerError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := makeRequireRoleRequest(mgr, checker, Config{CookieName: "auth"}, nil, RoleAdmin, req)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestRequireRoleInvalidToken(t *testing.T) {
@@ -393,9 +358,7 @@ func TestRequireRoleInvalidToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer not-a-jwt")
 	w := makeRequireRoleRequest(mgr, checker, Config{CookieName: "auth"}, nil, RoleAdmin, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestRequireRoleSetsContextValues(t *testing.T) {
@@ -420,9 +383,7 @@ func TestRequireRoleSetsContextValues(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if gotUserID != "role-user" {
-		t.Errorf("expected userID %q, got %q", "role-user", gotUserID)
-	}
+	require.Equal(t, "role-user", gotUserID)
 }
 
 // --- RequirePermission middleware --------------------------------------------
@@ -441,9 +402,7 @@ func TestRequirePermissionNoToken(t *testing.T) {
 	checker := &mockRoleChecker{}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := makeRequirePermissionRequest(mgr, checker, Config{CookieName: "auth"}, nil, PermManageUsers, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestRequirePermissionInsufficientPerm(t *testing.T) {
@@ -457,9 +416,7 @@ func TestRequirePermissionInsufficientPerm(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := makeRequirePermissionRequest(mgr, checker, Config{CookieName: "auth"}, nil, PermManageUsers, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
 func TestRequirePermissionGranted(t *testing.T) {
@@ -473,9 +430,7 @@ func TestRequirePermissionGranted(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := makeRequirePermissionRequest(mgr, checker, Config{CookieName: "auth"}, nil, PermWriteContent, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestRequirePermissionCheckerError(t *testing.T) {
@@ -491,9 +446,7 @@ func TestRequirePermissionCheckerError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := makeRequirePermissionRequest(mgr, checker, Config{CookieName: "auth"}, nil, PermReadContent, req)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestRequirePermissionInvalidToken(t *testing.T) {
@@ -502,9 +455,7 @@ func TestRequirePermissionInvalidToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer not-a-jwt")
 	w := makeRequirePermissionRequest(mgr, checker, Config{CookieName: "auth"}, nil, PermReadContent, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestRequirePermissionSetsUserIDInContext(t *testing.T) {
@@ -529,9 +480,7 @@ func TestRequirePermissionSetsUserIDInContext(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if gotUserID != "perm-user" {
-		t.Errorf("expected userID %q, got %q", "perm-user", gotUserID)
-	}
+	require.Equal(t, "perm-user", gotUserID)
 }
 
 // --- NewAdminCheckerFromRoleChecker ------------------------------------------
@@ -544,9 +493,8 @@ func TestNewAdminCheckerFromRoleCheckerAdmin(t *testing.T) {
 	}
 	ac := NewAdminCheckerFromRoleChecker(rc)
 	ok, err := ac.IsAdmin(context.Background(), "admin-user")
-	if err != nil || !ok {
-		t.Errorf("expected (true, nil), got (%v, %v)", ok, err)
-	}
+	require.NoError(t, err)
+	require.True(t, ok)
 }
 
 func TestNewAdminCheckerFromRoleCheckerNonAdmin(t *testing.T) {
@@ -557,9 +505,8 @@ func TestNewAdminCheckerFromRoleCheckerNonAdmin(t *testing.T) {
 	}
 	ac := NewAdminCheckerFromRoleChecker(rc)
 	ok, err := ac.IsAdmin(context.Background(), "regular-user")
-	if err != nil || ok {
-		t.Errorf("expected (false, nil), got (%v, %v)", ok, err)
-	}
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestNewAdminCheckerFromRoleCheckerError(t *testing.T) {
@@ -570,7 +517,5 @@ func TestNewAdminCheckerFromRoleCheckerError(t *testing.T) {
 	}
 	ac := NewAdminCheckerFromRoleChecker(rc)
 	_, err := ac.IsAdmin(context.Background(), "u1")
-	if err == nil {
-		t.Error("expected error from role checker")
-	}
+	require.Error(t, err)
 }

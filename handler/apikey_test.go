@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/stretchr/testify/require"
 )
 
 func newAPIKeyHandler(store auth.APIKeyStore) *APIKeyHandler {
@@ -35,14 +36,10 @@ func TestAPIKeyListEmpty(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.List(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var result []any
 	_ = json.NewDecoder(w.Body).Decode(&result)
-	if len(result) != 0 {
-		t.Errorf("expected empty list, got %d items", len(result))
-	}
+	require.Len(t, result, 0)
 }
 
 func TestAPIKeyListReturnsKeys(t *testing.T) {
@@ -60,17 +57,11 @@ func TestAPIKeyListReturnsKeys(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.List(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var result []map[string]any
 	_ = json.NewDecoder(w.Body).Decode(&result)
-	if len(result) != 1 {
-		t.Fatalf("expected 1 key, got %d", len(result))
-	}
-	if result[0]["id"] != "k1" {
-		t.Errorf("expected id=k1, got %v", result[0]["id"])
-	}
+	require.Len(t, result, 1)
+	require.Equal(t, "k1", result[0]["id"])
 }
 
 func TestAPIKeyListStoreError(t *testing.T) {
@@ -85,9 +76,7 @@ func TestAPIKeyListStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.List(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -101,19 +90,14 @@ func TestAPIKeyCreateSuccess(t *testing.T) {
 		h.Create(w, r)
 	}, `{"name":"my-key"}`)
 
-	if w.Code != http.StatusCreated {
-		t.Errorf("expected 201, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusCreated, w.Code)
 	// Full key should be returned only on creation.
 	var resp map[string]any
 	_ = json.NewDecoder(w.Body).Decode(&resp)
 	key, ok := resp["key"].(string)
-	if !ok || !strings.HasPrefix(key, "app_") {
-		t.Errorf("expected key starting with app_, got %v", resp["key"])
-	}
-	if w.Header().Get("Cache-Control") != "no-store" {
-		t.Error("expected Cache-Control: no-store")
-	}
+	require.True(t, ok)
+	require.True(t, strings.HasPrefix(key, "app_"))
+	require.Equal(t, "no-store", w.Header().Get("Cache-Control"))
 }
 
 func TestAPIKeyCreateMissingName(t *testing.T) {
@@ -123,9 +107,7 @@ func TestAPIKeyCreateMissingName(t *testing.T) {
 		h.Create(w, r)
 	}, `{"name":""}`)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestAPIKeyCreateNameTooLong(t *testing.T) {
@@ -135,9 +117,7 @@ func TestAPIKeyCreateNameTooLong(t *testing.T) {
 		h.Create(w, r)
 	}, `{"name":"`+strings.Repeat("a", 101)+`"}`)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestAPIKeyCreateStoreError(t *testing.T) {
@@ -152,9 +132,7 @@ func TestAPIKeyCreateStoreError(t *testing.T) {
 		h.Create(w, r)
 	}, `{"name":"my-key"}`)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestAPIKeyCreateInvalidJSON(t *testing.T) {
@@ -164,9 +142,7 @@ func TestAPIKeyCreateInvalidJSON(t *testing.T) {
 		h.Create(w, r)
 	}, "not-json")
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -180,9 +156,7 @@ func TestAPIKeyDeleteSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Delete(w, req)
 
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNoContent, w.Code)
 }
 
 func TestAPIKeyDeleteMissingID(t *testing.T) {
@@ -192,9 +166,7 @@ func TestAPIKeyDeleteMissingID(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Delete(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestAPIKeyDeleteNotFound(t *testing.T) {
@@ -209,9 +181,7 @@ func TestAPIKeyDeleteNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Delete(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestAPIKeyDeleteStoreError(t *testing.T) {
@@ -226,7 +196,5 @@ func TestAPIKeyDeleteStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Delete(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }

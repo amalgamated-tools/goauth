@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/stretchr/testify/require"
 )
 
 func newSessionHandler(sessions auth.SessionStore) *SessionHandler {
@@ -43,19 +44,12 @@ func TestSessionListSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.List(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var dtos []SessionDTO
-	if err := json.NewDecoder(w.Body).Decode(&dtos); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if len(dtos) != 2 {
-		t.Errorf("expected 2 sessions, got %d", len(dtos))
-	}
-	if dtos[0].ID != "s1" || dtos[1].ID != "s2" {
-		t.Errorf("unexpected session IDs: %v", dtos)
-	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&dtos))
+	require.Len(t, dtos, 2)
+	require.Equal(t, "s1", dtos[0].ID)
+	require.Equal(t, "s2", dtos[1].ID)
 }
 
 func TestSessionListEmpty(t *testing.T) {
@@ -67,14 +61,10 @@ func TestSessionListEmpty(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.List(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 	var dtos []SessionDTO
 	_ = json.NewDecoder(w.Body).Decode(&dtos)
-	if len(dtos) != 0 {
-		t.Errorf("expected empty list, got %v", dtos)
-	}
+	require.Empty(t, dtos)
 }
 
 func TestSessionListStoreError(t *testing.T) {
@@ -90,9 +80,7 @@ func TestSessionListStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.List(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -114,12 +102,8 @@ func TestSessionRevokeSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Revoke(w, req)
 
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", w.Code)
-	}
-	if revokedID != "sess-42" {
-		t.Errorf("expected revokedID %q, got %q", "sess-42", revokedID)
-	}
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Equal(t, "sess-42", revokedID)
 }
 
 func TestSessionRevokeMissingID(t *testing.T) {
@@ -130,14 +114,10 @@ func TestSessionRevokeMissingID(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Revoke(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, w.Code)
 	var body map[string]string
 	_ = json.NewDecoder(w.Body).Decode(&body)
-	if body["error"] != "session ID is required" {
-		t.Errorf("unexpected error message: %q", body["error"])
-	}
+	require.Equal(t, "session ID is required", body["error"])
 }
 
 func TestSessionRevokeNotFound(t *testing.T) {
@@ -153,9 +133,7 @@ func TestSessionRevokeNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Revoke(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestSessionRevokeStoreError(t *testing.T) {
@@ -171,9 +149,7 @@ func TestSessionRevokeStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Revoke(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -195,12 +171,8 @@ func TestSessionRevokeAllSuccess(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.RevokeAll(w, req)
 
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d; body: %s", w.Code, w.Body.String())
-	}
-	if revokedUser != "u1" {
-		t.Errorf("expected revokedUser %q, got %q", "u1", revokedUser)
-	}
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Equal(t, "u1", revokedUser)
 }
 
 func TestSessionRevokeAllStoreError(t *testing.T) {
@@ -216,9 +188,7 @@ func TestSessionRevokeAllStoreError(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.RevokeAll(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -236,19 +206,9 @@ func TestToSessionDTO(t *testing.T) {
 		CreatedAt: now,
 	}
 	dto := toSessionDTO(s)
-	if dto.ID != s.ID {
-		t.Errorf("ID: expected %q, got %q", s.ID, dto.ID)
-	}
-	if dto.UserAgent != s.UserAgent {
-		t.Errorf("UserAgent: expected %q, got %q", s.UserAgent, dto.UserAgent)
-	}
-	if dto.IPAddress != s.IPAddress {
-		t.Errorf("IPAddress: expected %q, got %q", s.IPAddress, dto.IPAddress)
-	}
-	if !dto.ExpiresAt.Equal(s.ExpiresAt) {
-		t.Errorf("ExpiresAt: expected %v, got %v", s.ExpiresAt, dto.ExpiresAt)
-	}
-	if !dto.CreatedAt.Equal(s.CreatedAt) {
-		t.Errorf("CreatedAt: expected %v, got %v", s.CreatedAt, dto.CreatedAt)
-	}
+	require.Equal(t, s.ID, dto.ID)
+	require.Equal(t, s.UserAgent, dto.UserAgent)
+	require.Equal(t, s.IPAddress, dto.IPAddress)
+	require.True(t, dto.ExpiresAt.Equal(s.ExpiresAt))
+	require.True(t, dto.CreatedAt.Equal(s.CreatedAt))
 }
