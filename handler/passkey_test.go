@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -40,7 +39,7 @@ func (m *mockPasskeyStore) GetAndDeleteChallenge(ctx context.Context, id string)
 	if m.getAndDeleteChallengeFunc != nil {
 		return m.getAndDeleteChallengeFunc(ctx, id)
 	}
-	return nil, sql.ErrNoRows
+	return nil, auth.ErrNotFound
 }
 func (m *mockPasskeyStore) DeleteExpiredChallenges(ctx context.Context) error {
 	if m.deleteExpiredChallengesFunc != nil {
@@ -64,13 +63,13 @@ func (m *mockPasskeyStore) FindCredentialByCredentialID(ctx context.Context, cre
 	if m.findCredentialByCredIDFunc != nil {
 		return m.findCredentialByCredIDFunc(ctx, credentialID)
 	}
-	return nil, sql.ErrNoRows
+	return nil, auth.ErrNotFound
 }
 func (m *mockPasskeyStore) FindCredentialByIDAndUser(ctx context.Context, id, userID string) (*auth.PasskeyCredential, error) {
 	if m.findCredentialByIDAndUser != nil {
 		return m.findCredentialByIDAndUser(ctx, id, userID)
 	}
-	return nil, sql.ErrNoRows
+	return nil, auth.ErrNotFound
 }
 func (m *mockPasskeyStore) UpdateCredentialData(ctx context.Context, userID, credentialID, credentialData string) error {
 	if m.updateCredentialDataFunc != nil {
@@ -240,7 +239,7 @@ func TestPasskey_deleteCredential_missingID(t *testing.T) {
 func TestPasskey_deleteCredential_notFound(t *testing.T) {
 	store := &mockPasskeyStore{
 		deleteCredentialFunc: func(_ context.Context, _, _ string) error {
-			return sql.ErrNoRows
+			return auth.ErrNotFound
 		},
 	}
 	h := newPasskeyHandler(store, &mockUserStore{})

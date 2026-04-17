@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -172,7 +171,7 @@ func TestAPIKey_delete_missingID(t *testing.T) {
 func TestAPIKey_delete_notFound(t *testing.T) {
 	store := &mockAPIKeyStore{
 		deleteFunc: func(_ context.Context, _, _ string) error {
-			return sql.ErrNoRows
+			return auth.ErrNotFound
 		},
 	}
 	h := newAPIKeyHandler(store)

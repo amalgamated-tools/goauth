@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -108,7 +107,7 @@ func TestSendVerification_alreadyVerified(t *testing.T) {
 func TestSendVerification_userNotFound(t *testing.T) {
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 	}
 	emailSent := false
@@ -157,7 +156,7 @@ func TestSendVerification_userStoreError(t *testing.T) {
 			return nil, errors.New("db error")
 		},
 	}
-	// Non-sql.ErrNoRows errors log and return 200 to avoid leaking info.
+	// Non-auth.ErrNotFound errors log and return 200 to avoid leaking info.
 	w := postJSON(t, newEmailVerificationHandler(store, &mockEmailVerificationStore{}).SendVerification, `{"email":"alice@test.com"}`)
 	require.Equal(t, http.StatusOK, w.Code)
 }
@@ -182,7 +181,7 @@ func TestVerifyEmail_success(t *testing.T) {
 	verStore := &mockEmailVerificationStore{
 		consumeFunc: func(_ context.Context, hash string) (*auth.EmailVerificationToken, error) {
 			if hash != tokenHashFor(validToken) {
-				return nil, sql.ErrNoRows
+				return nil, auth.ErrNotFound
 			}
 			return &auth.EmailVerificationToken{
 				ID: "tok-id", UserID: "u1",
@@ -208,7 +207,7 @@ func TestVerifyEmail_missingToken(t *testing.T) {
 func TestVerifyEmail_invalidToken(t *testing.T) {
 	verStore := &mockEmailVerificationStore{
 		consumeFunc: func(_ context.Context, _ string) (*auth.EmailVerificationToken, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/verify-email?token=badtoken", nil)
