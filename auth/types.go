@@ -18,6 +18,7 @@ var (
 	ErrExpiredToken     = errors.New("token expired")
 	ErrEmailExists      = errors.New("email already exists")
 	ErrEmailNotVerified = errors.New("email not verified")
+	ErrSessionRevoked   = errors.New("session revoked")
 	// ErrNotFound is returned by store methods when the requested record does
 	// not exist. Implementations must return this (or wrap it) instead of
 	// driver-specific errors such as sql.ErrNoRows.
@@ -111,6 +112,36 @@ type APIKeyStore interface {
 	ValidateAPIKey(ctx context.Context, keyHash string) (userID string, apiKeyID string, err error)
 	TouchAPIKeyLastUsed(ctx context.Context, id string) error
 	DeleteAPIKey(ctx context.Context, id, userID string) error
+}
+
+// Session represents an active user session. Each session is bound to a
+// single refresh token hash, enabling server-side revocation.
+type Session struct {
+	ID               string
+	UserID           string
+	RefreshTokenHash string
+	UserAgent        string
+	IPAddress        string
+	ExpiresAt        time.Time
+	CreatedAt        time.Time
+}
+
+// SessionStore defines data access for session operations.
+type SessionStore interface {
+	// CreateSession persists a new session and returns it.
+	CreateSession(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error)
+	// FindSessionByID returns a session by its ID. Returns sql.ErrNoRows when not found.
+	FindSessionByID(ctx context.Context, id string) (*Session, error)
+	// FindSessionByRefreshTokenHash returns a session by its refresh token hash. Returns sql.ErrNoRows when not found.
+	FindSessionByRefreshTokenHash(ctx context.Context, refreshTokenHash string) (*Session, error)
+	// ListSessionsByUser returns all sessions belonging to a user.
+	ListSessionsByUser(ctx context.Context, userID string) ([]Session, error)
+	// DeleteSession removes a session by ID, scoped to a user. Returns sql.ErrNoRows when not found.
+	DeleteSession(ctx context.Context, id, userID string) error
+	// DeleteAllSessionsByUser removes all sessions for a user.
+	DeleteAllSessionsByUser(ctx context.Context, userID string) error
+	// DeleteExpiredSessions removes sessions past their expiry time.
+	DeleteExpiredSessions(ctx context.Context) error
 }
 
 // PasskeyStore defines data access for WebAuthn operations.

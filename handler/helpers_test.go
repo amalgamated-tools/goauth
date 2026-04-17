@@ -136,6 +136,59 @@ func (m *mockAPIKeyStore) DeleteAPIKey(ctx context.Context, id, userID string) e
 	return nil
 }
 
+type mockSessionStore struct {
+	createFunc             func(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*auth.Session, error)
+	findByIDFunc           func(ctx context.Context, id string) (*auth.Session, error)
+	findByRefreshTokenFunc func(ctx context.Context, hash string) (*auth.Session, error)
+	listFunc               func(ctx context.Context, userID string) ([]auth.Session, error)
+	deleteFunc             func(ctx context.Context, id, userID string) error
+	deleteAllFunc          func(ctx context.Context, userID string) error
+	deleteExpiredFunc      func(ctx context.Context) error
+}
+
+func (m *mockSessionStore) CreateSession(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*auth.Session, error) {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, userID, refreshTokenHash, userAgent, ipAddress, expiresAt)
+	}
+	return &auth.Session{ID: "sess-id", UserID: userID, ExpiresAt: expiresAt}, nil
+}
+func (m *mockSessionStore) FindSessionByID(ctx context.Context, id string) (*auth.Session, error) {
+	if m.findByIDFunc != nil {
+		return m.findByIDFunc(ctx, id)
+	}
+	return nil, nil
+}
+func (m *mockSessionStore) FindSessionByRefreshTokenHash(ctx context.Context, hash string) (*auth.Session, error) {
+	if m.findByRefreshTokenFunc != nil {
+		return m.findByRefreshTokenFunc(ctx, hash)
+	}
+	return nil, nil
+}
+func (m *mockSessionStore) ListSessionsByUser(ctx context.Context, userID string) ([]auth.Session, error) {
+	if m.listFunc != nil {
+		return m.listFunc(ctx, userID)
+	}
+	return nil, nil
+}
+func (m *mockSessionStore) DeleteSession(ctx context.Context, id, userID string) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(ctx, id, userID)
+	}
+	return nil
+}
+func (m *mockSessionStore) DeleteAllSessionsByUser(ctx context.Context, userID string) error {
+	if m.deleteAllFunc != nil {
+		return m.deleteAllFunc(ctx, userID)
+	}
+	return nil
+}
+func (m *mockSessionStore) DeleteExpiredSessions(ctx context.Context) error {
+	if m.deleteExpiredFunc != nil {
+		return m.deleteExpiredFunc(ctx)
+	}
+	return nil
+}
+
 type mockMagicLinkStore struct {
 	createFunc        func(ctx context.Context, email, tokenHash string, expiresAt time.Time) (*auth.MagicLink, error)
 	findAndDeleteFunc func(ctx context.Context, tokenHash string) (*auth.MagicLink, error)
@@ -191,6 +244,17 @@ func (m *mockPasswordResetStore) DeleteExpiredPasswordResetTokens(ctx context.Co
 		return m.deleteExpiredFunc(ctx)
 	}
 	return nil
+}
+
+// newAuthHandlerWithSessions creates an AuthHandler with session support for tests.
+func newAuthHandlerWithSessions(store auth.UserStore, sessions auth.SessionStore) *AuthHandler {
+	return &AuthHandler{
+		Users:         store,
+		JWT:           newTestJWT(),
+		Sessions:      sessions,
+		CookieName:    "auth",
+		SecureCookies: false,
+	}
 }
 
 // newTestJWT creates a JWTManager for handler tests.
