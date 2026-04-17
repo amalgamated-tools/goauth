@@ -54,7 +54,7 @@ func TestMustGenerateDummyBcryptHash(t *testing.T) {
 	require.Error(t, bcrypt.CompareHashAndPassword(hash, []byte("wrong")))
 }
 
-func TestSecretEncrypterRoundtrip(t *testing.T) {
+func TestSecretEncrypter_roundtrip(t *testing.T) {
 	enc, err := newSecretEncrypter([]byte("test-secret-key-32-bytes-long!!!"))
 	require.NoError(t, err)
 
@@ -68,7 +68,7 @@ func TestSecretEncrypterRoundtrip(t *testing.T) {
 	require.Equal(t, plaintext, decrypted)
 }
 
-func TestSecretEncrypterEncryptProducesUniqueValues(t *testing.T) {
+func TestSecretEncrypter_encryptProducesUniqueValues(t *testing.T) {
 	enc, _ := newSecretEncrypter([]byte("key"))
 	ct1, _ := enc.Encrypt("same-value")
 	ct2, _ := enc.Encrypt("same-value")
@@ -76,7 +76,7 @@ func TestSecretEncrypterEncryptProducesUniqueValues(t *testing.T) {
 	require.NotEqual(t, ct1, ct2)
 }
 
-func TestSecretEncrypterEmptyString(t *testing.T) {
+func TestSecretEncrypter_emptyString(t *testing.T) {
 	enc, _ := newSecretEncrypter([]byte("test-key"))
 
 	result, err := enc.Encrypt("")
@@ -84,7 +84,7 @@ func TestSecretEncrypterEmptyString(t *testing.T) {
 	require.Empty(t, result)
 }
 
-func TestSecretEncrypterDecryptNonPrefixed(t *testing.T) {
+func TestSecretEncrypter_decryptNonPrefixed(t *testing.T) {
 	enc, _ := newSecretEncrypter([]byte("test-key"))
 
 	// A value that lacks the prefix is returned as-is.
@@ -94,7 +94,7 @@ func TestSecretEncrypterDecryptNonPrefixed(t *testing.T) {
 	require.Equal(t, val, result)
 }
 
-func TestSecretEncrypterDecryptTooShort(t *testing.T) {
+func TestSecretEncrypter_decryptTooShort(t *testing.T) {
 	enc, _ := newSecretEncrypter([]byte("test-key"))
 
 	// Prefix present but ciphertext body is too short to contain a nonce.
@@ -103,7 +103,7 @@ func TestSecretEncrypterDecryptTooShort(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestSecretEncrypterWrongKey(t *testing.T) {
+func TestSecretEncrypter_wrongKey(t *testing.T) {
 	enc1, _ := newSecretEncrypter([]byte("key-one"))
 	enc2, _ := newSecretEncrypter([]byte("key-two"))
 

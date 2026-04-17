@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -65,7 +64,7 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 	// leaking account existence.
 	user, err := h.Users.FindByEmail(r.Context(), req.Email)
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
+		if !errors.Is(err, auth.ErrNotFound) {
 			slog.ErrorContext(r.Context(), "failed to find user for email verification", slog.Any("error", err))
 		}
 		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "if that address is registered, a verification email has been sent"})
@@ -114,7 +113,7 @@ func (h *EmailVerificationHandler) VerifyEmail(w http.ResponseWriter, r *http.Re
 	tokenHash := auth.HashHighEntropyToken(plaintext)
 	record, err := h.Verifications.ConsumeEmailVerification(r.Context(), tokenHash)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired verification token")
 			return
 		}

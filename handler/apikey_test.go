@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -29,7 +28,7 @@ func newAPIKeyHandler(store auth.APIKeyStore) *APIKeyHandler {
 // List
 // ---------------------------------------------------------------------------
 
-func TestAPIKeyListEmpty(t *testing.T) {
+func TestAPIKey_list_empty(t *testing.T) {
 	h := newAPIKeyHandler(&mockAPIKeyStore{})
 	req := httptest.NewRequest(http.MethodGet, "/keys", nil)
 	req = withUserID(req, "u1")
@@ -42,7 +41,7 @@ func TestAPIKeyListEmpty(t *testing.T) {
 	require.Len(t, result, 0)
 }
 
-func TestAPIKeyListReturnsKeys(t *testing.T) {
+func TestAPIKey_list_returnsKeys(t *testing.T) {
 	now := time.Now()
 	store := &mockAPIKeyStore{
 		listFunc: func(_ context.Context, _ string) ([]auth.APIKey, error) {
@@ -64,7 +63,7 @@ func TestAPIKeyListReturnsKeys(t *testing.T) {
 	require.Equal(t, "k1", result[0]["id"])
 }
 
-func TestAPIKeyListStoreError(t *testing.T) {
+func TestAPIKey_list_storeError(t *testing.T) {
 	store := &mockAPIKeyStore{
 		listFunc: func(_ context.Context, _ string) ([]auth.APIKey, error) {
 			return nil, errors.New("db error")
@@ -83,7 +82,7 @@ func TestAPIKeyListStoreError(t *testing.T) {
 // Create
 // ---------------------------------------------------------------------------
 
-func TestAPIKeyCreateSuccess(t *testing.T) {
+func TestAPIKey_create_success(t *testing.T) {
 	h := newAPIKeyHandler(&mockAPIKeyStore{})
 	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
 		r = withUserID(r, "u1")
@@ -100,7 +99,7 @@ func TestAPIKeyCreateSuccess(t *testing.T) {
 	require.Equal(t, "no-store", w.Header().Get("Cache-Control"))
 }
 
-func TestAPIKeyCreateMissingName(t *testing.T) {
+func TestAPIKey_create_missingName(t *testing.T) {
 	h := newAPIKeyHandler(&mockAPIKeyStore{})
 	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
 		r = withUserID(r, "u1")
@@ -110,7 +109,7 @@ func TestAPIKeyCreateMissingName(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestAPIKeyCreateNameTooLong(t *testing.T) {
+func TestAPIKey_create_nameTooLong(t *testing.T) {
 	h := newAPIKeyHandler(&mockAPIKeyStore{})
 	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
 		r = withUserID(r, "u1")
@@ -120,7 +119,7 @@ func TestAPIKeyCreateNameTooLong(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestAPIKeyCreateStoreError(t *testing.T) {
+func TestAPIKey_create_storeError(t *testing.T) {
 	store := &mockAPIKeyStore{
 		createFunc: func(_ context.Context, _, _, _, _ string) (*auth.APIKey, error) {
 			return nil, errors.New("db error")
@@ -135,7 +134,7 @@ func TestAPIKeyCreateStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestAPIKeyCreateInvalidJSON(t *testing.T) {
+func TestAPIKey_create_invalidJSON(t *testing.T) {
 	h := newAPIKeyHandler(&mockAPIKeyStore{})
 	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
 		r = withUserID(r, "u1")
@@ -149,7 +148,7 @@ func TestAPIKeyCreateInvalidJSON(t *testing.T) {
 // Delete
 // ---------------------------------------------------------------------------
 
-func TestAPIKeyDeleteSuccess(t *testing.T) {
+func TestAPIKey_delete_success(t *testing.T) {
 	h := newAPIKeyHandler(&mockAPIKeyStore{})
 	req := httptest.NewRequest(http.MethodDelete, "/keys?id=k1", nil)
 	req = withUserID(req, "u1")
@@ -159,7 +158,7 @@ func TestAPIKeyDeleteSuccess(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, w.Code)
 }
 
-func TestAPIKeyDeleteMissingID(t *testing.T) {
+func TestAPIKey_delete_missingID(t *testing.T) {
 	h := newAPIKeyHandler(&mockAPIKeyStore{})
 	req := httptest.NewRequest(http.MethodDelete, "/keys", nil) // no id param
 	req = withUserID(req, "u1")
@@ -169,10 +168,10 @@ func TestAPIKeyDeleteMissingID(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestAPIKeyDeleteNotFound(t *testing.T) {
+func TestAPIKey_delete_notFound(t *testing.T) {
 	store := &mockAPIKeyStore{
 		deleteFunc: func(_ context.Context, _, _ string) error {
-			return sql.ErrNoRows
+			return auth.ErrNotFound
 		},
 	}
 	h := newAPIKeyHandler(store)
@@ -184,7 +183,7 @@ func TestAPIKeyDeleteNotFound(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestAPIKeyDeleteStoreError(t *testing.T) {
+func TestAPIKey_delete_storeError(t *testing.T) {
 	store := &mockAPIKeyStore{
 		deleteFunc: func(_ context.Context, _, _ string) error {
 			return errors.New("db error")
