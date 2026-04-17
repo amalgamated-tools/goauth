@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -105,10 +104,8 @@ func (rl *RateLimiter) Allow(r *http.Request) bool {
 // Middleware returns Chi-compatible middleware applying rate limiting.
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !rl.allow(rl.clientIP(r)) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusTooManyRequests)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "too many requests"})
+		if !rl.Allow(r) {
+			jsonError(w, http.StatusTooManyRequests, "too many requests")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -117,15 +114,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 // Wrap wraps a HandlerFunc with rate limiting.
 func (rl *RateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !rl.allow(rl.clientIP(r)) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusTooManyRequests)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "too many requests"})
-			return
-		}
-		next(w, r)
-	}
+	return rl.Middleware(next).ServeHTTP
 }
 
 // ParseTrustedProxyCIDRs parses a comma-separated CIDR string.

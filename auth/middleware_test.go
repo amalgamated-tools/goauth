@@ -99,7 +99,7 @@ func (m *mockSessionStore) DeleteExpiredSessions(ctx context.Context) error {
 
 // --- context helpers -----------------------------------------------------------
 
-func TestUserIDFromContextEmpty(t *testing.T) {
+func TestUserIDFromContext_empty(t *testing.T) {
 	ctx := context.Background()
 	require.Empty(t, UserIDFromContext(ctx))
 }
@@ -111,7 +111,7 @@ func TestContextWithUserID(t *testing.T) {
 
 // --- extractToken --------------------------------------------------------------
 
-func TestExtractTokenFromHeader(t *testing.T) {
+func TestExtractToken_fromHeader(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer mytoken123")
 
@@ -120,7 +120,7 @@ func TestExtractTokenFromHeader(t *testing.T) {
 	require.Equal(t, tokenSourceHeader, src)
 }
 
-func TestExtractTokenFromCookie(t *testing.T) {
+func TestExtractToken_fromCookie(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: "auth", Value: "cookietoken"})
 
@@ -129,7 +129,7 @@ func TestExtractTokenFromCookie(t *testing.T) {
 	require.Equal(t, tokenSourceCookie, src)
 }
 
-func TestExtractTokenMissing(t *testing.T) {
+func TestExtractToken_missing(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	tok, src, reason := extractToken(req, "auth")
@@ -138,7 +138,7 @@ func TestExtractTokenMissing(t *testing.T) {
 	require.NotEmpty(t, reason)
 }
 
-func TestExtractTokenHeaderTakesPrecedence(t *testing.T) {
+func TestExtractToken_headerTakesPrecedence(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer headertoken")
 	req.AddCookie(&http.Cookie{Name: "auth", Value: "cookietoken"})
@@ -148,7 +148,7 @@ func TestExtractTokenHeaderTakesPrecedence(t *testing.T) {
 	require.Equal(t, tokenSourceHeader, src)
 }
 
-func TestExtractTokenEmptyBearer(t *testing.T) {
+func TestExtractToken_emptyBearer(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer   ")
 
@@ -166,12 +166,12 @@ func init() {
 	apiKeyTouchMu.Unlock()
 }
 
-func TestShouldTouchAPIKeyLastUsedFirstTime(t *testing.T) {
+func TestShouldTouchAPIKeyLastUsed_firstTime(t *testing.T) {
 	id := "apikey-first-time-" + t.Name()
 	require.True(t, shouldTouchAPIKeyLastUsed(id, time.Now()))
 }
 
-func TestShouldTouchAPIKeyLastUsedWithinInterval(t *testing.T) {
+func TestShouldTouchAPIKeyLastUsed_withinInterval(t *testing.T) {
 	id := "apikey-interval-" + t.Name()
 	now := time.Now()
 	shouldTouchAPIKeyLastUsed(id, now) // record first touch
@@ -180,7 +180,7 @@ func TestShouldTouchAPIKeyLastUsedWithinInterval(t *testing.T) {
 	require.False(t, shouldTouchAPIKeyLastUsed(id, now.Add(time.Minute)))
 }
 
-func TestShouldTouchAPIKeyLastUsedAfterInterval(t *testing.T) {
+func TestShouldTouchAPIKeyLastUsed_afterInterval(t *testing.T) {
 	id := "apikey-after-interval-" + t.Name()
 	now := time.Now()
 	shouldTouchAPIKeyLastUsed(id, now) // record first touch
@@ -191,7 +191,7 @@ func TestShouldTouchAPIKeyLastUsedAfterInterval(t *testing.T) {
 
 // --- resolveUser --------------------------------------------------------------
 
-func TestResolveUserValidJWT(t *testing.T) {
+func TestResolveUser_validJWT(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -201,7 +201,7 @@ func TestResolveUserValidJWT(t *testing.T) {
 	require.Equal(t, "user-jwt", uid)
 }
 
-func TestResolveUserInvalidJWT(t *testing.T) {
+func TestResolveUser_invalidJWT(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -209,7 +209,7 @@ func TestResolveUserInvalidJWT(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
-func TestResolveUserAPIKeyFromHeader(t *testing.T) {
+func TestResolveUser_apiKeyFromHeader(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -224,7 +224,7 @@ func TestResolveUserAPIKeyFromHeader(t *testing.T) {
 	require.Equal(t, "user-from-key", uid)
 }
 
-func TestResolveUserAPIKeyFromCookieRejected(t *testing.T) {
+func TestResolveUser_apiKeyFromCookieRejected(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -238,7 +238,7 @@ func TestResolveUserAPIKeyFromCookieRejected(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
-func TestResolveUserAPIKeyNotFound(t *testing.T) {
+func TestResolveUser_apiKeyNotFound(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -261,7 +261,7 @@ func makeMiddlewareRequest(mgr *JWTManager, cfg Config, apiKeys APIKeyStore, req
 	return w
 }
 
-func TestMiddlewareNoToken(t *testing.T) {
+func TestMiddleware_noToken(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := makeMiddlewareRequest(mgr, Config{CookieName: "auth"}, nil, req)
@@ -269,7 +269,7 @@ func TestMiddlewareNoToken(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestMiddlewareInvalidToken(t *testing.T) {
+func TestMiddleware_invalidToken(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer not-a-jwt")
@@ -281,7 +281,7 @@ func TestMiddlewareInvalidToken(t *testing.T) {
 	require.Contains(t, body["error"], "invalid or expired")
 }
 
-func TestMiddlewareValidJWT(t *testing.T) {
+func TestMiddleware_validJWT(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "user-mw")
@@ -294,7 +294,7 @@ func TestMiddlewareValidJWT(t *testing.T) {
 	require.Equal(t, "user-mw", w.Header().Get("X-User-ID"))
 }
 
-func TestMiddlewareValidCookieJWT(t *testing.T) {
+func TestMiddleware_validCookieJWT(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "cookie-user")
@@ -328,7 +328,7 @@ func makeAdminRequest(mgr *JWTManager, checker AdminChecker, cfg Config, apiKeys
 	return w
 }
 
-func TestAdminMiddlewareNoToken(t *testing.T) {
+func TestAdminMiddleware_noToken(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	checker := &mockAdminChecker{}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -337,7 +337,7 @@ func TestAdminMiddlewareNoToken(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestAdminMiddlewareNonAdmin(t *testing.T) {
+func TestAdminMiddleware_nonAdmin(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "plain-user")
@@ -350,7 +350,7 @@ func TestAdminMiddlewareNonAdmin(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
-func TestAdminMiddlewareAdmin(t *testing.T) {
+func TestAdminMiddleware_admin(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "admin-user")
@@ -363,7 +363,7 @@ func TestAdminMiddlewareAdmin(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestAdminMiddlewareCheckerError(t *testing.T) {
+func TestAdminMiddleware_checkerError(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "some-user")
@@ -382,7 +382,7 @@ func TestAdminMiddlewareCheckerError(t *testing.T) {
 
 // --- cachingAdminChecker ------------------------------------------------------
 
-func TestCachingAdminCheckerCachesResult(t *testing.T) {
+func TestCachingAdminChecker_cachesResult(t *testing.T) {
 	calls := 0
 	delegate := &mockAdminChecker{
 		isAdminFunc: func(_ context.Context, _ string) (bool, error) {
@@ -401,14 +401,14 @@ func TestCachingAdminCheckerCachesResult(t *testing.T) {
 	require.Equal(t, 1, calls)
 }
 
-func TestCachingAdminCheckerDefaultTTL(t *testing.T) {
+func TestCachingAdminChecker_defaultTTL(t *testing.T) {
 	// TTL <= 0 should default to 5s without panicking.
 	delegate := &mockAdminChecker{}
 	cached := newCachingAdminChecker(delegate, 0)
 	require.NotNil(t, cached)
 }
 
-func TestCachingAdminCheckerDelegateError(t *testing.T) {
+func TestCachingAdminChecker_delegateError(t *testing.T) {
 	delegate := &mockAdminChecker{
 		isAdminFunc: func(_ context.Context, _ string) (bool, error) {
 			return false, errors.New("delegate error")
@@ -419,7 +419,7 @@ func TestCachingAdminCheckerDelegateError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCachingAdminCheckerExpiry(t *testing.T) {
+func TestCachingAdminChecker_expiry(t *testing.T) {
 	calls := 0
 	delegate := &mockAdminChecker{
 		isAdminFunc: func(_ context.Context, _ string) (bool, error) {
@@ -448,7 +448,7 @@ func TestCachingAdminCheckerExpiry(t *testing.T) {
 	require.Equal(t, 2, calls)
 }
 
-func TestResolveUserAPIKeyStoreError(t *testing.T) {
+func TestResolveUser_apiKeyStoreError(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -463,7 +463,7 @@ func TestResolveUserAPIKeyStoreError(t *testing.T) {
 	require.False(t, errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken))
 }
 
-func TestMiddlewareInternalError(t *testing.T) {
+func TestMiddleware_internalError(t *testing.T) {
 	// A store error in resolveUser that is not ErrInvalidToken should return 500.
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -487,7 +487,7 @@ func TestMiddlewareInternalError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestAdminMiddlewareInvalidToken(t *testing.T) {
+func TestAdminMiddleware_invalidToken(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	checker := &mockAdminChecker{}
 
@@ -505,7 +505,7 @@ func TestAdminMiddlewareInvalidToken(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestAdminMiddlewareInternalError(t *testing.T) {
+func TestAdminMiddleware_internalError(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	store := &mockAPIKeyStore{
@@ -531,7 +531,7 @@ func TestAdminMiddlewareInternalError(t *testing.T) {
 
 // --- Session validation in Middleware -----------------------------------------
 
-func TestMiddlewareValidSessionJWT(t *testing.T) {
+func TestMiddleware_validSessionJWT(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession(ctx, "user-sess", "sess-abc")
@@ -554,7 +554,7 @@ func TestMiddlewareValidSessionJWT(t *testing.T) {
 	require.Equal(t, "user-sess", w.Header().Get("X-User-ID"))
 }
 
-func TestMiddlewareRevokedSession(t *testing.T) {
+func TestMiddleware_revokedSession(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession(ctx, "user-revoked", "sess-revoked")
@@ -574,7 +574,7 @@ func TestMiddlewareRevokedSession(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestMiddlewareExpiredSession(t *testing.T) {
+func TestMiddleware_expiredSession(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession(ctx, "user-expired", "sess-expired")
@@ -593,7 +593,7 @@ func TestMiddlewareExpiredSession(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestMiddlewareNoSessionStoreSkipsCheck(t *testing.T) {
+func TestMiddleware_noSessionStoreSkipsCheck(t *testing.T) {
 	// Without a session store, no session check is performed even if jti is present.
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
@@ -607,7 +607,7 @@ func TestMiddlewareNoSessionStoreSkipsCheck(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestMiddlewareAPIKeyBypassesSessionCheck(t *testing.T) {
+func TestMiddleware_apiKeyBypassesSessionCheck(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	apiStore := &mockAPIKeyStore{
@@ -637,7 +637,7 @@ func TestMiddlewareAPIKeyBypassesSessionCheck(t *testing.T) {
 	require.Equal(t, "user-api", w.Header().Get("X-User-ID"))
 }
 
-func TestAdminMiddlewareValidSession(t *testing.T) {
+func TestAdminMiddleware_validSession(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession(ctx, "admin-user", "sess-admin")
@@ -657,7 +657,7 @@ func TestAdminMiddlewareValidSession(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestAdminMiddlewareRevokedSession(t *testing.T) {
+func TestAdminMiddleware_revokedSession(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession(ctx, "admin-user", "sess-revoked-admin")
@@ -677,9 +677,9 @@ func TestAdminMiddlewareRevokedSession(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-// TestResolveUserJWTWithSessionID verifies that resolveUser returns the session
+// TestResolveUser_jwtWithSessionID verifies that resolveUser returns the session
 // ID embedded in the jti claim.
-func TestResolveUserJWTWithSessionID(t *testing.T) {
+func TestResolveUser_jwtWithSessionID(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -690,9 +690,9 @@ func TestResolveUserJWTWithSessionID(t *testing.T) {
 	require.Equal(t, "sess-jti", sessID)
 }
 
-// TestResolveUserAPIKeyHasNoSessionID verifies that API key auth returns an
+// TestResolveUser_apiKeyHasNoSessionID verifies that API key auth returns an
 // empty session ID.
-func TestResolveUserAPIKeyHasNoSessionID(t *testing.T) {
+func TestResolveUser_apiKeyHasNoSessionID(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -133,8 +132,6 @@ func (h *PasskeyHandler) BeginRegistration(w http.ResponseWriter, r *http.Reques
 	waCreds := loadWebAuthnCredentials(r.Context(), existingCreds)
 	waUser := &passkeyUser{user: user, credentials: waCreds}
 
-	_ = h.Passkeys.DeleteExpiredChallenges(r.Context())
-
 	options, sd, err := h.WebAuthn.BeginRegistration(waUser, webauthn.WithExclusions(webauthn.Credentials(waCreds).CredentialDescriptors()))
 	if err != nil {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to begin registration")
@@ -200,7 +197,6 @@ func (h *PasskeyHandler) BeginAuthentication(w http.ResponseWriter, r *http.Requ
 		writeError(r.Context(), w, http.StatusServiceUnavailable, "passkeys not configured")
 		return
 	}
-	_ = h.Passkeys.DeleteExpiredChallenges(r.Context())
 	options, sd, err := h.WebAuthn.BeginDiscoverableLogin()
 	if err != nil {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to begin login")
@@ -295,7 +291,7 @@ func (h *PasskeyHandler) DeleteCredential(w http.ResponseWriter, r *http.Request
 	}
 	userID := auth.UserIDFromContext(r.Context())
 	if err := h.Passkeys.DeleteCredential(r.Context(), credID, userID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusNotFound, "credential not found")
 			return
 		}

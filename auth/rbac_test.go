@@ -3,8 +3,10 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,7 +44,7 @@ func (m *mockRBACUserStore) RevokeRole(ctx context.Context, userID string, role 
 
 // --- StoreRoleChecker ---------------------------------------------------------
 
-func TestStoreRoleCheckerHasRole(t *testing.T) {
+func TestStoreRoleChecker_hasRole(t *testing.T) {
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
 			return []Role{RoleEditor}, nil
@@ -60,7 +62,7 @@ func TestStoreRoleCheckerHasRole(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestStoreRoleCheckerHasRoleError(t *testing.T) {
+func TestStoreRoleChecker_hasRoleError(t *testing.T) {
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
 			return nil, errors.New("db error")
@@ -71,7 +73,7 @@ func TestStoreRoleCheckerHasRoleError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestStoreRoleCheckerHasPermission(t *testing.T) {
+func TestStoreRoleChecker_hasPermission(t *testing.T) {
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
 			return []Role{RoleViewer}, nil
@@ -89,7 +91,7 @@ func TestStoreRoleCheckerHasPermission(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestStoreRoleCheckerHasPermissionMultiRole(t *testing.T) {
+func TestStoreRoleChecker_hasPermissionMultiRole(t *testing.T) {
 	// User has both viewer and editor — should have write permission.
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
@@ -104,7 +106,7 @@ func TestStoreRoleCheckerHasPermissionMultiRole(t *testing.T) {
 	require.True(t, ok)
 }
 
-func TestStoreRoleCheckerHasPermissionUnknownRole(t *testing.T) {
+func TestStoreRoleChecker_hasPermissionUnknownRole(t *testing.T) {
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
 			return []Role{Role("nonexistent")}, nil
@@ -116,7 +118,7 @@ func TestStoreRoleCheckerHasPermissionUnknownRole(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestStoreRoleCheckerHasPermissionError(t *testing.T) {
+func TestStoreRoleChecker_hasPermissionError(t *testing.T) {
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
 			return nil, errors.New("db error")
@@ -156,7 +158,7 @@ func TestRegisterRolePermissions(t *testing.T) {
 
 // --- NewCachingRoleChecker ----------------------------------------------------
 
-func TestCachingRoleCheckerCachesHasRole(t *testing.T) {
+func TestCachingRoleChecker_cachesHasRole(t *testing.T) {
 	calls := 0
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
@@ -177,7 +179,7 @@ func TestCachingRoleCheckerCachesHasRole(t *testing.T) {
 	require.Equal(t, 1, calls)
 }
 
-func TestCachingRoleCheckerCachesHasPermission(t *testing.T) {
+func TestCachingRoleChecker_cachesHasPermission(t *testing.T) {
 	calls := 0
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
@@ -196,13 +198,13 @@ func TestCachingRoleCheckerCachesHasPermission(t *testing.T) {
 	require.Equal(t, 1, calls)
 }
 
-func TestCachingRoleCheckerDefaultTTL(t *testing.T) {
+func TestCachingRoleChecker_defaultTTL(t *testing.T) {
 	store := &mockRBACUserStore{}
 	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), 0)
 	require.NotNil(t, checker)
 }
 
-func TestCachingRoleCheckerExpiryHasRole(t *testing.T) {
+func TestCachingRoleChecker_expiryHasRole(t *testing.T) {
 	calls := 0
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
@@ -229,7 +231,7 @@ func TestCachingRoleCheckerExpiryHasRole(t *testing.T) {
 	require.Equal(t, 2, calls)
 }
 
-func TestCachingRoleCheckerExpiryHasPermission(t *testing.T) {
+func TestCachingRoleChecker_expiryHasPermission(t *testing.T) {
 	calls := 0
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
@@ -258,7 +260,7 @@ func TestCachingRoleCheckerExpiryHasPermission(t *testing.T) {
 
 // --- RolesFromContext / ContextWithRoles -------------------------------------
 
-func TestRolesFromContextEmpty(t *testing.T) {
+func TestRolesFromContext_empty(t *testing.T) {
 	require.Nil(t, RolesFromContext(context.Background()))
 }
 
@@ -300,7 +302,7 @@ func (m *mockRoleChecker) HasPermission(ctx context.Context, userID string, perm
 	return false, nil
 }
 
-func TestRequireRoleNoToken(t *testing.T) {
+func TestRequireRole_noToken(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	checker := &mockRoleChecker{}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -308,7 +310,7 @@ func TestRequireRoleNoToken(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestRequireRoleWrongRole(t *testing.T) {
+func TestRequireRole_wrongRole(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "plain-user")
@@ -322,7 +324,7 @@ func TestRequireRoleWrongRole(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
-func TestRequireRoleCorrectRole(t *testing.T) {
+func TestRequireRole_correctRole(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "admin-user")
@@ -336,7 +338,7 @@ func TestRequireRoleCorrectRole(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestRequireRoleCheckerError(t *testing.T) {
+func TestRequireRole_checkerError(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "some-user")
@@ -352,7 +354,7 @@ func TestRequireRoleCheckerError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestRequireRoleInvalidToken(t *testing.T) {
+func TestRequireRole_invalidToken(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	checker := &mockRoleChecker{}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -361,7 +363,7 @@ func TestRequireRoleInvalidToken(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestRequireRoleSetsContextValues(t *testing.T) {
+func TestRequireRole_setsContextValues(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "role-user")
@@ -397,7 +399,7 @@ func makeRequirePermissionRequest(mgr *JWTManager, checker RoleChecker, cfg Conf
 	return w
 }
 
-func TestRequirePermissionNoToken(t *testing.T) {
+func TestRequirePermission_noToken(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	checker := &mockRoleChecker{}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -405,7 +407,7 @@ func TestRequirePermissionNoToken(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestRequirePermissionInsufficientPerm(t *testing.T) {
+func TestRequirePermission_insufficientPerm(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "viewer-user")
@@ -419,7 +421,7 @@ func TestRequirePermissionInsufficientPerm(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
-func TestRequirePermissionGranted(t *testing.T) {
+func TestRequirePermission_granted(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "editor-user")
@@ -433,7 +435,7 @@ func TestRequirePermissionGranted(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestRequirePermissionCheckerError(t *testing.T) {
+func TestRequirePermission_checkerError(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "some-user")
@@ -449,7 +451,7 @@ func TestRequirePermissionCheckerError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestRequirePermissionInvalidToken(t *testing.T) {
+func TestRequirePermission_invalidToken(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	checker := &mockRoleChecker{}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -458,7 +460,7 @@ func TestRequirePermissionInvalidToken(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestRequirePermissionSetsUserIDInContext(t *testing.T) {
+func TestRequirePermission_setsUserIDInContext(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken(ctx, "perm-user")
@@ -485,7 +487,7 @@ func TestRequirePermissionSetsUserIDInContext(t *testing.T) {
 
 // --- NewAdminCheckerFromRoleChecker ------------------------------------------
 
-func TestNewAdminCheckerFromRoleCheckerAdmin(t *testing.T) {
+func TestNewAdminCheckerFromRoleChecker_admin(t *testing.T) {
 	rc := &mockRoleChecker{
 		hasRoleFunc: func(_ context.Context, _ string, role Role) (bool, error) {
 			return role == RoleAdmin, nil
@@ -497,7 +499,7 @@ func TestNewAdminCheckerFromRoleCheckerAdmin(t *testing.T) {
 	require.True(t, ok)
 }
 
-func TestNewAdminCheckerFromRoleCheckerNonAdmin(t *testing.T) {
+func TestNewAdminCheckerFromRoleChecker_nonAdmin(t *testing.T) {
 	rc := &mockRoleChecker{
 		hasRoleFunc: func(_ context.Context, _ string, _ Role) (bool, error) {
 			return false, nil
@@ -509,7 +511,7 @@ func TestNewAdminCheckerFromRoleCheckerNonAdmin(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestNewAdminCheckerFromRoleCheckerError(t *testing.T) {
+func TestNewAdminCheckerFromRoleChecker_error(t *testing.T) {
 	rc := &mockRoleChecker{
 		hasRoleFunc: func(_ context.Context, _ string, _ Role) (bool, error) {
 			return false, errors.New("lookup error")
@@ -518,4 +520,135 @@ func TestNewAdminCheckerFromRoleCheckerError(t *testing.T) {
 	ac := NewAdminCheckerFromRoleChecker(rc)
 	_, err := ac.IsAdmin(context.Background(), "u1")
 	require.Error(t, err)
+}
+
+// --- FIFO cache eviction order -----------------------------------------------
+
+func TestCachingRoleCheckerEvictsOldestRole(t *testing.T) {
+	store := &mockRBACUserStore{
+		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
+			return []Role{RoleAdmin}, nil
+		},
+	}
+	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Hour).(*cachingRoleChecker)
+	ctx := context.Background()
+
+	// Fill the cache to capacity.
+	for i := 0; i < defaultRoleCacheMaxEntries; i++ {
+		userID := fmt.Sprintf("user-%d", i)
+		_, err := checker.HasRole(ctx, userID, RoleAdmin)
+		require.NoError(t, err)
+	}
+	require.Equal(t, defaultRoleCacheMaxEntries, len(checker.roleEntries))
+
+	// One more insertion must evict the oldest entry (user-0), not a random one.
+	_, err := checker.HasRole(ctx, "user-new", RoleAdmin)
+	require.NoError(t, err)
+
+	checker.roleMu.RLock()
+	defer checker.roleMu.RUnlock()
+
+	_, oldestPresent := checker.roleEntries[roleCacheKey{userID: "user-0", role: RoleAdmin}]
+	require.False(t, oldestPresent, "oldest entry (user-0) should have been evicted")
+
+	_, secondPresent := checker.roleEntries[roleCacheKey{userID: "user-1", role: RoleAdmin}]
+	require.True(t, secondPresent, "second-oldest entry (user-1) should still be present")
+
+	require.Equal(t, defaultRoleCacheMaxEntries, len(checker.roleEntries))
+}
+
+func TestCachingRoleCheckerEvictsOldestPerm(t *testing.T) {
+	store := &mockRBACUserStore{
+		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
+			return []Role{RoleAdmin}, nil
+		},
+	}
+	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Hour).(*cachingRoleChecker)
+	ctx := context.Background()
+
+	// Fill the perm cache to capacity.
+	for i := 0; i < defaultPermCacheMaxEntries; i++ {
+		userID := fmt.Sprintf("user-%d", i)
+		_, err := checker.HasPermission(ctx, userID, PermReadContent)
+		require.NoError(t, err)
+	}
+	require.Equal(t, defaultPermCacheMaxEntries, len(checker.permEntries))
+
+	// One more insertion must evict the oldest entry, not a random one.
+	_, err := checker.HasPermission(ctx, "user-new", PermReadContent)
+	require.NoError(t, err)
+
+	checker.permMu.RLock()
+	defer checker.permMu.RUnlock()
+
+	_, oldestPresent := checker.permEntries[permCacheKey{userID: "user-0", perm: PermReadContent}]
+	require.False(t, oldestPresent, "oldest perm entry (user-0) should have been evicted")
+
+	_, secondPresent := checker.permEntries[permCacheKey{userID: "user-1", perm: PermReadContent}]
+	require.True(t, secondPresent, "second-oldest perm entry (user-1) should still be present")
+
+	require.Equal(t, defaultPermCacheMaxEntries, len(checker.permEntries))
+}
+
+func TestCachingRoleCheckerReinsertAfterExpiry(t *testing.T) {
+	// Verify that a key re-inserted after expiry is correctly tracked in the
+	// order queue and does not cause incorrect eviction of newer entries.
+	store := &mockRBACUserStore{
+		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
+			return []Role{RoleAdmin}, nil
+		},
+	}
+	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Hour).(*cachingRoleChecker)
+	ctx := context.Background()
+
+	// Insert "user-0" and immediately expire it.
+	_, err := checker.HasRole(ctx, "user-0", RoleAdmin)
+	require.NoError(t, err)
+	checker.roleMu.Lock()
+	k := roleCacheKey{userID: "user-0", role: RoleAdmin}
+	e := checker.roleEntries[k]
+	e.expiresAt = time.Now().Add(-time.Second)
+	checker.roleEntries[k] = e
+	checker.roleMu.Unlock()
+
+	// Re-insert "user-0" — this should create a new order entry with a new seq.
+	_, err = checker.HasRole(ctx, "user-0", RoleAdmin)
+	require.NoError(t, err)
+
+	checker.roleMu.RLock()
+	mapEntry := checker.roleEntries[k]
+	lastOrder := checker.roleOrder[len(checker.roleOrder)-1]
+	checker.roleMu.RUnlock()
+
+	// The map entry's seq should match the last order entry's seq.
+	require.Equal(t, mapEntry.seq, lastOrder.seq, "re-inserted entry seq must match order queue")
+}
+
+func TestCachingRoleCheckerConcurrentAccess(t *testing.T) {
+	t.Parallel()
+	store := &mockRBACUserStore{
+		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
+			return []Role{RoleAdmin}, nil
+		},
+	}
+	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Hour)
+	ctx := context.Background()
+
+	const goroutines = 20
+	const callsPerGoroutine = 200
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for g := range goroutines {
+		go func() {
+			defer wg.Done()
+			for i := range callsPerGoroutine {
+				userID := fmt.Sprintf("user-%d-%d", g, i%10)
+				ok, err := checker.HasRole(ctx, userID, RoleAdmin)
+				require.NoError(t, err)
+				require.True(t, ok)
+			}
+		}()
+	}
+	wg.Wait()
 }

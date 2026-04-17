@@ -2,8 +2,8 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -27,7 +27,7 @@ func newTestOIDCHandler() *OIDCHandler {
 // signLinkState / parseLinkState
 // ---------------------------------------------------------------------------
 
-func TestSignAndParseLinkState(t *testing.T) {
+func TestLinkState_roundTrip(t *testing.T) {
 	h := newTestOIDCHandler()
 
 	randomState := "somerandomstate1234"
@@ -40,7 +40,7 @@ func TestSignAndParseLinkState(t *testing.T) {
 	require.Equal(t, userID, parsed)
 }
 
-func TestParseLinkStateInvalidFormat(t *testing.T) {
+func TestParseLinkState_invalidFormat(t *testing.T) {
 	h := newTestOIDCHandler()
 
 	// Not enough parts.
@@ -53,7 +53,7 @@ func TestParseLinkStateInvalidFormat(t *testing.T) {
 	}
 }
 
-func TestParseLinkStateTamperedSignature(t *testing.T) {
+func TestParseLinkState_tamperedSignature(t *testing.T) {
 	h := newTestOIDCHandler()
 
 	signed := h.signLinkState("randomstate", "user-1")
@@ -62,7 +62,7 @@ func TestParseLinkStateTamperedSignature(t *testing.T) {
 	require.Empty(t, h.parseLinkState(tampered))
 }
 
-func TestParseLinkStateWrongKey(t *testing.T) {
+func TestParseLinkState_wrongKey(t *testing.T) {
 	h1 := newTestOIDCHandler()
 	h2 := &OIDCHandler{
 		JWT:        newTestJWT(), // same secret, different derived key...
@@ -93,7 +93,7 @@ func TestConsumeLinkNonce(t *testing.T) {
 	require.Empty(t, h.consumeLinkNonce(nonce))
 }
 
-func TestConsumeLinkNonceExpired(t *testing.T) {
+func TestConsumeLinkNonce_expired(t *testing.T) {
 	h := newTestOIDCHandler()
 
 	nonce := "expired-nonce"
@@ -102,7 +102,7 @@ func TestConsumeLinkNonceExpired(t *testing.T) {
 	require.Empty(t, h.consumeLinkNonce(nonce))
 }
 
-func TestConsumeLinkNonceNotFound(t *testing.T) {
+func TestConsumeLinkNonce_notFound(t *testing.T) {
 	h := newTestOIDCHandler()
 	require.Empty(t, h.consumeLinkNonce("does-not-exist"))
 }
@@ -126,7 +126,7 @@ func TestCreateLinkNonce(t *testing.T) {
 	require.Equal(t, "user-42", got)
 }
 
-func TestCreateLinkNonceCleansUpExpiredEntries(t *testing.T) {
+func TestCreateLinkNonce_cleansUpExpiredEntries(t *testing.T) {
 	h := newTestOIDCHandler()
 
 	// Pre-populate with an expired entry.
@@ -149,7 +149,7 @@ func TestCreateLinkNonceCleansUpExpiredEntries(t *testing.T) {
 // findOrCreateUser
 // ---------------------------------------------------------------------------
 
-func TestFindOrCreateUserByOIDCSubject(t *testing.T) {
+func TestFindOrCreateUser_byOIDCSubject(t *testing.T) {
 	existing := &auth.User{ID: "u1", Email: "a@b.com"}
 	store := &mockUserStore{
 		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -164,11 +164,11 @@ func TestFindOrCreateUserByOIDCSubject(t *testing.T) {
 	require.Equal(t, "u1", user.ID)
 }
 
-func TestFindOrCreateUserByEmail(t *testing.T) {
+func TestFindOrCreateUser_byEmail(t *testing.T) {
 	existing := &auth.User{ID: "u2", Email: "b@c.com"}
 	store := &mockUserStore{
 		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return existing, nil
@@ -182,13 +182,122 @@ func TestFindOrCreateUserByEmail(t *testing.T) {
 	require.Equal(t, "u2", user.ID)
 }
 
-func TestFindOrCreateUserCreatesNew(t *testing.T) {
+func TestFindOrCreateUser_byEmailLinkError(t *testing.T) {
+	// When LinkOIDCSubject returns an unexpected error, findOrCreateUser should
+	// still succeed (returning the email-matched user) and not surface the link
+	// failure to the caller.
+	existing := &auth.User{ID: "u3", Email: "c@d.com"}
+	linkErr := errors.New("db connection lost")
 	store := &mockUserStore{
 		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return existing, nil
+		},
+		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
+			return linkErr
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	user, err := h.findOrCreateUser(context.Background(), "sub3", "c@d.com", "Carol")
+	require.NoError(t, err)
+	require.Equal(t, "u3", user.ID)
+}
+
+func TestFindOrCreateUser_byEmailAlreadyLinked(t *testing.T) {
+	// ErrOIDCSubjectAlreadyLinked should be treated as a benign no-op.
+	existing := &auth.User{ID: "u4", Email: "d@e.com"}
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return existing, nil
+		},
+		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
+			return auth.ErrOIDCSubjectAlreadyLinked
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	user, err := h.findOrCreateUser(context.Background(), "sub4", "d@e.com", "Dave")
+	require.NoError(t, err)
+	require.Equal(t, "u4", user.ID)
+}
+
+func TestFindOrCreateUser_raceRetryLinkError(t *testing.T) {
+	// The race-retry email-match path (lines ~230-234) should also swallow link
+	// errors and still return the found user.
+	existing := &auth.User{ID: "u5", Email: "e@f.com"}
+	linkErr := errors.New("db timeout")
+	calls := 0
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			calls++
+			if calls == 1 {
+				return nil, auth.ErrNotFound
+			}
+			return existing, nil
+		},
+		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
+			return nil, errors.New("unique constraint violation")
+		},
+		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
+			return linkErr
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	user, err := h.findOrCreateUser(context.Background(), "sub5", "e@f.com", "Eve")
+	require.NoError(t, err)
+	require.Equal(t, "u5", user.ID)
+}
+
+func TestFindOrCreateUser_raceRetryAlreadyLinked(t *testing.T) {
+	// ErrOIDCSubjectAlreadyLinked on the race-retry path should also be a benign no-op.
+	existing := &auth.User{ID: "u6", Email: "f@g.com"}
+	calls := 0
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			calls++
+			if calls == 1 {
+				return nil, auth.ErrNotFound
+			}
+			return existing, nil
+		},
+		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
+			return nil, errors.New("unique constraint violation")
+		},
+		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
+			return auth.ErrOIDCSubjectAlreadyLinked
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	user, err := h.findOrCreateUser(context.Background(), "sub6", "f@g.com", "Frank")
+	require.NoError(t, err)
+	require.Equal(t, "u6", user.ID)
+}
+
+func TestFindOrCreateUser_createsNew(t *testing.T) {
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
 		},
 		createOIDCUserFunc: func(_ context.Context, name, email, sub string) (*auth.User, error) {
 			return &auth.User{ID: "new-u", Name: name, Email: email}, nil
@@ -206,13 +315,13 @@ func TestFindOrCreateUserCreatesNew(t *testing.T) {
 // handleLinkCallback
 // ---------------------------------------------------------------------------
 
-func TestHandleLinkCallbackSuccess(t *testing.T) {
+func TestHandleLinkCallback_success(t *testing.T) {
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
 			return &auth.User{ID: id, OIDCSubject: nil}, nil
 		},
 		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 	}
 	h := newTestOIDCHandler()
@@ -226,10 +335,10 @@ func TestHandleLinkCallbackSuccess(t *testing.T) {
 	require.Equal(t, "/?oidc_linked=true", w.Header().Get("Location"))
 }
 
-func TestHandleLinkCallbackUserNotFound(t *testing.T) {
+func TestHandleLinkCallback_userNotFound(t *testing.T) {
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 	}
 	h := newTestOIDCHandler()
@@ -244,7 +353,7 @@ func TestHandleLinkCallbackUserNotFound(t *testing.T) {
 	require.NotEqual(t, "/?oidc_linked=true", loc)
 }
 
-func TestHandleLinkCallbackAlreadyLinked(t *testing.T) {
+func TestHandleLinkCallback_alreadyLinked(t *testing.T) {
 	sub := "existing-sub"
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {

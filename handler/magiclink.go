@@ -22,10 +22,18 @@ type MagicLinkSender func(ctx context.Context, email, token string) error
 type MagicLinkHandler struct {
 	Users         auth.UserStore
 	MagicLinks    auth.MagicLinkStore
-	JWT           *auth.JWTManager
+	JWT           tokenCreator
 	Sender        MagicLinkSender
 	CookieName    string
 	SecureCookies bool
+	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
+	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
+	// DefaultRefreshTokenTTL when Sessions is non-nil.
+	RefreshTokenTTL time.Duration
+	// RefreshCookieName is the name of the HttpOnly cookie used to store the
+	// refresh token. When empty the refresh token is only returned in the
+	// response body.
+	RefreshCookieName string
 }
 
 type magicLinkRequestBody struct {
@@ -46,10 +54,6 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 	if req.Email == "" {
 		writeError(r.Context(), w, http.StatusBadRequest, "email is required")
 		return
-	}
-
-	if err := h.MagicLinks.DeleteExpiredMagicLinks(r.Context()); err != nil {
-		slog.ErrorContext(r.Context(), "failed to delete expired magic links", slog.Any("error", err))
 	}
 
 	token, err := auth.GenerateRandomBase64(32)
@@ -113,14 +117,19 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	jwtToken, err := h.JWT.CreateToken(r.Context(), user.ID)
-	if err != nil {
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create token")
+	jwtToken, refreshToken, ok := h.issueTokens(w, r, user.ID)
+	if !ok {
 		return
 	}
 
-	SetAuthCookie(w, jwtToken, h.CookieName, h.SecureCookies)
-	writeJSON(r.Context(), w, http.StatusOK, AuthResponse{Token: jwtToken, User: ToUserDTO(user)})
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	writeJSON(r.Context(), w, http.StatusOK, AuthResponse{Token: jwtToken, RefreshToken: refreshToken, User: ToUserDTO(user)})
+}
+
+// issueTokens delegates to the package-level issueTokens helper.
+func (h *MagicLinkHandler) issueTokens(w http.ResponseWriter, r *http.Request, userID string) (accessToken, refreshToken string, ok bool) {
+	return issueTokens(w, r, userID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 }
 
 // findOrCreateUser returns the existing user for the given email, or creates a
