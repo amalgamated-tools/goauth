@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -85,12 +84,6 @@ func extractToken(r *http.Request, cookieName string) (string, tokenSource, stri
 		}
 	}
 	return "", tokenSourceNone, "missing token"
-}
-
-func jsonError(w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
 
 // API key last-used throttling (process-local).
