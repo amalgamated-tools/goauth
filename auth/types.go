@@ -28,7 +28,7 @@ var (
 	// ErrOIDCSubjectAlreadyLinked is returned by LinkOIDCSubject when the
 	// subject is already associated with the given user. Callers should treat
 	// this as a benign no-op rather than a failure.
-	ErrOIDCSubjectAlreadyLinked = errors.New("OIDC subject already linked")
+	ErrOIDCSubjectAlreadyLinked = errors.New("oidc subject already linked")
 )
 
 // PasswordResetToken represents a pending email-based password reset request.

@@ -229,6 +229,68 @@ func TestFindOrCreateUser_byEmailAlreadyLinked(t *testing.T) {
 	require.Equal(t, "u4", user.ID)
 }
 
+func TestFindOrCreateUser_raceRetryLinkError(t *testing.T) {
+	// The race-retry email-match path (lines ~230-234) should also swallow link
+	// errors and still return the found user.
+	existing := &auth.User{ID: "u5", Email: "e@f.com"}
+	linkErr := errors.New("db timeout")
+	calls := 0
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			calls++
+			if calls == 1 {
+				return nil, auth.ErrNotFound
+			}
+			return existing, nil
+		},
+		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
+			return nil, errors.New("unique constraint violation")
+		},
+		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
+			return linkErr
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	user, err := h.findOrCreateUser(context.Background(), "sub5", "e@f.com", "Eve")
+	require.NoError(t, err)
+	require.Equal(t, "u5", user.ID)
+}
+
+func TestFindOrCreateUser_raceRetryAlreadyLinked(t *testing.T) {
+	// ErrOIDCSubjectAlreadyLinked on the race-retry path should also be a benign no-op.
+	existing := &auth.User{ID: "u6", Email: "f@g.com"}
+	calls := 0
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			calls++
+			if calls == 1 {
+				return nil, auth.ErrNotFound
+			}
+			return existing, nil
+		},
+		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
+			return nil, errors.New("unique constraint violation")
+		},
+		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
+			return auth.ErrOIDCSubjectAlreadyLinked
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	user, err := h.findOrCreateUser(context.Background(), "sub6", "f@g.com", "Frank")
+	require.NoError(t, err)
+	require.Equal(t, "u6", user.ID)
+}
+
 func TestFindOrCreateUser_createsNew(t *testing.T) {
 	store := &mockUserStore{
 		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {

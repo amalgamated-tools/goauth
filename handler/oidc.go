@@ -206,6 +206,17 @@ func (h *OIDCHandler) handleLinkCallback(w http.ResponseWriter, r *http.Request,
 	http.Redirect(w, r, "/?oidc_linked=true", http.StatusFound)
 }
 
+func (h *OIDCHandler) linkOIDCSubjectBestEffort(ctx context.Context, userID, subject, path string) {
+	err := h.Users.LinkOIDCSubject(ctx, userID, subject)
+	if err != nil && !errors.Is(err, auth.ErrOIDCSubjectAlreadyLinked) {
+		slog.WarnContext(ctx, "failed to link OIDC subject to email-matched user",
+			slog.String("user_id", userID),
+			slog.String("path", path),
+			slog.Any("error", err),
+		)
+	}
+}
+
 func (h *OIDCHandler) findOrCreateUser(ctx context.Context, subject, email, name string) (*auth.User, error) {
 	if user, err := h.Users.FindByOIDCSubject(ctx, subject); err == nil {
 		return user, nil
@@ -213,9 +224,7 @@ func (h *OIDCHandler) findOrCreateUser(ctx context.Context, subject, email, name
 		return nil, err
 	}
 	if user, err := h.Users.FindByEmail(ctx, email); err == nil {
-		if linkErr := h.Users.LinkOIDCSubject(ctx, user.ID, subject); linkErr != nil && !errors.Is(linkErr, auth.ErrOIDCSubjectAlreadyLinked) {
-			slog.WarnContext(ctx, "failed to link OIDC subject to email-matched user", slog.String("user_id", user.ID), slog.Any("error", linkErr))
-		}
+		h.linkOIDCSubjectBestEffort(ctx, user.ID, subject, "email_match")
 		return user, nil
 	} else if !errors.Is(err, auth.ErrNotFound) {
 		return nil, err
@@ -228,9 +237,7 @@ func (h *OIDCHandler) findOrCreateUser(ctx context.Context, subject, email, name
 		return u, nil
 	}
 	if u, err := h.Users.FindByEmail(ctx, email); err == nil {
-		if linkErr := h.Users.LinkOIDCSubject(ctx, u.ID, subject); linkErr != nil && !errors.Is(linkErr, auth.ErrOIDCSubjectAlreadyLinked) {
-			slog.WarnContext(ctx, "failed to link OIDC subject to email-matched user", slog.String("user_id", u.ID), slog.Any("error", linkErr))
-		}
+		h.linkOIDCSubjectBestEffort(ctx, u.ID, subject, "race_retry")
 		return u, nil
 	}
 	return nil, fmt.Errorf("failed to resolve OIDC user")
