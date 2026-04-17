@@ -1,4 +1,4 @@
-.PHONY: all build frontend backend clean dev redis-check screenshots kill-dev swagger swagger-fmt docs-serve lint-errorf
+.PHONY: all build frontend backend clean dev redis-check screenshots kill-dev swagger swagger-fmt docs-serve lint-errorf lint-require
 
 # Tooling commands
 SWAG_CMD = go run github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc5
@@ -9,6 +9,18 @@ all: build
 
 lint:
 	$(GOLANGCI_LINT_CMD) run ./... --max-issues-per-linter 0 --max-same-issues 0
+	$(MAKE) lint-require
+
+lint-require:
+	@files=$$(git ls-files '*_test.go'); \
+	if [ -z "$$files" ]; then \
+		echo "No test files found."; \
+		exit 0; \
+	fi; \
+	if grep -nE '(\bt\.(Error|Errorf|Fatal|Fatalf)\()|(^|[^[:alnum:]_])assert\.' $$files; then \
+		echo "Found forbidden test assertions. Use testify/require only."; \
+		exit 1; \
+	fi
 
 fmt:
 	go fmt ./...

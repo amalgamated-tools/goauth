@@ -41,6 +41,9 @@ jobs:
         with:
           version: v2.11.3
 
+      - name: Enforce testify/require in tests
+        run: make lint-require
+
       - name: Check Go formatting
         run: |
           if [ "$(gofmt -l . | wc -l)" -gt 0 ]; then
