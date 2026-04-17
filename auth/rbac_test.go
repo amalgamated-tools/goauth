@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -621,4 +622,33 @@ func TestCachingRoleCheckerReinsertAfterExpiry(t *testing.T) {
 
 	// The map entry's seq should match the last order entry's seq.
 	require.Equal(t, mapEntry.seq, lastOrder.seq, "re-inserted entry seq must match order queue")
+}
+
+func TestCachingRoleCheckerConcurrentAccess(t *testing.T) {
+	t.Parallel()
+	store := &mockRBACUserStore{
+		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
+			return []Role{RoleAdmin}, nil
+		},
+	}
+	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Hour)
+	ctx := context.Background()
+
+	const goroutines = 20
+	const callsPerGoroutine = 200
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for g := range goroutines {
+		go func() {
+			defer wg.Done()
+			for i := range callsPerGoroutine {
+				userID := fmt.Sprintf("user-%d-%d", g, i%10)
+				ok, err := checker.HasRole(ctx, userID, RoleAdmin)
+				require.NoError(t, err)
+				require.True(t, ok)
+			}
+		}()
+	}
+	wg.Wait()
 }

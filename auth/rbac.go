@@ -121,6 +121,12 @@ const (
 	defaultPermCacheMaxEntries = 4096
 )
 
+// orderEntry tracks insertion order for FIFO eviction.
+type orderEntry[K comparable] struct {
+	key K
+	seq uint64
+}
+
 // cachingRoleChecker wraps a RoleChecker and caches results for ttl.
 type cachingRoleChecker struct {
 	delegate RoleChecker
@@ -128,13 +134,13 @@ type cachingRoleChecker struct {
 
 	roleMu            sync.RWMutex
 	roleEntries       map[roleCacheKey]roleCacheEntry
-	roleOrder         []roleOrderEntry // insertion-order queue for FIFO eviction
+	roleOrder         []orderEntry[roleCacheKey] // insertion-order queue for FIFO eviction
 	roleSeq           uint64
 	roleLastSweepTime time.Time
 
 	permMu            sync.RWMutex
 	permEntries       map[permCacheKey]permCacheEntry
-	permOrder         []permOrderEntry // insertion-order queue for FIFO eviction
+	permOrder         []orderEntry[permCacheKey] // insertion-order queue for FIFO eviction
 	permSeq           uint64
 	permLastSweepTime time.Time
 }
@@ -147,13 +153,7 @@ type roleCacheKey struct {
 type roleCacheEntry struct {
 	result    bool
 	expiresAt time.Time
-	seq       uint64 // matches the corresponding roleOrderEntry.seq
-}
-
-// roleOrderEntry tracks insertion order for FIFO eviction.
-type roleOrderEntry struct {
-	key roleCacheKey
-	seq uint64
+	seq       uint64 // matches the corresponding orderEntry.seq
 }
 
 type permCacheKey struct {
@@ -164,13 +164,7 @@ type permCacheKey struct {
 type permCacheEntry struct {
 	result    bool
 	expiresAt time.Time
-	seq       uint64 // matches the corresponding permOrderEntry.seq
-}
-
-// permOrderEntry tracks insertion order for FIFO eviction.
-type permOrderEntry struct {
-	key permCacheKey
-	seq uint64
+	seq       uint64 // matches the corresponding orderEntry.seq
 }
 
 // NewCachingRoleChecker wraps delegate and caches HasRole/HasPermission results
@@ -187,6 +181,21 @@ func NewCachingRoleChecker(delegate RoleChecker, ttl time.Duration) RoleChecker 
 	}
 }
 
+// compactOrderLocked removes stale entries from order (those absent from the map
+// or whose seq no longer matches), zeroes the freed tail to release GC
+// references, and returns the compacted slice.
+func compactOrderLocked[K comparable](order []orderEntry[K], getSeq func(K) (uint64, bool)) []orderEntry[K] {
+	n := 0
+	for _, o := range order {
+		if seq, ok := getSeq(o.key); ok && seq == o.seq {
+			order[n] = o
+			n++
+		}
+	}
+	clear(order[n:]) // zero freed tail so GC can collect string keys
+	return order[:n]
+}
+
 func (c *cachingRoleChecker) sweepRoleEntriesLocked(now time.Time) {
 	if now.Sub(c.roleLastSweepTime) >= cacheSweepInterval {
 		c.roleLastSweepTime = now
@@ -195,29 +204,30 @@ func (c *cachingRoleChecker) sweepRoleEntriesLocked(now time.Time) {
 				delete(c.roleEntries, k)
 			}
 		}
-		// Compact the order slice: discard entries whose map entry no longer
-		// exists or has been superseded by a later insertion (seq mismatch).
-		n := 0
-		for _, o := range c.roleOrder {
-			if e, ok := c.roleEntries[o.key]; ok && e.seq == o.seq {
-				c.roleOrder[n] = o
-				n++
-			}
-		}
-		c.roleOrder = c.roleOrder[:n]
 	}
+	// Always compact (not just at sweep intervals) so stale re-insertion entries
+	// do not accumulate between sweeps, and the eviction loop reliably finds live entries.
+	c.roleOrder = compactOrderLocked(c.roleOrder, func(k roleCacheKey) (uint64, bool) {
+		e, ok := c.roleEntries[k]
+		return e.seq, ok
+	})
 	// Evict the oldest-inserted entries first until the cache is under capacity.
 	for len(c.roleEntries) >= defaultRoleCacheMaxEntries {
 		if len(c.roleOrder) == 0 {
+			// Compaction removed all stale entries but the map is still at capacity;
+			// evict an arbitrary entry to preserve the size bound.
+			for k := range c.roleEntries {
+				delete(c.roleEntries, k)
+				break
+			}
 			break
 		}
 		oldest := c.roleOrder[0]
+		c.roleOrder[0] = orderEntry[roleCacheKey]{} // clear before slicing to release GC ref
 		c.roleOrder = c.roleOrder[1:]
 		if e, ok := c.roleEntries[oldest.key]; ok && e.seq == oldest.seq {
 			delete(c.roleEntries, oldest.key)
 		}
-		// If seq mismatches, the slot is stale (entry was already evicted or
-		// re-inserted with a newer seq); keep looping to find the real oldest.
 	}
 }
 
@@ -229,22 +239,23 @@ func (c *cachingRoleChecker) sweepPermEntriesLocked(now time.Time) {
 				delete(c.permEntries, k)
 			}
 		}
-		// Compact the order slice: discard stale entries.
-		n := 0
-		for _, o := range c.permOrder {
-			if e, ok := c.permEntries[o.key]; ok && e.seq == o.seq {
-				c.permOrder[n] = o
-				n++
-			}
-		}
-		c.permOrder = c.permOrder[:n]
 	}
+	// Always compact to keep the order slice tight.
+	c.permOrder = compactOrderLocked(c.permOrder, func(k permCacheKey) (uint64, bool) {
+		e, ok := c.permEntries[k]
+		return e.seq, ok
+	})
 	// Evict the oldest-inserted entries first until the cache is under capacity.
 	for len(c.permEntries) >= defaultPermCacheMaxEntries {
 		if len(c.permOrder) == 0 {
+			for k := range c.permEntries {
+				delete(c.permEntries, k)
+				break
+			}
 			break
 		}
 		oldest := c.permOrder[0]
+		c.permOrder[0] = orderEntry[permCacheKey]{} // clear before slicing to release GC ref
 		c.permOrder = c.permOrder[1:]
 		if e, ok := c.permEntries[oldest.key]; ok && e.seq == oldest.seq {
 			delete(c.permEntries, oldest.key)
@@ -272,7 +283,7 @@ func (c *cachingRoleChecker) HasRole(ctx context.Context, userID string, role Ro
 	c.sweepRoleEntriesLocked(now)
 	c.roleSeq++
 	c.roleEntries[key] = roleCacheEntry{result: result, expiresAt: now.Add(c.ttl), seq: c.roleSeq}
-	c.roleOrder = append(c.roleOrder, roleOrderEntry{key: key, seq: c.roleSeq})
+	c.roleOrder = append(c.roleOrder, orderEntry[roleCacheKey]{key: key, seq: c.roleSeq})
 	c.roleMu.Unlock()
 	return result, nil
 }
@@ -297,7 +308,7 @@ func (c *cachingRoleChecker) HasPermission(ctx context.Context, userID string, p
 	c.sweepPermEntriesLocked(now)
 	c.permSeq++
 	c.permEntries[key] = permCacheEntry{result: result, expiresAt: now.Add(c.ttl), seq: c.permSeq}
-	c.permOrder = append(c.permOrder, permOrderEntry{key: key, seq: c.permSeq})
+	c.permOrder = append(c.permOrder, orderEntry[permCacheKey]{key: key, seq: c.permSeq})
 	c.permMu.Unlock()
 	return result, nil
 }
