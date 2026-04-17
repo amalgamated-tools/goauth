@@ -183,7 +183,7 @@ type UserStore interface {
 }
 ```
 
-Return `database/sql.ErrNoRows` (or wrap it) when a record is not found — handlers check for this sentinel to produce correct HTTP status codes.  
+Return `auth.ErrNotFound` (or wrap it) when a record is not found — handlers check for this sentinel to produce correct HTTP status codes.  
 Return `auth.ErrEmailExists` from `CreateUser` when a duplicate email is detected.
 
 #### APIKeyStore
@@ -216,7 +216,7 @@ type SessionStore interface {
 ```
 
 Each session is bound to one refresh token hash. Only the SHA-256 hash of the refresh token is persisted.  
-Return `database/sql.ErrNoRows` from `FindSessionByID`, `FindSessionByRefreshTokenHash`, and `DeleteSession` when the record is not found.
+Return `auth.ErrNotFound` from `FindSessionByID`, `FindSessionByRefreshTokenHash`, and `DeleteSession` when the record is not found.
 
 #### PasskeyStore
 
