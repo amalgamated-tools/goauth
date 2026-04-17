@@ -51,7 +51,7 @@ func newTOTPHandler(totp auth.TOTPStore, users auth.UserStore) *TOTPHandler {
 		TOTP:      totp,
 		Users:     users,
 		Issuer:    "TestApp",
-		UsedCodes: &auth.TOTPUsedCodeCache{},
+		UsedCodes: auth.TOTPUsedCodeCache{},
 	}
 }
 
@@ -233,6 +233,28 @@ func TestTOTPEnrollStoreError(t *testing.T) {
 	}, `{"secret":"`+secret+`","code":"`+code+`"}`)
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestTOTPEnrollReplayRejected(t *testing.T) {
+	secret, err := auth.GenerateTOTPSecret()
+	require.NoError(t, err)
+	code := totpCode(t, secret)
+
+	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
+
+	// First enroll succeeds.
+	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
+		r = withUserID(r, "u1")
+		h.Enroll(w, r)
+	}, `{"secret":"`+secret+`","code":"`+code+`"}`)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Immediate replay is rejected.
+	w = postJSON(t, func(w http.ResponseWriter, r *http.Request) {
+		r = withUserID(r, "u1")
+		h.Enroll(w, r)
+	}, `{"secret":"`+secret+`","code":"`+code+`"}`)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestTOTPEnrollInvalidJSON(t *testing.T) {

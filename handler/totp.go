@@ -25,7 +25,7 @@ type TOTPHandler struct {
 	TOTP      auth.TOTPStore
 	Users     auth.UserStore
 	Issuer    string
-	UsedCodes *auth.TOTPUsedCodeCache // required for replay protection
+	UsedCodes auth.TOTPUsedCodeCache // required for replay protection; zero value is ready to use
 }
 
 type totpGenerateResponse struct {
@@ -40,6 +40,17 @@ type totpEnrollRequest struct {
 
 type totpVerifyRequest struct {
 	Code string `json:"code"`
+}
+
+// isReplay returns true when code has already been used for userID within the
+// replay window.
+func (h *TOTPHandler) isReplay(userID, code string) bool {
+	return h.UsedCodes.WasUsed(userID, code)
+}
+
+// recordUsed marks code as used for userID to prevent future replays.
+func (h *TOTPHandler) recordUsed(userID, code string) {
+	h.UsedCodes.MarkUsed(userID, code)
 }
 
 // Status reports whether TOTP is enrolled for the authenticated user.
@@ -102,7 +113,7 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.UserIDFromContext(r.Context())
-	if h.UsedCodes != nil && h.UsedCodes.WasUsed(userID, req.Code) {
+	if h.isReplay(userID, req.Code) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid TOTP code")
 		return
 	}
@@ -122,9 +133,7 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to save TOTP secret")
 		return
 	}
-	if h.UsedCodes != nil {
-		h.UsedCodes.MarkUsed(userID, req.Code)
-	}
+	h.recordUsed(userID, req.Code)
 
 	writeJSON(r.Context(), w, http.StatusOK, map[string]bool{"enrolled": true})
 }
@@ -141,7 +150,7 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.UserIDFromContext(r.Context())
-	if h.UsedCodes != nil && h.UsedCodes.WasUsed(userID, req.Code) {
+	if h.isReplay(userID, req.Code) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid TOTP code")
 		return
 	}
@@ -165,9 +174,7 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid TOTP code")
 		return
 	}
-	if h.UsedCodes != nil {
-		h.UsedCodes.MarkUsed(userID, req.Code)
-	}
+	h.recordUsed(userID, req.Code)
 
 	writeJSON(r.Context(), w, http.StatusOK, map[string]bool{"valid": true})
 }

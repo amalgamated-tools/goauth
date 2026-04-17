@@ -22,7 +22,8 @@ type TOTPUsedCodeCache struct {
 	lastSweep time.Time // guarded by mu
 }
 
-// sweep removes expired entries. It is called at most once per replay window.
+// maybeSweep removes expired entries when enough time has passed since the
+// last sweep. It is called at most once per replay window.
 func (c *TOTPUsedCodeCache) maybeSweep() {
 	now := time.Now()
 	c.mu.Lock()
@@ -53,7 +54,9 @@ func (c *TOTPUsedCodeCache) WasUsed(userID, code string) bool {
 }
 
 // MarkUsed records that code was used for userID, blocking its reuse for the
-// duration of the replay window.
+// duration of the replay window. Sweep is intentionally not called here; lazy
+// cleanup on WasUsed is sufficient for the expected read-heavy verification
+// workload (each login verifies once, rarely enrolls).
 func (c *TOTPUsedCodeCache) MarkUsed(userID, code string) {
 	c.entries.Store(userID+"\x00"+code, time.Now().Add(totpReplayWindow))
 }
