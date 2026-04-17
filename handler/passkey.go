@@ -60,12 +60,12 @@ type PasskeyCredentialDTO struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func loadWebAuthnCredentials(creds []auth.PasskeyCredential) []webauthn.Credential {
+func loadWebAuthnCredentials(ctx context.Context, creds []auth.PasskeyCredential) []webauthn.Credential {
 	result := make([]webauthn.Credential, 0, len(creds))
 	for i := range creds {
 		var waCred webauthn.Credential
 		if err := json.Unmarshal([]byte(creds[i].CredentialData), &waCred); err != nil {
-			slog.Warn("skipping corrupted passkey credential", slog.String("id", creds[i].ID))
+			slog.WarnContext(ctx, "skipping corrupted passkey credential", slog.String("id", creds[i].ID))
 			continue
 		}
 		result = append(result, waCred)
@@ -130,7 +130,7 @@ func (h *PasskeyHandler) BeginRegistration(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	existingCreds, _ := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
-	waCreds := loadWebAuthnCredentials(existingCreds)
+	waCreds := loadWebAuthnCredentials(r.Context(), existingCreds)
 	waUser := &passkeyUser{user: user, credentials: waCreds}
 
 	_ = h.Passkeys.DeleteExpiredChallenges(r.Context())
@@ -174,7 +174,7 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 
 	user, _ := h.Users.FindByID(r.Context(), userID)
 	existingCreds, _ := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
-	waUser := &passkeyUser{user: user, credentials: loadWebAuthnCredentials(existingCreds)}
+	waUser := &passkeyUser{user: user, credentials: loadWebAuthnCredentials(r.Context(), existingCreds)}
 
 	credential, err := h.WebAuthn.FinishRegistration(waUser, challengeData.SessionData, r)
 	if err != nil {
@@ -248,7 +248,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		authedUserID = user.ID
 		authedCredentialID = credID
 		authedUser = user
-		return &passkeyUser{user: user, credentials: loadWebAuthnCredentials(userCreds)}, nil
+		return &passkeyUser{user: user, credentials: loadWebAuthnCredentials(r.Context(), userCreds)}, nil
 	})
 
 	updatedCred, _, err := h.WebAuthn.FinishPasskeyLogin(handler, challengeData.SessionData, r)
