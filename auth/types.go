@@ -25,6 +25,10 @@ var (
 	ErrNotFound        = errors.New("not found")
 	ErrTOTPNotFound    = errors.New("totp not configured")
 	ErrInvalidTOTPCode = errors.New("invalid TOTP code")
+	// ErrOIDCSubjectAlreadyLinked is returned by LinkOIDCSubject when the
+	// subject is already associated with the given user. Callers should treat
+	// this as a benign no-op rather than a failure.
+	ErrOIDCSubjectAlreadyLinked = errors.New("OIDC subject already linked")
 )
 
 // PasswordResetToken represents a pending email-based password reset request.

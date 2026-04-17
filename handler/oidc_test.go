@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -180,6 +181,53 @@ func TestFindOrCreateUserByEmail(t *testing.T) {
 	user, err := h.findOrCreateUser(context.Background(), "sub2", "b@c.com", "Bob")
 	require.NoError(t, err)
 	require.Equal(t, "u2", user.ID)
+}
+
+func TestFindOrCreateUserByEmailLinkError(t *testing.T) {
+	// When LinkOIDCSubject returns an unexpected error, findOrCreateUser should
+	// still succeed (returning the email-matched user) and not surface the link
+	// failure to the caller.
+	existing := &auth.User{ID: "u3", Email: "c@d.com"}
+	linkErr := errors.New("db connection lost")
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, sql.ErrNoRows
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return existing, nil
+		},
+		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
+			return linkErr
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	user, err := h.findOrCreateUser(context.Background(), "sub3", "c@d.com", "Carol")
+	require.NoError(t, err)
+	require.Equal(t, "u3", user.ID)
+}
+
+func TestFindOrCreateUserByEmailAlreadyLinked(t *testing.T) {
+	// ErrOIDCSubjectAlreadyLinked should be treated as a benign no-op.
+	existing := &auth.User{ID: "u4", Email: "d@e.com"}
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, sql.ErrNoRows
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return existing, nil
+		},
+		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
+			return auth.ErrOIDCSubjectAlreadyLinked
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	user, err := h.findOrCreateUser(context.Background(), "sub4", "d@e.com", "Dave")
+	require.NoError(t, err)
+	require.Equal(t, "u4", user.ID)
 }
 
 func TestFindOrCreateUserCreatesNew(t *testing.T) {
