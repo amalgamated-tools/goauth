@@ -108,9 +108,16 @@ func TestValidateTOTPCurrentStep(t *testing.T) {
 }
 
 func TestValidateTOTPPreviousStep(t *testing.T) {
+	// Skip if within the last second of a step period: if a boundary is crossed
+	// between capturing `step` and the ValidateTOTP call, step-1 falls outside
+	// the ±1 skew window and the test would fail spuriously.
+	now := time.Now()
+	if now.Unix()%totpPeriod >= totpPeriod-1 {
+		t.Skip("too close to step boundary")
+	}
 	secret, _ := GenerateTOTPSecret()
 	keyBytes, _ := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secret)
-	step := uint64(time.Now().Unix() / totpPeriod)
+	step := uint64(now.Unix() / totpPeriod)
 	code := hotpCode(keyBytes, step-1)
 
 	ok, err := ValidateTOTP(secret, code)

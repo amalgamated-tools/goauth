@@ -17,7 +17,7 @@ var (
 	ErrInvalidToken    = errors.New("invalid token")
 	ErrExpiredToken    = errors.New("token expired")
 	ErrEmailExists     = errors.New("email already exists")
-	ErrTOTPNotFound    = errors.New("TOTP not configured")
+	ErrTOTPNotFound    = errors.New("totp not configured")
 	ErrInvalidTOTPCode = errors.New("invalid TOTP code")
 )
 

@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"database/sql"
+	"encoding/base32"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -45,6 +45,11 @@ type totpVerifyRequest struct {
 func (h *TOTPHandler) Status(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	_, err := h.TOTP.GetTOTPSecret(r.Context(), userID)
+	if err != nil && !errors.Is(err, auth.ErrTOTPNotFound) {
+		slog.ErrorContext(r.Context(), "failed to fetch TOTP status", slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch TOTP status")
+		return
+	}
 	enrolled := err == nil
 	writeJSON(r.Context(), w, http.StatusOK, map[string]bool{"enrolled": enrolled})
 }
@@ -89,6 +94,12 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	secretBytes, decErr := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(req.Secret)
+	if decErr != nil || len(secretBytes) < 20 {
+		writeError(r.Context(), w, http.StatusBadRequest, "invalid TOTP secret")
+		return
+	}
+
 	ok, err := auth.ValidateTOTP(req.Secret, req.Code)
 	if err != nil {
 		writeError(r.Context(), w, http.StatusBadRequest, "invalid TOTP secret")
@@ -123,7 +134,7 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	stored, err := h.TOTP.GetTOTPSecret(r.Context(), userID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, auth.ErrTOTPNotFound) {
+		if errors.Is(err, auth.ErrTOTPNotFound) {
 			writeError(r.Context(), w, http.StatusNotFound, "TOTP not configured")
 			return
 		}
@@ -148,7 +159,7 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 func (h *TOTPHandler) Disable(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	if err := h.TOTP.DeleteTOTPSecret(r.Context(), userID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, auth.ErrTOTPNotFound) {
+		if errors.Is(err, auth.ErrTOTPNotFound) {
 			writeError(r.Context(), w, http.StatusNotFound, "TOTP not configured")
 			return
 		}

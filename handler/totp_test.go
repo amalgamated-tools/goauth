@@ -2,11 +2,6 @@ package handler
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha1" //nolint:gosec // TOTP (RFC 6238) mandates HMAC-SHA1
-	"database/sql"
-	"encoding/base32"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,7 +34,7 @@ func (m *mockTOTPStore) GetTOTPSecret(ctx context.Context, userID string) (*auth
 	if m.getFunc != nil {
 		return m.getFunc(ctx, userID)
 	}
-	return nil, sql.ErrNoRows
+	return nil, auth.ErrTOTPNotFound
 }
 
 func (m *mockTOTPStore) DeleteTOTPSecret(ctx context.Context, userID string) error {
@@ -58,26 +53,15 @@ func newTOTPHandler(totp auth.TOTPStore, users auth.UserStore) *TOTPHandler {
 	}
 }
 
-// currentCode derives the current TOTP code directly from the secret, mirroring
-// the RFC 6238 algorithm so tests are self-contained.
-func currentCode(t *testing.T, secret string) string {
+// totpCode generates the current TOTP code for secret by delegating to the
+// auth package, avoiding duplication of the HMAC-SHA1 algorithm here.
+func totpCode(t *testing.T, secret string) string {
 	t.Helper()
-	key, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secret)
+	code, err := auth.GenerateTOTPCode(secret, time.Now())
 	if err != nil {
-		t.Fatalf("decode secret: %v", err)
+		t.Fatalf("generate TOTP code: %v", err)
 	}
-	step := uint64(time.Now().Unix() / 30)
-	msg := make([]byte, 8)
-	binary.BigEndian.PutUint64(msg, step)
-	mac := hmac.New(sha1.New, key) //nolint:gosec // required by RFC 6238
-	_, _ = mac.Write(msg)
-	h := mac.Sum(nil)
-	offset := h[len(h)-1] & 0x0f
-	truncated := (uint32(h[offset]&0x7f) << 24) |
-		(uint32(h[offset+1]) << 16) |
-		(uint32(h[offset+2]) << 8) |
-		uint32(h[offset+3])
-	return fmt.Sprintf("%06d", truncated%1_000_000)
+	return code
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +104,23 @@ func TestTOTPStatusEnrolled(t *testing.T) {
 	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if !resp["enrolled"] {
 		t.Error("expected enrolled=true when TOTP secret exists")
+	}
+}
+
+func TestTOTPStatusStoreError(t *testing.T) {
+	store := &mockTOTPStore{
+		getFunc: func(_ context.Context, _ string) (*auth.TOTPSecret, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	h := newTOTPHandler(store, &mockUserStore{})
+	req := httptest.NewRequest(http.MethodGet, "/totp/status", nil)
+	req = withUserID(req, "u1")
+	w := httptest.NewRecorder()
+	h.Status(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
 	}
 }
 
@@ -184,7 +185,7 @@ func TestTOTPEnrollSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate secret: %v", err)
 	}
-	code := currentCode(t, secret)
+	code := totpCode(t, secret)
 
 	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
 	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
@@ -236,7 +237,7 @@ func TestTOTPEnrollWrongCode(t *testing.T) {
 		t.Fatalf("generate secret: %v", err)
 	}
 	// Craft a code that cannot be the current TOTP value by inverting the last digit.
-	valid := currentCode(t, secret)
+	valid := totpCode(t, secret)
 	last := valid[5] - '0'
 	wrong := valid[:5] + fmt.Sprintf("%d", (last+1)%10)
 
@@ -256,7 +257,7 @@ func TestTOTPEnrollStoreError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate secret: %v", err)
 	}
-	code := currentCode(t, secret)
+	code := totpCode(t, secret)
 
 	store := &mockTOTPStore{
 		createFunc: func(_ context.Context, _, _ string) (*auth.TOTPSecret, error) {
@@ -295,7 +296,7 @@ func TestTOTPVerifySuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate secret: %v", err)
 	}
-	code := currentCode(t, secret)
+	code := totpCode(t, secret)
 
 	store := &mockTOTPStore{
 		getFunc: func(_ context.Context, _ string) (*auth.TOTPSecret, error) {
@@ -382,7 +383,7 @@ func TestTOTPVerifyWrongCode(t *testing.T) {
 		t.Fatalf("generate secret: %v", err)
 	}
 	// Craft an invalid code.
-	valid := currentCode(t, secret)
+	valid := totpCode(t, secret)
 	last := valid[5] - '0'
 	wrong := valid[:5] + fmt.Sprintf("%d", (last+1)%10)
 
@@ -433,7 +434,7 @@ func TestTOTPDisableSuccess(t *testing.T) {
 func TestTOTPDisableNotEnrolled(t *testing.T) {
 	store := &mockTOTPStore{
 		deleteFunc: func(_ context.Context, _ string) error {
-			return sql.ErrNoRows
+			return auth.ErrTOTPNotFound
 		},
 	}
 	h := newTOTPHandler(store, &mockUserStore{})

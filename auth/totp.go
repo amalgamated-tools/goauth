@@ -7,6 +7,7 @@ import (
 	"encoding/base32"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"net/url"
 	"strconv"
 	"time"
@@ -49,6 +50,11 @@ func TOTPProvisioningURI(secret, accountName, issuer string) string {
 // ValidateTOTP validates a numeric TOTP code against a base32-encoded secret.
 // It checks the current time step as well as one step before and after to
 // tolerate reasonable clock skew between the server and the authenticator app.
+//
+// WARNING: This function does not track previously-used codes. A valid code
+// remains accepted for up to (2*totpSkew+1)*totpPeriod seconds (~90s). Callers
+// that require replay protection must record and reject used codes within that
+// window themselves.
 func ValidateTOTP(secret, code string) (bool, error) {
 	keyBytes, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secret)
 	if err != nil {
@@ -66,6 +72,17 @@ func ValidateTOTP(secret, code string) (bool, error) {
 	return false, nil
 }
 
+// GenerateTOTPCode returns the TOTP code for secret at time t. It is provided
+// for testing and tooling; applications should call ValidateTOTP instead.
+func GenerateTOTPCode(secret string, t time.Time) (string, error) {
+	keyBytes, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secret)
+	if err != nil {
+		return "", fmt.Errorf("decode TOTP secret: %w", err)
+	}
+	step := uint64(t.Unix() / totpPeriod)
+	return hotpCode(keyBytes, step), nil
+}
+
 // hotpCode computes a single HOTP value per RFC 4226 §5.3.
 func hotpCode(key []byte, counter uint64) string {
 	msg := make([]byte, 8)
@@ -81,6 +98,6 @@ func hotpCode(key []byte, counter uint64) string {
 		(uint32(h[offset+2]) << 8) |
 		uint32(h[offset+3])
 
-	otp := truncated % 1_000_000
-	return fmt.Sprintf("%06d", otp)
+	otp := truncated % uint32(math.Pow10(totpDigits))
+	return fmt.Sprintf("%0*d", totpDigits, otp)
 }
