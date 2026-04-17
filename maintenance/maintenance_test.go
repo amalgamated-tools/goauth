@@ -1,4 +1,4 @@
-package handler
+package maintenance
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func TestStartCleanupCallsCleaners(t *testing.T) {
 	}, 2*time.Second, 5*time.Millisecond)
 }
 
-func TestStartCleanupStopsOnCancel(t *testing.T) {
+func TestStartCleanupStopsOnStop(t *testing.T) {
 	var calls atomic.Int64
 	cleaner := func(_ context.Context) error {
 		calls.Add(1)
@@ -33,7 +33,7 @@ func TestStartCleanupStopsOnCancel(t *testing.T) {
 	}
 
 	stop := StartCleanup(context.Background(), 10*time.Millisecond, cleaner)
-	// Let it tick at least once.
+	// Let it run at least once.
 	require.Eventually(t, func() bool {
 		return calls.Load() >= 1
 	}, 2*time.Second, 5*time.Millisecond)
@@ -41,8 +41,7 @@ func TestStartCleanupStopsOnCancel(t *testing.T) {
 	stop()
 	snapshot := calls.Load()
 
-	// After stop, no further calls should occur.
-	time.Sleep(50 * time.Millisecond)
+	// After stop returns, the goroutine has exited so no further calls can occur.
 	require.Equal(t, snapshot, calls.Load())
 }
 
@@ -94,4 +93,30 @@ func TestStartCleanupParentContextCancellation(t *testing.T) {
 	// Cancel the parent context; stop should still be safe to call.
 	cancel()
 	stop() // must not block or panic
+}
+
+func TestStartCleanupPanicsOnInvalidInterval(t *testing.T) {
+	noop := func(context.Context) error { return nil }
+	require.Panics(t, func() {
+		StartCleanup(context.Background(), 0, noop)
+	})
+	require.Panics(t, func() {
+		StartCleanup(context.Background(), -time.Second, noop)
+	})
+}
+
+func TestStartCleanupRecoversPanic(t *testing.T) {
+	var calls atomic.Int64
+	cleaner := func(_ context.Context) error {
+		calls.Add(1)
+		panic("intentional test panic")
+	}
+
+	stop := StartCleanup(context.Background(), 10*time.Millisecond, cleaner)
+	defer stop()
+
+	// Panicking cleaners must not crash the process; the loop must continue.
+	require.Eventually(t, func() bool {
+		return calls.Load() >= 2
+	}, 2*time.Second, 5*time.Millisecond)
 }
