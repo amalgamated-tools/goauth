@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -295,7 +294,7 @@ func (h *PasskeyHandler) DeleteCredential(w http.ResponseWriter, r *http.Request
 	}
 	userID := auth.UserIDFromContext(r.Context())
 	if err := h.Passkeys.DeleteCredential(r.Context(), credID, userID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusNotFound, "credential not found")
 			return
 		}
