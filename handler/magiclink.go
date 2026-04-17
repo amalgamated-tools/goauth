@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -95,7 +94,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 	tokenHash := auth.HashHighEntropyToken(token)
 	link, err := h.MagicLinks.FindAndDeleteMagicLink(r.Context(), tokenHash)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
@@ -131,7 +130,7 @@ func (h *MagicLinkHandler) findOrCreateUser(ctx context.Context, email string) (
 	if err == nil {
 		return user, nil
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, auth.ErrNotFound) {
 		return nil, err
 	}
 

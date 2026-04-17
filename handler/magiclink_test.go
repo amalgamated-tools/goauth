@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -173,7 +172,7 @@ func TestVerifyMagicLinkAutoProvision(t *testing.T) {
 	var createdEmail string
 	userStore := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 		createUserFunc: func(_ context.Context, name, email, _ string) (*auth.User, error) {
 			createdEmail = email
@@ -200,7 +199,7 @@ func TestVerifyMagicLinkAutoProvisionRace(t *testing.T) {
 	userStore := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			// First call returns not found; retry after race returns the user.
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 		createUserFunc: func(_ context.Context, _, email, _ string) (*auth.User, error) {
 			return nil, auth.ErrEmailExists
@@ -211,7 +210,7 @@ func TestVerifyMagicLinkAutoProvisionRace(t *testing.T) {
 	userStore.findByEmailFunc = func(_ context.Context, email string) (*auth.User, error) {
 		calls++
 		if calls == 1 {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		}
 		return &auth.User{ID: "race-id", Email: email}, nil
 	}
@@ -239,7 +238,7 @@ func TestVerifyMagicLinkMissingToken(t *testing.T) {
 func TestVerifyMagicLinkInvalidToken(t *testing.T) {
 	store := &mockMagicLinkStore{
 		findAndDeleteFunc: func(_ context.Context, _ string) (*auth.MagicLink, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 	}
 	h := newMagicLinkHandler(&mockUserStore{}, store, noopSender)

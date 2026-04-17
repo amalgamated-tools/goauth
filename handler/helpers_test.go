@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -153,9 +152,41 @@ func (m *mockMagicLinkStore) FindAndDeleteMagicLink(ctx context.Context, tokenHa
 	if m.findAndDeleteFunc != nil {
 		return m.findAndDeleteFunc(ctx, tokenHash)
 	}
-	return nil, sql.ErrNoRows
+	return nil, auth.ErrNotFound
 }
 func (m *mockMagicLinkStore) DeleteExpiredMagicLinks(ctx context.Context) error {
+	if m.deleteExpiredFunc != nil {
+		return m.deleteExpiredFunc(ctx)
+	}
+	return nil
+}
+
+type mockPasswordResetStore struct {
+	createFunc                func(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*auth.PasswordResetToken, error)
+	findFunc                  func(ctx context.Context, tokenHash string) (*auth.PasswordResetToken, error)
+	deleteFunc                func(ctx context.Context, id string) error
+	deleteExpiredFunc         func(ctx context.Context) error
+}
+
+func (m *mockPasswordResetStore) CreatePasswordResetToken(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*auth.PasswordResetToken, error) {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, userID, tokenHash, expiresAt)
+	}
+	return &auth.PasswordResetToken{ID: "reset-id", UserID: userID, TokenHash: tokenHash, ExpiresAt: expiresAt}, nil
+}
+func (m *mockPasswordResetStore) FindPasswordResetToken(ctx context.Context, tokenHash string) (*auth.PasswordResetToken, error) {
+	if m.findFunc != nil {
+		return m.findFunc(ctx, tokenHash)
+	}
+	return nil, auth.ErrInvalidToken
+}
+func (m *mockPasswordResetStore) DeletePasswordResetToken(ctx context.Context, id string) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(ctx, id)
+	}
+	return nil
+}
+func (m *mockPasswordResetStore) DeleteExpiredPasswordResetTokens(ctx context.Context) error {
 	if m.deleteExpiredFunc != nil {
 		return m.deleteExpiredFunc(ctx)
 	}
