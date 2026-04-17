@@ -27,7 +27,7 @@ func newSessionHandler(sessions auth.SessionStore) *SessionHandler {
 // List
 // ---------------------------------------------------------------------------
 
-func TestSessionListSuccess(t *testing.T) {
+func TestSession_list_success(t *testing.T) {
 	now := time.Now()
 	sessions := &mockSessionStore{
 		listFunc: func(_ context.Context, userID string) ([]auth.Session, error) {
@@ -52,7 +52,7 @@ func TestSessionListSuccess(t *testing.T) {
 	require.Equal(t, "s2", dtos[1].ID)
 }
 
-func TestSessionListEmpty(t *testing.T) {
+func TestSession_list_empty(t *testing.T) {
 	sessions := &mockSessionStore{}
 	h := newSessionHandler(sessions)
 
@@ -67,7 +67,7 @@ func TestSessionListEmpty(t *testing.T) {
 	require.Empty(t, dtos)
 }
 
-func TestSessionListStoreError(t *testing.T) {
+func TestSession_list_storeError(t *testing.T) {
 	sessions := &mockSessionStore{
 		listFunc: func(_ context.Context, _ string) ([]auth.Session, error) {
 			return nil, errors.New("db error")
@@ -87,7 +87,7 @@ func TestSessionListStoreError(t *testing.T) {
 // Revoke
 // ---------------------------------------------------------------------------
 
-func TestSessionRevokeSuccess(t *testing.T) {
+func TestSession_revoke_success(t *testing.T) {
 	var revokedID string
 	sessions := &mockSessionStore{
 		deleteFunc: func(_ context.Context, id, _ string) error {
@@ -106,7 +106,7 @@ func TestSessionRevokeSuccess(t *testing.T) {
 	require.Equal(t, "sess-42", revokedID)
 }
 
-func TestSessionRevokeMissingID(t *testing.T) {
+func TestSession_revoke_missingID(t *testing.T) {
 	h := newSessionHandler(&mockSessionStore{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/sessions", nil)
@@ -120,7 +120,7 @@ func TestSessionRevokeMissingID(t *testing.T) {
 	require.Equal(t, "session ID is required", body["error"])
 }
 
-func TestSessionRevokeNotFound(t *testing.T) {
+func TestSession_revoke_notFound(t *testing.T) {
 	sessions := &mockSessionStore{
 		deleteFunc: func(_ context.Context, _, _ string) error {
 			return sql.ErrNoRows
@@ -136,7 +136,7 @@ func TestSessionRevokeNotFound(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestSessionRevokeStoreError(t *testing.T) {
+func TestSession_revoke_storeError(t *testing.T) {
 	sessions := &mockSessionStore{
 		deleteFunc: func(_ context.Context, _, _ string) error {
 			return errors.New("db error")
@@ -156,7 +156,7 @@ func TestSessionRevokeStoreError(t *testing.T) {
 // RevokeAll
 // ---------------------------------------------------------------------------
 
-func TestSessionRevokeAllSuccess(t *testing.T) {
+func TestSession_revokeAll_success(t *testing.T) {
 	var revokedUser string
 	sessions := &mockSessionStore{
 		deleteAllFunc: func(_ context.Context, userID string) error {
@@ -175,7 +175,7 @@ func TestSessionRevokeAllSuccess(t *testing.T) {
 	require.Equal(t, "u1", revokedUser)
 }
 
-func TestSessionRevokeAllStoreError(t *testing.T) {
+func TestSession_revokeAll_storeError(t *testing.T) {
 	sessions := &mockSessionStore{
 		deleteAllFunc: func(_ context.Context, _ string) error {
 			return errors.New("db error")

@@ -28,7 +28,7 @@ func newAuthHandler(store auth.UserStore) *AuthHandler {
 // Signup
 // ---------------------------------------------------------------------------
 
-func TestSignupSuccess(t *testing.T) {
+func TestSignup_success(t *testing.T) {
 	store := &mockUserStore{}
 	h := newAuthHandler(store)
 
@@ -40,7 +40,7 @@ func TestSignupSuccess(t *testing.T) {
 	require.Equal(t, "alice@test.com", resp.User.Email)
 }
 
-func TestSignupSetsAuthCookie(t *testing.T) {
+func TestSignup_setsAuthCookie(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
 	require.Equal(t, http.StatusCreated, w.Code)
@@ -54,38 +54,38 @@ func TestSignupSetsAuthCookie(t *testing.T) {
 	require.NotEmpty(t, found.Value)
 }
 
-func TestSignupDisabled(t *testing.T) {
+func TestSignup_disabled(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	h.DisableSignup = true
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
-func TestSignupMissingName(t *testing.T) {
+func TestSignup_missingName(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Signup,
 		`{"name":"","email":"a@b.com","password":"password123"}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestSignupMissingEmail(t *testing.T) {
+func TestSignup_missingEmail(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Signup,
 		`{"name":"Alice","email":"","password":"password123"}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestSignupMissingPassword(t *testing.T) {
+func TestSignup_missingPassword(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Signup,
 		`{"name":"Alice","email":"a@b.com","password":""}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestSignupWeakPassword(t *testing.T) {
+func TestSignup_weakPassword(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Signup,
 		`{"name":"Alice","email":"a@b.com","password":"short"}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestSignupEmailConflict(t *testing.T) {
+func TestSignup_emailConflict(t *testing.T) {
 	store := &mockUserStore{
 		createUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
 			return nil, auth.ErrEmailExists
@@ -96,7 +96,7 @@ func TestSignupEmailConflict(t *testing.T) {
 	require.Equal(t, http.StatusConflict, w.Code)
 }
 
-func TestSignupStoreError(t *testing.T) {
+func TestSignup_storeError(t *testing.T) {
 	store := &mockUserStore{
 		createUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
 			return nil, errors.New("db error")
@@ -107,7 +107,7 @@ func TestSignupStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestSignupInvalidJSON(t *testing.T) {
+func TestSignup_invalidJSON(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Signup, "not-json")
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -123,7 +123,7 @@ func hashPassword(t *testing.T, pw string) string {
 	return string(h)
 }
 
-func TestLoginSuccess(t *testing.T) {
+func TestLogin_success(t *testing.T) {
 	hash := hashPassword(t, "goodpassword123")
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -138,7 +138,7 @@ func TestLoginSuccess(t *testing.T) {
 	require.NotEmpty(t, resp.Token)
 }
 
-func TestLoginSetsAuthCookie(t *testing.T) {
+func TestLogin_setsAuthCookie(t *testing.T) {
 	hash := hashPassword(t, "goodpassword123")
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -157,7 +157,7 @@ func TestLoginSetsAuthCookie(t *testing.T) {
 	require.NotEmpty(t, found.Value)
 }
 
-func TestLoginMissingFields(t *testing.T) {
+func TestLogin_missingFields(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	for _, body := range []string{
 		`{"email":"","password":"goodpassword123"}`,
@@ -168,7 +168,7 @@ func TestLoginMissingFields(t *testing.T) {
 	}
 }
 
-func TestLoginUserNotFound(t *testing.T) {
+func TestLogin_userNotFound(t *testing.T) {
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, auth.ErrNotFound
@@ -179,7 +179,7 @@ func TestLoginUserNotFound(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestLoginWrongPassword(t *testing.T) {
+func TestLogin_wrongPassword(t *testing.T) {
 	hash := hashPassword(t, "correctpassword123")
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -191,7 +191,7 @@ func TestLoginWrongPassword(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestLoginOIDCOnlyAccount(t *testing.T) {
+func TestLogin_OIDCOnlyAccount(t *testing.T) {
 	// User with no password hash (OIDC-only).
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -203,7 +203,7 @@ func TestLoginOIDCOnlyAccount(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestLoginStoreError(t *testing.T) {
+func TestLogin_storeError(t *testing.T) {
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, errors.New("db error")
@@ -214,7 +214,7 @@ func TestLoginStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestLoginInvalidJSON(t *testing.T) {
+func TestLogin_invalidJSON(t *testing.T) {
 	w := postJSON(t, newAuthHandler(&mockUserStore{}).Login, "not-json")
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -244,7 +244,7 @@ func TestLogout(t *testing.T) {
 // Me
 // ---------------------------------------------------------------------------
 
-func TestMeSuccess(t *testing.T) {
+func TestMe_success(t *testing.T) {
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
 			return &auth.User{ID: id, Name: "Alice", Email: "alice@test.com"}, nil
@@ -262,7 +262,7 @@ func TestMeSuccess(t *testing.T) {
 	require.Equal(t, "alice@test.com", dto.Email)
 }
 
-func TestMeNotFound(t *testing.T) {
+func TestMe_notFound(t *testing.T) {
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, auth.ErrNotFound
@@ -276,7 +276,7 @@ func TestMeNotFound(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestMeStoreError(t *testing.T) {
+func TestMe_storeError(t *testing.T) {
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, errors.New("db error")
@@ -294,7 +294,7 @@ func TestMeStoreError(t *testing.T) {
 // UpdateProfile
 // ---------------------------------------------------------------------------
 
-func TestUpdateProfileSuccess(t *testing.T) {
+func TestUpdateProfile_success(t *testing.T) {
 	store := &mockUserStore{}
 	h := newAuthHandler(store)
 
@@ -310,7 +310,7 @@ func TestUpdateProfileSuccess(t *testing.T) {
 	require.Equal(t, "Bob", dto.Name)
 }
 
-func TestUpdateProfileEmptyName(t *testing.T) {
+func TestUpdateProfile_emptyName(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/profile", strings.NewReader(`{"name":"   "}`))
 	req.Header.Set("Content-Type", "application/json")
 	req = withUserID(req, "u1")
@@ -320,7 +320,7 @@ func TestUpdateProfileEmptyName(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestUpdateProfileInvalidJSON(t *testing.T) {
+func TestUpdateProfile_invalidJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/profile", strings.NewReader("bad"))
 	req = withUserID(req, "u1")
 	w := httptest.NewRecorder()
@@ -333,7 +333,7 @@ func TestUpdateProfileInvalidJSON(t *testing.T) {
 // ChangePassword
 // ---------------------------------------------------------------------------
 
-func TestChangePasswordSuccess(t *testing.T) {
+func TestChangePassword_success(t *testing.T) {
 	oldHash := hashPassword(t, "oldpassword123")
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -352,7 +352,7 @@ func TestChangePasswordSuccess(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestChangePasswordMissingFields(t *testing.T) {
+func TestChangePassword_missingFields(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	for _, body := range []string{
 		`{"currentPassword":"","newPassword":"newpassword456"}`,
@@ -367,7 +367,7 @@ func TestChangePasswordMissingFields(t *testing.T) {
 	}
 }
 
-func TestChangePasswordOIDCAccount(t *testing.T) {
+func TestChangePassword_OIDCAccount(t *testing.T) {
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return &auth.User{ID: "u1", PasswordHash: ""}, nil
@@ -383,7 +383,7 @@ func TestChangePasswordOIDCAccount(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestChangePasswordWrongCurrentPassword(t *testing.T) {
+func TestChangePassword_wrongCurrentPassword(t *testing.T) {
 	oldHash := hashPassword(t, "correctpassword123")
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -400,7 +400,7 @@ func TestChangePasswordWrongCurrentPassword(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestChangePasswordWeakNewPassword(t *testing.T) {
+func TestChangePassword_weakNewPassword(t *testing.T) {
 	body := `{"currentPassword":"oldpassword123","newPassword":"weak"}`
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -411,7 +411,7 @@ func TestChangePasswordWeakNewPassword(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestUpdateProfileStoreError(t *testing.T) {
+func TestUpdateProfile_storeError(t *testing.T) {
 	store := &mockUserStore{
 		updateNameFunc: func(_ context.Context, _, _ string) (*auth.User, error) {
 			return nil, errors.New("db error")
@@ -426,7 +426,7 @@ func TestUpdateProfileStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestChangePasswordStoreError(t *testing.T) {
+func TestChangePassword_storeError(t *testing.T) {
 	oldHash := hashPassword(t, "oldpassword123")
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -446,7 +446,7 @@ func TestChangePasswordStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestChangePasswordFindUserError(t *testing.T) {
+func TestChangePassword_findUserError(t *testing.T) {
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, errors.New("db error")
@@ -466,7 +466,7 @@ func TestChangePasswordFindUserError(t *testing.T) {
 // Session-enabled flows
 // ---------------------------------------------------------------------------
 
-func TestLoginCreatesSessionAndReturnsRefreshToken(t *testing.T) {
+func TestLogin_createsSessionAndReturnsRefreshToken(t *testing.T) {
 	hash := hashPassword(t, "goodpassword123")
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -484,7 +484,7 @@ func TestLoginCreatesSessionAndReturnsRefreshToken(t *testing.T) {
 	require.NotEmpty(t, resp.RefreshToken)
 }
 
-func TestSignupCreatesSessionAndReturnsRefreshToken(t *testing.T) {
+func TestSignup_createsSessionAndReturnsRefreshToken(t *testing.T) {
 	sessions := &mockSessionStore{}
 	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
 
@@ -496,7 +496,7 @@ func TestSignupCreatesSessionAndReturnsRefreshToken(t *testing.T) {
 	require.NotEmpty(t, resp.RefreshToken)
 }
 
-func TestSignupNoRefreshTokenWithoutSessions(t *testing.T) {
+func TestSignup_noRefreshTokenWithoutSessions(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
 	require.Equal(t, http.StatusCreated, w.Code)
@@ -505,7 +505,7 @@ func TestSignupNoRefreshTokenWithoutSessions(t *testing.T) {
 	require.Empty(t, resp.RefreshToken)
 }
 
-func TestLoginSessionCreateError(t *testing.T) {
+func TestLogin_sessionCreateError(t *testing.T) {
 	hash := hashPassword(t, "goodpassword123")
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -523,7 +523,7 @@ func TestLoginSessionCreateError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestLogoutRevokesSession(t *testing.T) {
+func TestLogout_revokesSession(t *testing.T) {
 	var deletedID string
 	sessions := &mockSessionStore{
 		deleteFunc: func(_ context.Context, id, _ string) error {
@@ -545,7 +545,7 @@ func TestLogoutRevokesSession(t *testing.T) {
 	require.Equal(t, "sess-logout", deletedID)
 }
 
-func TestLogoutClearsRefreshCookie(t *testing.T) {
+func TestLogout_clearsRefreshCookie(t *testing.T) {
 	sessions := &mockSessionStore{}
 	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
 	h.RefreshCookieName = "refresh"
@@ -570,7 +570,7 @@ func TestLogoutClearsRefreshCookie(t *testing.T) {
 // RefreshToken
 // ---------------------------------------------------------------------------
 
-func TestRefreshTokenSuccess(t *testing.T) {
+func TestRefreshToken_success(t *testing.T) {
 	rawRefresh := "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
 	hash := auth.HashHighEntropyToken(rawRefresh)
 	sessions := &mockSessionStore{
@@ -602,20 +602,20 @@ func TestRefreshTokenSuccess(t *testing.T) {
 	require.NotEqual(t, rawRefresh, resp.RefreshToken)
 }
 
-func TestRefreshTokenSessionsDisabled(t *testing.T) {
+func TestRefreshToken_sessionsDisabled(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	w := postJSON(t, h.RefreshToken, `{"refresh_token":"anytoken"}`)
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestRefreshTokenMissing(t *testing.T) {
+func TestRefreshToken_missing(t *testing.T) {
 	sessions := &mockSessionStore{}
 	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
 	w := postJSON(t, h.RefreshToken, `{"refresh_token":""}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestRefreshTokenInvalidToken(t *testing.T) {
+func TestRefreshToken_invalidToken(t *testing.T) {
 	sessions := &mockSessionStore{
 		findByRefreshTokenFunc: func(_ context.Context, _ string) (*auth.Session, error) {
 			return nil, auth.ErrNotFound
@@ -626,7 +626,7 @@ func TestRefreshTokenInvalidToken(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestRefreshTokenExpiredSession(t *testing.T) {
+func TestRefreshToken_expiredSession(t *testing.T) {
 	rawRefresh := "expiredtoken0011223344556677889900aabbccddeeff00112233445566778899"
 	hash := auth.HashHighEntropyToken(rawRefresh)
 	sessions := &mockSessionStore{
@@ -648,7 +648,7 @@ func TestRefreshTokenExpiredSession(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestRefreshTokenFromCookie(t *testing.T) {
+func TestRefreshToken_fromCookie(t *testing.T) {
 	rawRefresh := "cookietoken0011223344556677889900aabbccddeeff00112233445566778899"
 	hash := auth.HashHighEntropyToken(rawRefresh)
 	sessions := &mockSessionStore{
@@ -675,7 +675,7 @@ func TestRefreshTokenFromCookie(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestRefreshTokenStoreError(t *testing.T) {
+func TestRefreshToken_storeError(t *testing.T) {
 	sessions := &mockSessionStore{
 		findByRefreshTokenFunc: func(_ context.Context, _ string) (*auth.Session, error) {
 			return nil, errors.New("db error")

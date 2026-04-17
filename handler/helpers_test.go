@@ -308,7 +308,7 @@ func TestWriteError(t *testing.T) {
 // decodeJSON
 // ---------------------------------------------------------------------------
 
-func TestDecodeJSONValid(t *testing.T) {
+func TestDecodeJSON_valid(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"Alice"}`))
 	w := httptest.NewRecorder()
 	var v struct{ Name string }
@@ -316,7 +316,7 @@ func TestDecodeJSONValid(t *testing.T) {
 	require.Equal(t, "Alice", v.Name)
 }
 
-func TestDecodeJSONInvalid(t *testing.T) {
+func TestDecodeJSON_invalid(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("not-json"))
 	w := httptest.NewRecorder()
 	require.False(t, decodeJSON(req, w, &struct{}{}))
@@ -327,19 +327,19 @@ func TestDecodeJSONInvalid(t *testing.T) {
 // validatePassword
 // ---------------------------------------------------------------------------
 
-func TestValidatePasswordTooShort(t *testing.T) {
+func TestValidatePassword_tooShort(t *testing.T) {
 	w := httptest.NewRecorder()
 	require.False(t, validatePassword(context.Background(), w, "short"))
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestValidatePasswordTooLong(t *testing.T) {
+func TestValidatePassword_tooLong(t *testing.T) {
 	w := httptest.NewRecorder()
 	require.False(t, validatePassword(context.Background(), w, strings.Repeat("a", 73)))
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestValidatePasswordBoundaries(t *testing.T) {
+func TestValidatePassword_boundaries(t *testing.T) {
 	for _, tc := range []struct {
 		pw   string
 		want bool
@@ -394,7 +394,7 @@ func TestClearAuthCookie(t *testing.T) {
 // ToUserDTO
 // ---------------------------------------------------------------------------
 
-func TestToUserDTOWithOIDC(t *testing.T) {
+func TestToUserDTO_withOIDC(t *testing.T) {
 	sub := "oidc-sub"
 	u := &auth.User{ID: "u1", Name: "Alice", Email: "alice@example.com", OIDCSubject: &sub, IsAdmin: true}
 	dto := ToUserDTO(u)
@@ -405,7 +405,7 @@ func TestToUserDTOWithOIDC(t *testing.T) {
 	require.True(t, dto.IsAdmin)
 }
 
-func TestToUserDTOWithoutOIDC(t *testing.T) {
+func TestToUserDTO_withoutOIDC(t *testing.T) {
 	u := &auth.User{ID: "u2", Name: "Bob", Email: "bob@example.com"}
 	dto := ToUserDTO(u)
 	require.False(t, dto.OIDCLinked)

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewJWTManagerEmptySecret(t *testing.T) {
+func TestNewJWTManager_emptySecret(t *testing.T) {
 	mgr, err := NewJWTManager("", time.Hour, "test")
 	require.NoError(t, err)
 	require.NotNil(t, mgr)
@@ -16,7 +16,7 @@ func TestNewJWTManagerEmptySecret(t *testing.T) {
 	require.Len(t, mgr.secret, 32)
 }
 
-func TestNewJWTManagerWithSecret(t *testing.T) {
+func TestNewJWTManager_withSecret(t *testing.T) {
 	secret := "my-32-byte-test-secret-for-jwt!!"
 	mgr, err := NewJWTManager(secret, 15*time.Minute, "myapp")
 	require.NoError(t, err)
@@ -24,13 +24,13 @@ func TestNewJWTManagerWithSecret(t *testing.T) {
 	require.Equal(t, 15*time.Minute, mgr.ttl)
 }
 
-func TestNewJWTManagerDefaultIssuer(t *testing.T) {
+func TestNewJWTManager_defaultIssuer(t *testing.T) {
 	mgr, err := NewJWTManager("any-secret", time.Hour, "")
 	require.NoError(t, err)
 	require.Equal(t, "goauth", mgr.issuer)
 }
 
-func TestCreateAndValidateToken(t *testing.T) {
+func TestCreateToken_andValidate(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -43,7 +43,7 @@ func TestCreateAndValidateToken(t *testing.T) {
 	require.Equal(t, "user123", claims.UserID)
 }
 
-func TestValidateExpiredToken(t *testing.T) {
+func TestValidate_expiredToken(t *testing.T) {
 	ctx := context.Background()
 	// Negative TTL produces a token that is immediately expired.
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", -time.Hour, "testapp")
@@ -54,7 +54,7 @@ func TestValidateExpiredToken(t *testing.T) {
 	require.ErrorIs(t, err, ErrExpiredToken)
 }
 
-func TestValidateInvalidToken(t *testing.T) {
+func TestValidate_invalidToken(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -62,7 +62,7 @@ func TestValidateInvalidToken(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
-func TestValidateWrongAlgorithmToken(t *testing.T) {
+func TestValidate_wrongAlgorithmToken(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -72,7 +72,7 @@ func TestValidateWrongAlgorithmToken(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
-func TestValidateWrongIssuerToken(t *testing.T) {
+func TestValidate_wrongIssuerToken(t *testing.T) {
 	ctx := context.Background()
 	mgr1, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "app1")
 	mgr2, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "app2")
@@ -82,7 +82,7 @@ func TestValidateWrongIssuerToken(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
-func TestHMACSignAndVerify(t *testing.T) {
+func TestHMACSign_andVerify(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	data := []byte("test-payload")
@@ -95,7 +95,7 @@ func TestHMACSignAndVerify(t *testing.T) {
 	require.False(t, mgr.HMACVerify([]byte("tampered-payload"), sig))
 }
 
-func TestHMACSignTamperedSignature(t *testing.T) {
+func TestHMACSign_tamperedSignature(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	data := []byte("test-payload")
@@ -108,7 +108,7 @@ func TestHMACSignTamperedSignature(t *testing.T) {
 	require.False(t, mgr.HMACVerify(data, tampered))
 }
 
-func TestHMACSignDifferentManagers(t *testing.T) {
+func TestHMACSign_differentManagers(t *testing.T) {
 	mgr1, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	mgr2, _ := NewJWTManager("other-secret-32-bytes-long-here!", time.Hour, "testapp")
 
@@ -131,7 +131,7 @@ func TestNewSecretEncrypterFromJWT(t *testing.T) {
 	require.Equal(t, "my-secret-value", pt)
 }
 
-func TestTokenHasCorrectClaims(t *testing.T) {
+func TestToken_hasCorrectClaims(t *testing.T) {
 	ctx := context.Background()
 	issuer := "my-issuer"
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, issuer)
@@ -147,7 +147,7 @@ func TestTokenHasCorrectClaims(t *testing.T) {
 	require.NotNil(t, claims.IssuedAt)
 }
 
-func TestCreateTokenWithSession(t *testing.T) {
+func TestCreateToken_withSession(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -160,7 +160,7 @@ func TestCreateTokenWithSession(t *testing.T) {
 	require.Equal(t, "sess-001", claims.ID)
 }
 
-func TestCreateTokenWithSessionEmptySessionID(t *testing.T) {
+func TestCreateToken_withSessionEmptySessionID(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -171,7 +171,7 @@ func TestCreateTokenWithSessionEmptySessionID(t *testing.T) {
 	require.Empty(t, claims.ID)
 }
 
-func TestParseTokenClaimsValid(t *testing.T) {
+func TestParseTokenClaims_valid(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
@@ -182,7 +182,7 @@ func TestParseTokenClaimsValid(t *testing.T) {
 	require.Equal(t, "sess-parse", claims.ID)
 }
 
-func TestParseTokenClaimsIgnoresExpiry(t *testing.T) {
+func TestParseTokenClaims_ignoresExpiry(t *testing.T) {
 	ctx := context.Background()
 	// Negative TTL produces a token that is immediately expired.
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", -time.Hour, "testapp")
@@ -200,14 +200,14 @@ func TestParseTokenClaimsIgnoresExpiry(t *testing.T) {
 	require.Equal(t, "sess-exp", claims.ID)
 }
 
-func TestParseTokenClaimsInvalidToken(t *testing.T) {
+func TestParseTokenClaims_invalidToken(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	_, err := mgr.ParseTokenClaims("this.is.not.a.jwt")
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
-func TestParseTokenClaimsWrongSignature(t *testing.T) {
+func TestParseTokenClaims_wrongSignature(t *testing.T) {
 	ctx := context.Background()
 	mgr1, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	mgr2, _ := NewJWTManager("other-secret-32-bytes-long-here!", time.Hour, "testapp")

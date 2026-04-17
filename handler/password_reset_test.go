@@ -49,7 +49,7 @@ func passwordUserStore(userID string) *mockUserStore {
 // RequestReset
 // ---------------------------------------------------------------------------
 
-func TestRequestResetSuccess(t *testing.T) {
+func TestRequestReset_success(t *testing.T) {
 	emailSent := false
 	users := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -68,7 +68,7 @@ func TestRequestResetSuccess(t *testing.T) {
 	require.True(t, emailSent)
 }
 
-func TestRequestResetUnknownEmail(t *testing.T) {
+func TestRequestReset_unknownEmail(t *testing.T) {
 	// Unknown email: FindByEmail returns auth.ErrNotFound — still 200.
 	users := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -88,19 +88,19 @@ func TestRequestResetUnknownEmail(t *testing.T) {
 	require.False(t, emailSent)
 }
 
-func TestRequestResetMissingEmail(t *testing.T) {
+func TestRequestReset_missingEmail(t *testing.T) {
 	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
 	w := postJSON(t, h.RequestReset, `{"email":""}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestRequestResetInvalidJSON(t *testing.T) {
+func TestRequestReset_invalidJSON(t *testing.T) {
 	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
 	w := postJSON(t, h.RequestReset, "not-json")
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestRequestResetUserStoreError(t *testing.T) {
+func TestRequestReset_userStoreError(t *testing.T) {
 	users := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, errors.New("db error")
@@ -111,7 +111,7 @@ func TestRequestResetUserStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestRequestResetCreateTokenError(t *testing.T) {
+func TestRequestReset_createTokenError(t *testing.T) {
 	users := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return &auth.User{ID: "u1", Email: "alice@test.com", PasswordHash: "somehash"}, nil
@@ -127,7 +127,7 @@ func TestRequestResetCreateTokenError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestRequestResetSendEmailErrorStillOK(t *testing.T) {
+func TestRequestReset_sendEmailErrorStillOK(t *testing.T) {
 	// A SendResetEmail failure should be logged and the orphaned token deleted,
 	// but the HTTP response must still be 200 to avoid leaking account existence.
 	tokenDeleted := false
@@ -152,7 +152,7 @@ func TestRequestResetSendEmailErrorStillOK(t *testing.T) {
 	require.True(t, tokenDeleted)
 }
 
-func TestRequestResetResponseMessage(t *testing.T) {
+func TestRequestReset_responseMessage(t *testing.T) {
 	users := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, auth.ErrNotFound
@@ -166,7 +166,7 @@ func TestRequestResetResponseMessage(t *testing.T) {
 	require.NotEmpty(t, body["message"])
 }
 
-func TestRequestResetNilSendResetEmail(t *testing.T) {
+func TestRequestReset_nilSendResetEmail(t *testing.T) {
 	// No SendResetEmail set — should not panic and should return 200.
 	users := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -184,7 +184,7 @@ func TestRequestResetNilSendResetEmail(t *testing.T) {
 // ResetPassword
 // ---------------------------------------------------------------------------
 
-func TestResetPasswordSuccess(t *testing.T) {
+func TestResetPassword_success(t *testing.T) {
 	users := passwordUserStore("u1")
 	resets := validResetStore("u1")
 	h := newPasswordResetHandler(users, resets)
@@ -197,19 +197,19 @@ func TestResetPasswordSuccess(t *testing.T) {
 	require.NotEmpty(t, resp["message"])
 }
 
-func TestResetPasswordMissingToken(t *testing.T) {
+func TestResetPassword_missingToken(t *testing.T) {
 	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
 	w := postJSON(t, h.ResetPassword, `{"token":"","newPassword":"newpassword123"}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestResetPasswordWeakNewPassword(t *testing.T) {
+func TestResetPassword_weakNewPassword(t *testing.T) {
 	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
 	w := postJSON(t, h.ResetPassword, `{"token":"sometoken","newPassword":"weak"}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestResetPasswordInvalidToken(t *testing.T) {
+func TestResetPassword_invalidToken(t *testing.T) {
 	resets := &mockPasswordResetStore{
 		findFunc: func(_ context.Context, _ string) (*auth.PasswordResetToken, error) {
 			return nil, auth.ErrInvalidToken
@@ -220,7 +220,7 @@ func TestResetPasswordInvalidToken(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestResetPasswordExpiredToken(t *testing.T) {
+func TestResetPassword_expiredToken(t *testing.T) {
 	resets := &mockPasswordResetStore{
 		findFunc: func(_ context.Context, _ string) (*auth.PasswordResetToken, error) {
 			return &auth.PasswordResetToken{
@@ -235,7 +235,7 @@ func TestResetPasswordExpiredToken(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestResetPasswordFindTokenStoreError(t *testing.T) {
+func TestResetPassword_findTokenStoreError(t *testing.T) {
 	resets := &mockPasswordResetStore{
 		findFunc: func(_ context.Context, _ string) (*auth.PasswordResetToken, error) {
 			return nil, errors.New("db error")
@@ -246,7 +246,7 @@ func TestResetPasswordFindTokenStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestResetPasswordUpdatePasswordStoreError(t *testing.T) {
+func TestResetPassword_updatePasswordStoreError(t *testing.T) {
 	users := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return &auth.User{ID: "u1", PasswordHash: "somehash"}, nil
@@ -261,7 +261,7 @@ func TestResetPasswordUpdatePasswordStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestResetPasswordDeleteTokenErrorStillSucceeds(t *testing.T) {
+func TestResetPassword_deleteTokenErrorStillSucceeds(t *testing.T) {
 	// Deletion failure after a successful password update should not cause an error response.
 	resets := &mockPasswordResetStore{
 		findFunc: func(_ context.Context, _ string) (*auth.PasswordResetToken, error) {
@@ -280,7 +280,7 @@ func TestResetPasswordDeleteTokenErrorStillSucceeds(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestResetPasswordInvalidJSON(t *testing.T) {
+func TestResetPassword_invalidJSON(t *testing.T) {
 	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("not-json"))
 	w := httptest.NewRecorder()
@@ -288,7 +288,7 @@ func TestResetPasswordInvalidJSON(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestRequestResetTokenTTL(t *testing.T) {
+func TestRequestReset_tokenTTL(t *testing.T) {
 	var capturedExpiresAt time.Time
 	users := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -318,7 +318,7 @@ func TestRequestResetTokenTTL(t *testing.T) {
 	require.False(t, capturedExpiresAt.Before(minExpiry) || capturedExpiresAt.After(maxExpiry))
 }
 
-func TestRequestResetDefaultTokenTTL(t *testing.T) {
+func TestRequestReset_defaultTokenTTL(t *testing.T) {
 	var capturedExpiresAt time.Time
 	users := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -343,7 +343,7 @@ func TestRequestResetDefaultTokenTTL(t *testing.T) {
 	require.False(t, capturedExpiresAt.Before(minExpiry) || capturedExpiresAt.After(maxExpiry))
 }
 
-func TestRequestResetOIDCOnlyUserSkipsToken(t *testing.T) {
+func TestRequestReset_OIDCOnlyUserSkipsToken(t *testing.T) {
 	// OIDC-only accounts (empty PasswordHash) must not receive a reset token.
 	tokenCreated := false
 	emailSent := false
@@ -370,7 +370,7 @@ func TestRequestResetOIDCOnlyUserSkipsToken(t *testing.T) {
 	require.False(t, emailSent)
 }
 
-func TestRequestResetRateLimited(t *testing.T) {
+func TestRequestReset_rateLimited(t *testing.T) {
 	rl := auth.NewRateLimiter(0, 1) // rate=0/sec, burst=1: first request passes, second is denied
 	h := &PasswordResetHandler{
 		Users:       &mockUserStore{},
@@ -382,7 +382,7 @@ func TestRequestResetRateLimited(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, w.Code)
 }
 
-func TestResetPasswordExpiredTokenSentinel(t *testing.T) {
+func TestResetPassword_expiredTokenSentinel(t *testing.T) {
 	// ErrExpiredToken from the store must be treated as a client error (400),
 	// not an internal server error.
 	resets := &mockPasswordResetStore{
@@ -395,7 +395,7 @@ func TestResetPasswordExpiredTokenSentinel(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestResetPasswordOIDCOnlyUser(t *testing.T) {
+func TestResetPassword_OIDCOnlyUser(t *testing.T) {
 	// Attempting to reset the password of an OIDC-only account must be rejected.
 	users := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
