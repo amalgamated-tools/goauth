@@ -24,6 +24,19 @@ func newMagicLinkHandler(users auth.UserStore, links auth.MagicLinkStore, sender
 	}
 }
 
+func newMagicLinkHandlerWithSessions(users auth.UserStore, links auth.MagicLinkStore, sessions auth.SessionStore) *MagicLinkHandler {
+	return &MagicLinkHandler{
+		Users:             users,
+		MagicLinks:        links,
+		JWT:               newTestJWT(),
+		Sessions:          sessions,
+		Sender:            noopSender,
+		CookieName:        "auth",
+		RefreshCookieName: "refresh",
+		SecureCookies:     false,
+	}
+}
+
 // noopSender is a MagicLinkSender that always succeeds without doing anything.
 func noopSender(_ context.Context, _, _ string) error { return nil }
 
@@ -256,5 +269,80 @@ func TestVerifyMagicLinkUserStoreError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=sometoken", nil)
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// ---------------------------------------------------------------------------
+// VerifyMagicLink with session tracking
+// ---------------------------------------------------------------------------
+
+func TestVerifyMagicLinkWithSessionsCreatesSession(t *testing.T) {
+	var capturedUserID string
+	sessions := &mockSessionStore{
+		createFunc: func(_ context.Context, userID, _, _, _ string, _ time.Time) (*auth.Session, error) {
+			capturedUserID = userID
+			return &auth.Session{ID: "sess-1", UserID: userID}, nil
+		},
+	}
+	userStore := &mockUserStore{
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return &auth.User{ID: "u1", Email: "alice@example.com", Name: "Alice"}, nil
+		},
+	}
+	h := newMagicLinkHandlerWithSessions(userStore, validMagicLinkStore("alice@example.com"), sessions)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=sometoken", nil)
+	w := httptest.NewRecorder()
+	h.VerifyMagicLink(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "u1", capturedUserID)
+	var resp AuthResponse
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NotEmpty(t, resp.Token)
+	require.NotEmpty(t, resp.RefreshToken)
+}
+
+func TestVerifyMagicLinkWithSessionsSetsRefreshCookie(t *testing.T) {
+	sessions := &mockSessionStore{}
+	userStore := &mockUserStore{
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return &auth.User{ID: "u1", Email: "alice@example.com"}, nil
+		},
+	}
+	h := newMagicLinkHandlerWithSessions(userStore, validMagicLinkStore("alice@example.com"), sessions)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=sometoken", nil)
+	w := httptest.NewRecorder()
+	h.VerifyMagicLink(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var foundRefresh *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "refresh" {
+			foundRefresh = c
+		}
+	}
+	require.NotNil(t, foundRefresh)
+	require.NotEmpty(t, foundRefresh.Value)
+}
+
+func TestVerifyMagicLinkWithSessionsCreateSessionError(t *testing.T) {
+	sessions := &mockSessionStore{
+		createFunc: func(_ context.Context, _, _, _, _ string, _ time.Time) (*auth.Session, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	userStore := &mockUserStore{
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return &auth.User{ID: "u1", Email: "alice@example.com"}, nil
+		},
+	}
+	h := newMagicLinkHandlerWithSessions(userStore, validMagicLinkStore("alice@example.com"), sessions)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=sometoken", nil)
+	w := httptest.NewRecorder()
+	h.VerifyMagicLink(w, req)
+
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
