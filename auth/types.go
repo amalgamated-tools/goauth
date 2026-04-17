@@ -14,9 +14,9 @@ import (
 
 // Sentinel errors.
 var (
-	ErrInvalidToken    = errors.New("invalid token")
-	ErrExpiredToken    = errors.New("token expired")
-	ErrEmailExists     = errors.New("email already exists")
+	ErrInvalidToken = errors.New("invalid token")
+	ErrExpiredToken = errors.New("token expired")
+	ErrEmailExists  = errors.New("email already exists")
 	// ErrNotFound is returned by store methods when the requested record does
 	// not exist. Implementations must return this (or wrap it) instead of
 	// driver-specific errors such as sql.ErrNoRows.

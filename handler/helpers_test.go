@@ -162,10 +162,10 @@ func (m *mockMagicLinkStore) DeleteExpiredMagicLinks(ctx context.Context) error 
 }
 
 type mockPasswordResetStore struct {
-	createFunc                func(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*auth.PasswordResetToken, error)
-	findFunc                  func(ctx context.Context, tokenHash string) (*auth.PasswordResetToken, error)
-	deleteFunc                func(ctx context.Context, id string) error
-	deleteExpiredFunc         func(ctx context.Context) error
+	createFunc        func(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*auth.PasswordResetToken, error)
+	findFunc          func(ctx context.Context, tokenHash string) (*auth.PasswordResetToken, error)
+	deleteFunc        func(ctx context.Context, id string) error
+	deleteExpiredFunc func(ctx context.Context) error
 }
 
 func (m *mockPasswordResetStore) CreatePasswordResetToken(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*auth.PasswordResetToken, error) {
