@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -28,6 +27,8 @@ type PasswordResetHandler struct {
 	SendResetEmail func(ctx context.Context, toEmail, rawToken string) error
 	// TokenTTL controls how long a reset token remains valid. Defaults to 1 hour.
 	TokenTTL time.Duration
+	// RateLimiter, if set, is applied to RequestReset to guard against abuse.
+	RateLimiter *auth.RateLimiter
 }
 
 type requestResetRequest struct {
@@ -51,6 +52,11 @@ func (h *PasswordResetHandler) tokenTTL() time.Duration {
 // the raw token via SendResetEmail. The response is always 200 OK to avoid
 // leaking whether the email address is registered.
 func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Request) {
+	if h.RateLimiter != nil && !h.RateLimiter.Allow(r) {
+		writeError(r.Context(), w, http.StatusTooManyRequests, "too many requests")
+		return
+	}
+
 	var req requestResetRequest
 	if !decodeJSON(r, w, &req) {
 		return
@@ -62,13 +68,15 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 	}
 
 	user, err := h.Users.FindByEmail(r.Context(), req.Email)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, auth.ErrNotFound) {
 		slog.ErrorContext(r.Context(), "password reset: lookup user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	if user != nil {
+	// Only create a token for password-auth-capable accounts. OIDC-only
+	// accounts (PasswordHash == "") cannot use the password reset flow.
+	if user != nil && user.PasswordHash != "" {
 		rawToken, err := auth.GenerateRandomBase64(passwordResetTokenBytes)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "password reset: generate token", slog.Any("error", err))
@@ -78,7 +86,8 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 		tokenHash := auth.HashHighEntropyToken(rawToken)
 		expiresAt := time.Now().Add(h.tokenTTL())
 
-		if _, err := h.Resets.CreatePasswordResetToken(r.Context(), user.ID, tokenHash, expiresAt); err != nil {
+		token, err := h.Resets.CreatePasswordResetToken(r.Context(), user.ID, tokenHash, expiresAt)
+		if err != nil {
 			slog.ErrorContext(r.Context(), "password reset: store token", slog.Any("error", err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 			return
@@ -87,6 +96,10 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 		if h.SendResetEmail != nil {
 			if err := h.SendResetEmail(r.Context(), user.Email, rawToken); err != nil {
 				slog.ErrorContext(r.Context(), "password reset: send email", slog.Any("error", err))
+				// Delete the orphaned token so state stays consistent.
+				if delErr := h.Resets.DeletePasswordResetToken(r.Context(), token.ID); delErr != nil {
+					slog.ErrorContext(r.Context(), "password reset: cleanup token after email failure", slog.Any("error", delErr))
+				}
 			}
 		}
 	}
@@ -115,7 +128,7 @@ func (h *PasswordResetHandler) ResetPassword(w http.ResponseWriter, r *http.Requ
 	tokenHash := auth.HashHighEntropyToken(req.Token)
 	resetToken, err := h.Resets.FindPasswordResetToken(r.Context(), tokenHash)
 	if err != nil {
-		if errors.Is(err, auth.ErrInvalidToken) {
+		if errors.Is(err, auth.ErrInvalidToken) || errors.Is(err, auth.ErrExpiredToken) {
 			writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired reset token")
 			return
 		}
@@ -128,8 +141,21 @@ func (h *PasswordResetHandler) ResetPassword(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Guard against resetting passwords on OIDC-only accounts.
+	user, err := h.Users.FindByID(r.Context(), resetToken.UserID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "password reset: lookup user", slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	if user.PasswordHash == "" {
+		writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired reset token")
+		return
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), auth.BcryptCost)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "password reset: hash password", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to hash password")
 		return
 	}

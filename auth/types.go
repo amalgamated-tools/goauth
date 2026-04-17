@@ -17,6 +17,10 @@ var (
 	ErrInvalidToken = errors.New("invalid token")
 	ErrExpiredToken = errors.New("token expired")
 	ErrEmailExists  = errors.New("email already exists")
+	// ErrNotFound is returned by store methods when the requested record does
+	// not exist. Implementations must return this (or wrap it) instead of
+	// driver-specific errors such as sql.ErrNoRows.
+	ErrNotFound = errors.New("not found")
 )
 
 // PasswordResetToken represents a pending email-based password reset request.
@@ -75,6 +79,7 @@ type PasskeyChallenge struct {
 type UserStore interface {
 	CreateUser(ctx context.Context, name, email, passwordHash string) (*User, error)
 	CreateOIDCUser(ctx context.Context, name, email, oidcSubject string) (*User, error)
+	// FindByEmail returns ErrNotFound when no user matches the given email.
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindByID(ctx context.Context, id string) (*User, error)
 	FindByOIDCSubject(ctx context.Context, subject string) (*User, error)
@@ -118,5 +123,6 @@ type PasswordResetStore interface {
 	// DeletePasswordResetToken removes a token record by ID, consuming it after use.
 	DeletePasswordResetToken(ctx context.Context, id string) error
 	// DeleteExpiredPasswordResetTokens removes all expired token records.
-	DeleteExpiredPasswordResetTokens(ctx context.Context) error
+	// Callers are responsible for scheduling periodic invocations (e.g. a
+	// background goroutine or cron job) to prevent unbounded token accumulation.
 }

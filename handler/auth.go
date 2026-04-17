@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -134,7 +133,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.Users.FindByEmail(r.Context(), req.Email)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, auth.ErrNotFound) {
 			_ = bcrypt.CompareHashAndPassword(dummyLoginBcryptHash, []byte(req.Password))
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid email or password")
 			return
@@ -175,7 +174,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	user, err := h.Users.FindByID(r.Context(), userID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 			return
 		}
