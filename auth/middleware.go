@@ -25,7 +25,10 @@ type Config struct {
 
 type contextKey string
 
-const userIDKey contextKey = "userID"
+const (
+	userIDKey  contextKey = "userID"
+	rolesKey   contextKey = "roles"
+)
 
 // UserIDFromContext extracts the user ID set by the auth middleware.
 func UserIDFromContext(ctx context.Context) string {
@@ -36,6 +39,18 @@ func UserIDFromContext(ctx context.Context) string {
 // ContextWithUserID returns a new context with the given user ID set.
 func ContextWithUserID(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, userIDKey, userID)
+}
+
+// RolesFromContext returns the roles set by RequireRole or RequirePermission
+// middleware. Returns nil if no roles have been stored in the context.
+func RolesFromContext(ctx context.Context) []Role {
+	v, _ := ctx.Value(rolesKey).([]Role)
+	return v
+}
+
+// ContextWithRoles returns a new context with the given roles set.
+func ContextWithRoles(ctx context.Context, roles []Role) context.Context {
+	return context.WithValue(ctx, rolesKey, roles)
 }
 
 // tokenSource indicates where a token was extracted from.
@@ -250,4 +265,101 @@ func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKe
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// RequireRole returns middleware that verifies the authenticated user has the
+// specified role. It resolves the token identically to AdminMiddleware and
+// stores the user's roles in the request context via ContextWithRoles.
+func RequireRole(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiKeys APIKeyStore, role Role) func(http.Handler) http.Handler {
+	cachedChecker := NewCachingRoleChecker(checker, 5*time.Second)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, source, _ := extractToken(r, cfg.CookieName)
+			if token == "" {
+				jsonError(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+
+			userID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
+			if err != nil {
+				if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
+					jsonError(w, http.StatusUnauthorized, "invalid or expired token")
+				} else {
+					jsonError(w, http.StatusInternalServerError, "internal authentication error")
+				}
+				return
+			}
+
+			ok, err := cachedChecker.HasRole(r.Context(), userID, role)
+			if err != nil {
+				jsonError(w, http.StatusInternalServerError, "failed to verify role")
+				return
+			}
+			if !ok {
+				jsonError(w, http.StatusForbidden, "insufficient role")
+				return
+			}
+
+			ctx := ContextWithUserID(r.Context(), userID)
+			ctx = ContextWithRoles(ctx, []Role{role})
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// RequirePermission returns middleware that verifies the authenticated user has
+// the specified permission (via any of their assigned roles).
+func RequirePermission(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiKeys APIKeyStore, perm Permission) func(http.Handler) http.Handler {
+	cachedChecker := NewCachingRoleChecker(checker, 5*time.Second)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, source, _ := extractToken(r, cfg.CookieName)
+			if token == "" {
+				jsonError(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+
+			userID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
+			if err != nil {
+				if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
+					jsonError(w, http.StatusUnauthorized, "invalid or expired token")
+				} else {
+					jsonError(w, http.StatusInternalServerError, "internal authentication error")
+				}
+				return
+			}
+
+			ok, err := cachedChecker.HasPermission(r.Context(), userID, perm)
+			if err != nil {
+				jsonError(w, http.StatusInternalServerError, "failed to verify permission")
+				return
+			}
+			if !ok {
+				jsonError(w, http.StatusForbidden, "insufficient permission")
+				return
+			}
+
+			ctx := ContextWithUserID(r.Context(), userID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// adminCheckerFromRoleChecker adapts a RoleChecker to satisfy AdminChecker by
+// mapping the RoleAdmin role to the IsAdmin result.
+type adminCheckerFromRoleChecker struct {
+	rc RoleChecker
+}
+
+// NewAdminCheckerFromRoleChecker returns an AdminChecker that delegates to rc,
+// treating users with RoleAdmin as admins. This lets consumers who have adopted
+// RoleChecker continue to use AdminMiddleware without duplicating logic.
+func NewAdminCheckerFromRoleChecker(rc RoleChecker) AdminChecker {
+	return &adminCheckerFromRoleChecker{rc: rc}
+}
+
+func (a *adminCheckerFromRoleChecker) IsAdmin(ctx context.Context, userID string) (bool, error) {
+	return a.rc.HasRole(ctx, userID, RoleAdmin)
 }
