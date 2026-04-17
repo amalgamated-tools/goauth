@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -32,7 +31,7 @@ func (m *mockAPIKeyStore) ValidateAPIKey(ctx context.Context, keyHash string) (s
 	if m.validateFunc != nil {
 		return m.validateFunc(ctx, keyHash)
 	}
-	return "", "", sql.ErrNoRows
+	return "", "", ErrNotFound
 }
 func (m *mockAPIKeyStore) TouchAPIKeyLastUsed(ctx context.Context, id string) error {
 	if m.touchFunc != nil {
@@ -58,13 +57,13 @@ func (m *mockSessionStore) FindSessionByID(ctx context.Context, id string) (*Ses
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
-	return nil, sql.ErrNoRows
+	return nil, ErrNotFound
 }
 func (m *mockSessionStore) FindSessionByRefreshTokenHash(ctx context.Context, hash string) (*Session, error) {
 	if m.findByRefreshTokenFunc != nil {
 		return m.findByRefreshTokenFunc(ctx, hash)
 	}
-	return nil, sql.ErrNoRows
+	return nil, ErrNotFound
 }
 func (m *mockSessionStore) CreateSession(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error) {
 	if m.createFunc != nil {
@@ -287,7 +286,7 @@ func TestResolveUserAPIKeyNotFound(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-	store := &mockAPIKeyStore{} // returns sql.ErrNoRows by default
+	store := &mockAPIKeyStore{} // returns ErrNotFound by default
 
 	_, _, err := resolveUser(ctx, "app_unknownkey", tokenSourceHeader, mgr, store, "app_")
 	if !errors.Is(err, ErrInvalidToken) {
@@ -623,7 +622,7 @@ func TestMiddlewareValidSessionJWT(t *testing.T) {
 			if id == "sess-abc" {
 				return &Session{ID: id, UserID: "user-sess", ExpiresAt: time.Now().Add(time.Hour)}, nil
 			}
-			return nil, sql.ErrNoRows
+			return nil, ErrNotFound
 		},
 	}
 
@@ -648,7 +647,7 @@ func TestMiddlewareRevokedSession(t *testing.T) {
 	store := &mockSessionStore{
 		// Session not found → revoked.
 		findByIDFunc: func(_ context.Context, _ string) (*Session, error) {
-			return nil, sql.ErrNoRows
+			return nil, ErrNotFound
 		},
 	}
 
@@ -710,7 +709,7 @@ func TestMiddlewareAPIKeyBypassesSessionCheck(t *testing.T) {
 	sessStore := &mockSessionStore{
 		findByIDFunc: func(_ context.Context, _ string) (*Session, error) {
 			// Should never be called for API key requests.
-			return nil, sql.ErrNoRows
+			return nil, ErrNotFound
 		},
 	}
 
@@ -762,7 +761,7 @@ func TestAdminMiddlewareRevokedSession(t *testing.T) {
 
 	sessStore := &mockSessionStore{
 		findByIDFunc: func(_ context.Context, _ string) (*Session, error) {
-			return nil, sql.ErrNoRows
+			return nil, ErrNotFound
 		},
 	}
 	checker := &mockAdminChecker{isAdminFunc: func(_ context.Context, _ string) (bool, error) { return true, nil }}

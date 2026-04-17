@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -148,8 +149,17 @@ func (j *JWTManager) ParseTokenClaims(tokenString string) (*Claims, error) {
 	if err != nil {
 		return nil, ErrInvalidToken
 	}
+	if !token.Valid {
+		return nil, ErrInvalidToken
+	}
 	claims, ok := token.Claims.(*Claims)
 	if !ok {
+		return nil, ErrInvalidToken
+	}
+	if claims.Issuer != j.issuer {
+		return nil, ErrInvalidToken
+	}
+	if !slices.Contains([]string(claims.Audience), j.issuer) {
 		return nil, ErrInvalidToken
 	}
 	return claims, nil

@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -117,7 +116,7 @@ func resolveUser(ctx context.Context, token string, source tokenSource, jwtMgr *
 		keyHash := HashHighEntropyToken(token)
 		uid, keyID, err := apiKeys.ValidateAPIKey(ctx, keyHash)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, ErrNotFound) {
 				return "", "", ErrInvalidToken
 			}
 			return "", "", err
@@ -162,7 +161,16 @@ func Middleware(jwtMgr *JWTManager, cfg Config, apiKeys APIKeyStore) func(http.H
 
 			if cfg.Sessions != nil && sessionID != "" {
 				sess, serr := cfg.Sessions.FindSessionByID(r.Context(), sessionID)
-				if serr != nil || sess == nil || time.Now().After(sess.ExpiresAt) {
+				if serr != nil {
+					if errors.Is(serr, ErrNotFound) {
+						jsonError(w, http.StatusUnauthorized, "session expired or revoked")
+					} else {
+						slog.ErrorContext(r.Context(), "failed to look up session", slog.Any("error", serr))
+						jsonError(w, http.StatusInternalServerError, "internal server error")
+					}
+					return
+				}
+				if sess == nil || sess.UserID != userID || time.Now().After(sess.ExpiresAt) {
 					jsonError(w, http.StatusUnauthorized, "session expired or revoked")
 					return
 				}
@@ -252,7 +260,16 @@ func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKe
 
 			if cfg.Sessions != nil && sessionID != "" {
 				sess, serr := cfg.Sessions.FindSessionByID(r.Context(), sessionID)
-				if serr != nil || sess == nil || time.Now().After(sess.ExpiresAt) {
+				if serr != nil {
+					if errors.Is(serr, ErrNotFound) {
+						jsonError(w, http.StatusUnauthorized, "session expired or revoked")
+					} else {
+						slog.ErrorContext(r.Context(), "failed to look up session", slog.Any("error", serr))
+						jsonError(w, http.StatusInternalServerError, "internal server error")
+					}
+					return
+				}
+				if sess == nil || sess.UserID != userID || time.Now().After(sess.ExpiresAt) {
 					jsonError(w, http.StatusUnauthorized, "session expired or revoked")
 					return
 				}
