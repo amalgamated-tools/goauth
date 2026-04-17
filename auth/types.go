@@ -14,13 +14,15 @@ import (
 
 // Sentinel errors.
 var (
-	ErrInvalidToken = errors.New("invalid token")
-	ErrExpiredToken = errors.New("token expired")
-	ErrEmailExists  = errors.New("email already exists")
+	ErrInvalidToken    = errors.New("invalid token")
+	ErrExpiredToken    = errors.New("token expired")
+	ErrEmailExists     = errors.New("email already exists")
 	// ErrNotFound is returned by store methods when the requested record does
 	// not exist. Implementations must return this (or wrap it) instead of
 	// driver-specific errors such as sql.ErrNoRows.
-	ErrNotFound = errors.New("not found")
+	ErrNotFound        = errors.New("not found")
+	ErrTOTPNotFound    = errors.New("totp not configured")
+	ErrInvalidTOTPCode = errors.New("invalid TOTP code")
 )
 
 // PasswordResetToken represents a pending email-based password reset request.
@@ -111,6 +113,26 @@ type PasskeyStore interface {
 	FindCredentialByIDAndUser(ctx context.Context, id, userID string) (*PasskeyCredential, error)
 	UpdateCredentialData(ctx context.Context, userID, credentialID, credentialData string) error
 	DeleteCredential(ctx context.Context, id, userID string) error
+}
+
+// TOTPSecret represents a stored TOTP secret for a user.
+type TOTPSecret struct {
+	ID        string
+	UserID    string
+	Secret    string // base32-encoded secret; applications may store it encrypted
+	CreatedAt time.Time
+}
+
+// TOTPStore defines data access for TOTP secrets.
+type TOTPStore interface {
+	// CreateTOTPSecret persists a new TOTP secret for a user, replacing any
+	// existing one.
+	CreateTOTPSecret(ctx context.Context, userID, secret string) (*TOTPSecret, error)
+	// GetTOTPSecret retrieves the active TOTP secret for a user.
+	// Returns ErrTOTPNotFound when none exists.
+	GetTOTPSecret(ctx context.Context, userID string) (*TOTPSecret, error)
+	// DeleteTOTPSecret removes the TOTP secret for a user.
+	DeleteTOTPSecret(ctx context.Context, userID string) error
 }
 
 // PasswordResetStore defines data access for email-based password reset token operations.
