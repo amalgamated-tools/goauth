@@ -94,6 +94,10 @@ var (
 
 const apiKeyTouchInterval = 5 * time.Minute
 
+// defaultMiddlewareCacheTTL is the TTL used by AdminMiddleware, RequireRole,
+// and RequirePermission for their internal caching checkers.
+const defaultMiddlewareCacheTTL = 5 * time.Second
+
 func shouldTouchAPIKeyLastUsed(id string, now time.Time) bool {
 	apiKeyTouchMu.Lock()
 	defer apiKeyTouchMu.Unlock()
@@ -231,7 +235,7 @@ func (c *cachingAdminChecker) IsAdmin(ctx context.Context, userID string) (bool,
 
 // AdminMiddleware returns middleware that checks admin privileges.
 func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKeys APIKeyStore) func(http.Handler) http.Handler {
-	cachedChecker := newCachingAdminChecker(checker, 5*time.Second)
+	cachedChecker := newCachingAdminChecker(checker, defaultMiddlewareCacheTTL)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -271,7 +275,7 @@ func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKe
 // specified role. It resolves the token identically to AdminMiddleware and
 // stores the user's roles in the request context via ContextWithRoles.
 func RequireRole(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiKeys APIKeyStore, role Role) func(http.Handler) http.Handler {
-	cachedChecker := NewCachingRoleChecker(checker, 5*time.Second)
+	cachedChecker := NewCachingRoleChecker(checker, defaultMiddlewareCacheTTL)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -311,7 +315,7 @@ func RequireRole(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiKeys AP
 // RequirePermission returns middleware that verifies the authenticated user has
 // the specified permission (via any of their assigned roles).
 func RequirePermission(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiKeys APIKeyStore, perm Permission) func(http.Handler) http.Handler {
-	cachedChecker := NewCachingRoleChecker(checker, 5*time.Second)
+	cachedChecker := NewCachingRoleChecker(checker, defaultMiddlewareCacheTTL)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
