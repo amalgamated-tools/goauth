@@ -125,4 +125,5 @@ type PasswordResetStore interface {
 	// DeleteExpiredPasswordResetTokens removes all expired token records.
 	// Callers are responsible for scheduling periodic invocations (e.g. a
 	// background goroutine or cron job) to prevent unbounded token accumulation.
+	DeleteExpiredPasswordResetTokens(ctx context.Context) error
 }
