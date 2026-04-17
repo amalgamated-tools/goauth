@@ -36,10 +36,12 @@ type AuthHandler struct {
 	// RefreshCookieName is the name of the HttpOnly cookie used to store the
 	// refresh token. When empty the refresh token is only returned in the
 	// response body.
-	RefreshCookieName string
-	CookieName        string
-	SecureCookies     bool
-	DisableSignup     bool
+	RefreshCookieName   string
+	CookieName          string
+	SecureCookies       bool
+	DisableSignup       bool
+	RequireVerification bool
+	Verifications       auth.EmailVerificationStore
 }
 
 type signupRequest struct {
@@ -71,11 +73,12 @@ type AuthResponse struct {
 
 // UserDTO is the public representation of a user.
 type UserDTO struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Email      string `json:"email"`
-	OIDCLinked bool   `json:"oidc_linked"`
-	IsAdmin    bool   `json:"is_admin"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Email         string `json:"email"`
+	OIDCLinked    bool   `json:"oidc_linked"`
+	IsAdmin       bool   `json:"is_admin"`
+	EmailVerified bool   `json:"email_verified"`
 }
 
 // ToUserDTO converts an auth.User to a UserDTO.
@@ -83,6 +86,7 @@ func ToUserDTO(u *auth.User) UserDTO {
 	return UserDTO{
 		ID: u.ID, Name: u.Name, Email: u.Email,
 		OIDCLinked: u.OIDCSubject != nil, IsAdmin: u.IsAdmin,
+		EmailVerified: u.EmailVerified,
 	}
 }
 
@@ -220,6 +224,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid email or password")
+		return
+	}
+
+	if h.RequireVerification && !user.EmailVerified {
+		writeError(r.Context(), w, http.StatusForbidden, "email address not verified")
 		return
 	}
 

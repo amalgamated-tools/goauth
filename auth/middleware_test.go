@@ -504,7 +504,9 @@ func TestCachingAdminCheckerExpiry(t *testing.T) {
 	cached := newCachingAdminChecker(delegate, time.Nanosecond).(*cachingAdminChecker)
 
 	ctx := context.Background()
-	_, _ = cached.IsAdmin(ctx, "u")
+	if _, err := cached.IsAdmin(ctx, "u"); err != nil {
+		t.Fatal(err)
+	}
 
 	// Manually expire the entry.
 	cached.mu.Lock()
@@ -513,7 +515,9 @@ func TestCachingAdminCheckerExpiry(t *testing.T) {
 	cached.entries["u"] = e
 	cached.mu.Unlock()
 
-	_, _ = cached.IsAdmin(ctx, "u")
+	if _, err := cached.IsAdmin(ctx, "u"); err != nil {
+		t.Fatal(err)
+	}
 	if calls != 2 {
 		t.Errorf("expected 2 delegate calls after expiry, got %d", calls)
 	}
