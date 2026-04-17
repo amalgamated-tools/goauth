@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -204,7 +203,7 @@ func TestLoginMissingFields(t *testing.T) {
 func TestLoginUserNotFound(t *testing.T) {
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 	}
 	w := postJSON(t, newAuthHandler(store).Login,
@@ -318,7 +317,7 @@ func TestMeSuccess(t *testing.T) {
 func TestMeNotFound(t *testing.T) {
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/me", nil)
