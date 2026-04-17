@@ -104,7 +104,7 @@ func (rl *RateLimiter) Allow(r *http.Request) bool {
 // Middleware returns Chi-compatible middleware applying rate limiting.
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !rl.allow(rl.clientIP(r)) {
+		if !rl.Allow(r) {
 			jsonError(w, http.StatusTooManyRequests, "too many requests")
 			return
 		}
@@ -114,13 +114,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 // Wrap wraps a HandlerFunc with rate limiting.
 func (rl *RateLimiter) Wrap(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !rl.allow(rl.clientIP(r)) {
-			jsonError(w, http.StatusTooManyRequests, "too many requests")
-			return
-		}
-		next(w, r)
-	}
+	return rl.Middleware(next).ServeHTTP
 }
 
 // ParseTrustedProxyCIDRs parses a comma-separated CIDR string.
