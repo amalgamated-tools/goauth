@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -168,7 +167,7 @@ func TestFindOrCreateUserByEmail(t *testing.T) {
 	existing := &auth.User{ID: "u2", Email: "b@c.com"}
 	store := &mockUserStore{
 		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return existing, nil
@@ -185,10 +184,10 @@ func TestFindOrCreateUserByEmail(t *testing.T) {
 func TestFindOrCreateUserCreatesNew(t *testing.T) {
 	store := &mockUserStore{
 		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 		createOIDCUserFunc: func(_ context.Context, name, email, sub string) (*auth.User, error) {
 			return &auth.User{ID: "new-u", Name: name, Email: email}, nil
@@ -212,7 +211,7 @@ func TestHandleLinkCallbackSuccess(t *testing.T) {
 			return &auth.User{ID: id, OIDCSubject: nil}, nil
 		},
 		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 	}
 	h := newTestOIDCHandler()
@@ -229,7 +228,7 @@ func TestHandleLinkCallbackSuccess(t *testing.T) {
 func TestHandleLinkCallbackUserNotFound(t *testing.T) {
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 	}
 	h := newTestOIDCHandler()

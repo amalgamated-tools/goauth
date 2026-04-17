@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -113,7 +112,7 @@ func (h *APIKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 
 	if err := h.APIKeys.DeleteAPIKey(r.Context(), id, userID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusNotFound, "API key not found")
 			return
 		}

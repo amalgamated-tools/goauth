@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -123,7 +122,7 @@ func TestSessionRevokeMissingID(t *testing.T) {
 func TestSessionRevokeNotFound(t *testing.T) {
 	sessions := &mockSessionStore{
 		deleteFunc: func(_ context.Context, _, _ string) error {
-			return sql.ErrNoRows
+			return auth.ErrNotFound
 		},
 	}
 	h := newSessionHandler(sessions)
