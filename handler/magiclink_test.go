@@ -31,7 +31,7 @@ func noopSender(_ context.Context, _, _ string) error { return nil }
 // RequestMagicLink
 // ---------------------------------------------------------------------------
 
-func TestRequestMagicLinkSuccess(t *testing.T) {
+func TestRequestMagicLink_success(t *testing.T) {
 	var sentEmail, sentToken string
 	sender := func(_ context.Context, email, token string) error {
 		sentEmail = email
@@ -49,25 +49,25 @@ func TestRequestMagicLinkSuccess(t *testing.T) {
 	require.NotEmpty(t, resp["message"])
 }
 
-func TestRequestMagicLinkMissingEmail(t *testing.T) {
+func TestRequestMagicLink_missingEmail(t *testing.T) {
 	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
 	w := postJSON(t, h.RequestMagicLink, `{"email":""}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestRequestMagicLinkEmailWhitespaceOnly(t *testing.T) {
+func TestRequestMagicLink_emailWhitespaceOnly(t *testing.T) {
 	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
 	w := postJSON(t, h.RequestMagicLink, `{"email":"   "}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestRequestMagicLinkInvalidJSON(t *testing.T) {
+func TestRequestMagicLink_invalidJSON(t *testing.T) {
 	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
 	w := postJSON(t, h.RequestMagicLink, "not-json")
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestRequestMagicLinkStoreError(t *testing.T) {
+func TestRequestMagicLink_storeError(t *testing.T) {
 	store := &mockMagicLinkStore{
 		createFunc: func(_ context.Context, _, _ string, _ time.Time) (*auth.MagicLink, error) {
 			return nil, errors.New("db error")
@@ -78,7 +78,7 @@ func TestRequestMagicLinkStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestRequestMagicLinkSenderErrorStillReturns200(t *testing.T) {
+func TestRequestMagicLink_senderErrorStillReturns200(t *testing.T) {
 	sender := func(_ context.Context, _, _ string) error {
 		return errors.New("smtp error")
 	}
@@ -103,7 +103,7 @@ func validMagicLinkStore(email string) *mockMagicLinkStore {
 	}
 }
 
-func TestVerifyMagicLinkSuccess(t *testing.T) {
+func TestVerifyMagicLink_success(t *testing.T) {
 	userStore := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return &auth.User{ID: "u1", Email: "alice@example.com", Name: "alice@example.com"}, nil
@@ -122,7 +122,7 @@ func TestVerifyMagicLinkSuccess(t *testing.T) {
 	require.Equal(t, "alice@example.com", resp.User.Email)
 }
 
-func TestVerifyMagicLinkSetsAuthCookie(t *testing.T) {
+func TestVerifyMagicLink_setsAuthCookie(t *testing.T) {
 	userStore := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return &auth.User{ID: "u1", Email: "alice@example.com"}, nil
@@ -144,7 +144,7 @@ func TestVerifyMagicLinkSetsAuthCookie(t *testing.T) {
 	require.NotEmpty(t, found.Value)
 }
 
-func TestVerifyMagicLinkAutoProvision(t *testing.T) {
+func TestVerifyMagicLink_autoProvision(t *testing.T) {
 	var createdEmail string
 	userStore := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -165,7 +165,7 @@ func TestVerifyMagicLinkAutoProvision(t *testing.T) {
 	require.Equal(t, "new@example.com", createdEmail)
 }
 
-func TestVerifyMagicLinkAutoProvisionRace(t *testing.T) {
+func TestVerifyMagicLink_autoProvisionRace(t *testing.T) {
 	// Simulate a race where CreateUser returns ErrEmailExists because another
 	// request already created the user.
 	userStore := &mockUserStore{
@@ -195,7 +195,7 @@ func TestVerifyMagicLinkAutoProvisionRace(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestVerifyMagicLinkMissingToken(t *testing.T) {
+func TestVerifyMagicLink_missingToken(t *testing.T) {
 	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
 	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify", nil)
 	w := httptest.NewRecorder()
@@ -203,7 +203,7 @@ func TestVerifyMagicLinkMissingToken(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestVerifyMagicLinkInvalidToken(t *testing.T) {
+func TestVerifyMagicLink_invalidToken(t *testing.T) {
 	store := &mockMagicLinkStore{
 		findAndDeleteFunc: func(_ context.Context, _ string) (*auth.MagicLink, error) {
 			return nil, auth.ErrNotFound
@@ -216,7 +216,7 @@ func TestVerifyMagicLinkInvalidToken(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestVerifyMagicLinkExpiredToken(t *testing.T) {
+func TestVerifyMagicLink_expiredToken(t *testing.T) {
 	store := &mockMagicLinkStore{
 		findAndDeleteFunc: func(_ context.Context, _ string) (*auth.MagicLink, error) {
 			return &auth.MagicLink{
@@ -233,7 +233,7 @@ func TestVerifyMagicLinkExpiredToken(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestVerifyMagicLinkStoreError(t *testing.T) {
+func TestVerifyMagicLink_storeError(t *testing.T) {
 	store := &mockMagicLinkStore{
 		findAndDeleteFunc: func(_ context.Context, _ string) (*auth.MagicLink, error) {
 			return nil, errors.New("db error")
@@ -246,7 +246,7 @@ func TestVerifyMagicLinkStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestVerifyMagicLinkUserStoreError(t *testing.T) {
+func TestVerifyMagicLink_userStoreError(t *testing.T) {
 	userStore := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, errors.New("db error")

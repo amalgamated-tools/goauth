@@ -67,7 +67,7 @@ func totpCode(t *testing.T, secret string) string {
 // Status
 // ---------------------------------------------------------------------------
 
-func TestTOTPStatusNotEnrolled(t *testing.T) {
+func TestTOTP_status_notEnrolled(t *testing.T) {
 	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
 	req := httptest.NewRequest(http.MethodGet, "/totp/status", nil)
 	req = withUserID(req, "u1")
@@ -80,7 +80,7 @@ func TestTOTPStatusNotEnrolled(t *testing.T) {
 	require.False(t, resp["enrolled"])
 }
 
-func TestTOTPStatusEnrolled(t *testing.T) {
+func TestTOTP_status_enrolled(t *testing.T) {
 	store := &mockTOTPStore{
 		getFunc: func(_ context.Context, _ string) (*auth.TOTPSecret, error) {
 			return &auth.TOTPSecret{ID: "totp-id", Secret: "SECRET"}, nil
@@ -98,7 +98,7 @@ func TestTOTPStatusEnrolled(t *testing.T) {
 	require.True(t, resp["enrolled"])
 }
 
-func TestTOTPStatusStoreError(t *testing.T) {
+func TestTOTP_status_storeError(t *testing.T) {
 	store := &mockTOTPStore{
 		getFunc: func(_ context.Context, _ string) (*auth.TOTPSecret, error) {
 			return nil, errors.New("db error")
@@ -117,7 +117,7 @@ func TestTOTPStatusStoreError(t *testing.T) {
 // Generate
 // ---------------------------------------------------------------------------
 
-func TestTOTPGenerateSuccess(t *testing.T) {
+func TestTOTP_generate_success(t *testing.T) {
 	users := &mockUserStore{
 		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
 			return &auth.User{ID: id, Email: "alice@example.com"}, nil
@@ -138,7 +138,7 @@ func TestTOTPGenerateSuccess(t *testing.T) {
 	require.Equal(t, "no-cache", w.Header().Get("Pragma"))
 }
 
-func TestTOTPGenerateUserNotFound(t *testing.T) {
+func TestTOTP_generate_userNotFound(t *testing.T) {
 	users := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, errors.New("db error")
@@ -157,7 +157,7 @@ func TestTOTPGenerateUserNotFound(t *testing.T) {
 // Enroll
 // ---------------------------------------------------------------------------
 
-func TestTOTPEnrollSuccess(t *testing.T) {
+func TestTOTP_enroll_success(t *testing.T) {
 	secret, err := auth.GenerateTOTPSecret()
 	require.NoError(t, err)
 	code := totpCode(t, secret)
@@ -174,7 +174,7 @@ func TestTOTPEnrollSuccess(t *testing.T) {
 	require.True(t, resp["enrolled"])
 }
 
-func TestTOTPEnrollMissingFields(t *testing.T) {
+func TestTOTP_enroll_missingFields(t *testing.T) {
 	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
 	for _, body := range []string{
 		`{"secret":"","code":"123456"}`,
@@ -188,7 +188,7 @@ func TestTOTPEnrollMissingFields(t *testing.T) {
 	}
 }
 
-func TestTOTPEnrollInvalidSecret(t *testing.T) {
+func TestTOTP_enroll_invalidSecret(t *testing.T) {
 	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
 	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
 		r = withUserID(r, "u1")
@@ -198,7 +198,7 @@ func TestTOTPEnrollInvalidSecret(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestTOTPEnrollWrongCode(t *testing.T) {
+func TestTOTP_enroll_wrongCode(t *testing.T) {
 	secret, err := auth.GenerateTOTPSecret()
 	require.NoError(t, err)
 	// Craft a code that cannot be the current TOTP value by inverting the last digit.
@@ -215,7 +215,7 @@ func TestTOTPEnrollWrongCode(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestTOTPEnrollStoreError(t *testing.T) {
+func TestTOTP_enroll_storeError(t *testing.T) {
 	secret, err := auth.GenerateTOTPSecret()
 	require.NoError(t, err)
 	code := totpCode(t, secret)
@@ -234,7 +234,7 @@ func TestTOTPEnrollStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestTOTPEnrollInvalidJSON(t *testing.T) {
+func TestTOTP_enroll_invalidJSON(t *testing.T) {
 	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
 	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
 		r = withUserID(r, "u1")
@@ -248,7 +248,7 @@ func TestTOTPEnrollInvalidJSON(t *testing.T) {
 // Verify
 // ---------------------------------------------------------------------------
 
-func TestTOTPVerifySuccess(t *testing.T) {
+func TestTOTP_verify_success(t *testing.T) {
 	secret, err := auth.GenerateTOTPSecret()
 	require.NoError(t, err)
 	code := totpCode(t, secret)
@@ -270,7 +270,7 @@ func TestTOTPVerifySuccess(t *testing.T) {
 	require.True(t, resp["valid"])
 }
 
-func TestTOTPVerifyMissingCode(t *testing.T) {
+func TestTOTP_verify_missingCode(t *testing.T) {
 	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
 	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
 		r = withUserID(r, "u1")
@@ -280,7 +280,7 @@ func TestTOTPVerifyMissingCode(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestTOTPVerifyNotEnrolled(t *testing.T) {
+func TestTOTP_verify_notEnrolled(t *testing.T) {
 	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
 	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
 		r = withUserID(r, "u1")
@@ -290,7 +290,7 @@ func TestTOTPVerifyNotEnrolled(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestTOTPVerifyNotEnrolledCustomError(t *testing.T) {
+func TestTOTP_verify_notEnrolledCustomError(t *testing.T) {
 	store := &mockTOTPStore{
 		getFunc: func(_ context.Context, _ string) (*auth.TOTPSecret, error) {
 			return nil, auth.ErrTOTPNotFound
@@ -305,7 +305,7 @@ func TestTOTPVerifyNotEnrolledCustomError(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestTOTPVerifyStoreError(t *testing.T) {
+func TestTOTP_verify_storeError(t *testing.T) {
 	store := &mockTOTPStore{
 		getFunc: func(_ context.Context, _ string) (*auth.TOTPSecret, error) {
 			return nil, errors.New("db error")
@@ -320,7 +320,7 @@ func TestTOTPVerifyStoreError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestTOTPVerifyWrongCode(t *testing.T) {
+func TestTOTP_verify_wrongCode(t *testing.T) {
 	secret, err := auth.GenerateTOTPSecret()
 	require.NoError(t, err)
 	// Craft an invalid code.
@@ -342,7 +342,7 @@ func TestTOTPVerifyWrongCode(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestTOTPVerifyInvalidJSON(t *testing.T) {
+func TestTOTP_verify_invalidJSON(t *testing.T) {
 	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
 	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
 		r = withUserID(r, "u1")
@@ -356,7 +356,7 @@ func TestTOTPVerifyInvalidJSON(t *testing.T) {
 // Disable
 // ---------------------------------------------------------------------------
 
-func TestTOTPDisableSuccess(t *testing.T) {
+func TestTOTP_disable_success(t *testing.T) {
 	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
 	req := httptest.NewRequest(http.MethodDelete, "/totp", nil)
 	req = withUserID(req, "u1")
@@ -366,7 +366,7 @@ func TestTOTPDisableSuccess(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, w.Code)
 }
 
-func TestTOTPDisableNotEnrolled(t *testing.T) {
+func TestTOTP_disable_notEnrolled(t *testing.T) {
 	store := &mockTOTPStore{
 		deleteFunc: func(_ context.Context, _ string) error {
 			return auth.ErrTOTPNotFound
@@ -381,7 +381,7 @@ func TestTOTPDisableNotEnrolled(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestTOTPDisableNotEnrolledCustomError(t *testing.T) {
+func TestTOTP_disable_notEnrolledCustomError(t *testing.T) {
 	store := &mockTOTPStore{
 		deleteFunc: func(_ context.Context, _ string) error {
 			return auth.ErrTOTPNotFound
@@ -396,7 +396,7 @@ func TestTOTPDisableNotEnrolledCustomError(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestTOTPDisableStoreError(t *testing.T) {
+func TestTOTP_disable_storeError(t *testing.T) {
 	store := &mockTOTPStore{
 		deleteFunc: func(_ context.Context, _ string) error {
 			return errors.New("db error")

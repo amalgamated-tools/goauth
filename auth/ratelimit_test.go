@@ -18,14 +18,14 @@ func newTestRateLimiter(rate float64, burst int) *RateLimiter {
 	return rl
 }
 
-func TestRateLimiterAllowsUpToBurst(t *testing.T) {
+func TestRateLimiter_allowsUpToBurst(t *testing.T) {
 	rl := NewRateLimiter(1, 3)
 	for i := 0; i < 3; i++ {
 		require.Truef(t, rl.allow("key"), "call %d should be allowed within burst", i+1)
 	}
 }
 
-func TestRateLimiterDeniesAfterBurst(t *testing.T) {
+func TestRateLimiter_deniesAfterBurst(t *testing.T) {
 	rl := NewRateLimiter(1, 3)
 	for i := 0; i < 3; i++ {
 		rl.allow("key")
@@ -33,7 +33,7 @@ func TestRateLimiterDeniesAfterBurst(t *testing.T) {
 	require.False(t, rl.allow("key"))
 }
 
-func TestRateLimiterRefillsOverTime(t *testing.T) {
+func TestRateLimiter_refillsOverTime(t *testing.T) {
 	rl := NewRateLimiter(100, 1) // 100 tokens/s
 	rl.allow("key")              // consume the only burst token
 
@@ -46,13 +46,13 @@ func TestRateLimiterRefillsOverTime(t *testing.T) {
 	require.True(t, rl.allow("key"))
 }
 
-func TestRateLimiterIndependentKeys(t *testing.T) {
+func TestRateLimiter_independentKeys(t *testing.T) {
 	rl := NewRateLimiter(1, 1)
 	rl.allow("a") // exhaust "a"
 	require.True(t, rl.allow("b"))
 }
 
-func TestRateLimiterCleanup(t *testing.T) {
+func TestRateLimiter_cleanup(t *testing.T) {
 	rl := newTestRateLimiter(10, 5)
 	// Add a stale visitor.
 	rl.mu.Lock()
@@ -68,7 +68,7 @@ func TestRateLimiterCleanup(t *testing.T) {
 	require.False(t, exists)
 }
 
-func TestRateLimiterMiddlewareAllow(t *testing.T) {
+func TestRateLimiterMiddleware_allow(t *testing.T) {
 	rl := NewRateLimiter(10, 5)
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -82,7 +82,7 @@ func TestRateLimiterMiddlewareAllow(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestRateLimiterMiddlewareDeny(t *testing.T) {
+func TestRateLimiterMiddleware_deny(t *testing.T) {
 	rl := NewRateLimiter(1, 1)
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -100,7 +100,7 @@ func TestRateLimiterMiddlewareDeny(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, makeReq())
 }
 
-func TestRateLimiterWrapAllow(t *testing.T) {
+func TestRateLimiterWrap_allow(t *testing.T) {
 	rl := NewRateLimiter(10, 5)
 	wrapped := rl.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -114,7 +114,7 @@ func TestRateLimiterWrapAllow(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestRateLimiterWrapDeny(t *testing.T) {
+func TestRateLimiterWrap_deny(t *testing.T) {
 	rl := NewRateLimiter(1, 1)
 	wrapped := rl.Wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -132,25 +132,25 @@ func TestRateLimiterWrapDeny(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, makeReq())
 }
 
-func TestParseTrustedProxyCIDRsEmpty(t *testing.T) {
+func TestParseTrustedProxyCIDRs_empty(t *testing.T) {
 	cidrs, err := ParseTrustedProxyCIDRs("")
 	require.NoError(t, err)
 	require.Nil(t, cidrs)
 }
 
-func TestParseTrustedProxyCIDRsValid(t *testing.T) {
+func TestParseTrustedProxyCIDRs_valid(t *testing.T) {
 	cidrs, err := ParseTrustedProxyCIDRs("10.0.0.0/8, 192.168.1.0/24")
 	require.NoError(t, err)
 	require.Len(t, cidrs, 2)
 }
 
-func TestParseTrustedProxyCIDRsSkipsBlankParts(t *testing.T) {
+func TestParseTrustedProxyCIDRs_skipsBlankParts(t *testing.T) {
 	cidrs, err := ParseTrustedProxyCIDRs(",10.0.0.0/8,")
 	require.NoError(t, err)
 	require.Len(t, cidrs, 1)
 }
 
-func TestParseTrustedProxyCIDRsInvalid(t *testing.T) {
+func TestParseTrustedProxyCIDRs_invalid(t *testing.T) {
 	_, err := ParseTrustedProxyCIDRs("not-a-cidr")
 	require.Error(t, err)
 }
@@ -163,7 +163,7 @@ func TestIPFromRequest(t *testing.T) {
 	require.Equal(t, "203.0.113.5", ip)
 }
 
-func TestIPFromRequestNoPort(t *testing.T) {
+func TestIPFromRequest_noPort(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "203.0.113.5" // no port
 
@@ -171,7 +171,7 @@ func TestIPFromRequestNoPort(t *testing.T) {
 	require.Equal(t, "203.0.113.5", ip)
 }
 
-func TestIPFromRequestTrustedProxyNoXFF(t *testing.T) {
+func TestIPFromRequest_trustedProxyNoXFF(t *testing.T) {
 	_, trusted, _ := net.ParseCIDR("10.0.0.0/8")
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "10.0.0.1:0" // trusted proxy
@@ -181,7 +181,7 @@ func TestIPFromRequestTrustedProxyNoXFF(t *testing.T) {
 	require.Equal(t, "10.0.0.1", ip)
 }
 
-func TestIPFromRequestTrustedProxyWithXFF(t *testing.T) {
+func TestIPFromRequest_trustedProxyWithXFF(t *testing.T) {
 	_, trusted, _ := net.ParseCIDR("10.0.0.0/8")
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "10.0.0.1:0"
@@ -192,7 +192,7 @@ func TestIPFromRequestTrustedProxyWithXFF(t *testing.T) {
 	require.Equal(t, "203.0.113.99", ip)
 }
 
-func TestIPFromRequestUntrustedPeerIgnoresXFF(t *testing.T) {
+func TestIPFromRequest_untrustedPeerIgnoresXFF(t *testing.T) {
 	_, trusted, _ := net.ParseCIDR("10.0.0.0/8")
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "1.2.3.4:0" // NOT in trusted range
@@ -202,7 +202,7 @@ func TestIPFromRequestUntrustedPeerIgnoresXFF(t *testing.T) {
 	require.Equal(t, "1.2.3.4", ip)
 }
 
-func TestNewRateLimiterWithTrustedProxies(t *testing.T) {
+func TestNewRateLimiter_withTrustedProxies(t *testing.T) {
 	_, cidr, _ := net.ParseCIDR("10.0.0.0/8")
 	rl := NewRateLimiterWithTrustedProxies(5, 10, []*net.IPNet{cidr})
 	require.NotNil(t, rl)
