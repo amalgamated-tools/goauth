@@ -1,7 +1,6 @@
 .PHONY: all lint lint-require fmt hardfmt test testsum modernize
 
 # Tooling commands
-SWAG_CMD = go run github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc5
 GOLANGCI_LINT_CMD = go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@1c222b488bbc2c0ae2cad8423a24b8452f2fc3a9
 
 # Build everything: frontend then Go binary
