@@ -63,11 +63,11 @@ func (c Config) Enabled() bool {
 // Validate checks the config and returns Params ready for Send.
 func (c Config) Validate() (Params, error) {
 	if c.Host == "" {
-		return Params{}, fmt.Errorf("SMTP host required")
+		return Params{}, fmt.Errorf("smtp host required")
 	}
 	from := strings.TrimSpace(c.From)
 	if from == "" {
-		return Params{}, fmt.Errorf("SMTP from address required")
+		return Params{}, fmt.Errorf("from address required")
 	}
 	parsed, err := mail.ParseAddress(from)
 	if err != nil {
@@ -109,7 +109,7 @@ const sessionTimeout = 30 * time.Second
 func Send(ctx context.Context, params Params, to string, msg []byte) error {
 	host, _, err := net.SplitHostPort(params.Addr)
 	if err != nil {
-		return fmt.Errorf("invalid address: %w", err)
+		return fmt.Errorf("smtp invalid address: %w", err)
 	}
 	tlsConfig := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
@@ -122,7 +122,7 @@ func Send(ctx context.Context, params Params, to string, msg []byte) error {
 		conn, err = dialer.DialContext(ctx, "tcp", params.Addr)
 	}
 	if err != nil {
-		return fmt.Errorf("SMTP connection failed: %w", err)
+		return fmt.Errorf("smtp connection failed: %w", err)
 	}
 
 	deadline := time.Now().Add(sessionTimeout)
@@ -134,35 +134,35 @@ func Send(ctx context.Context, params Params, to string, msg []byte) error {
 	client, err := netsmtp.NewClient(conn, host)
 	if err != nil {
 		_ = conn.Close()
-		return fmt.Errorf("SMTP client failed: %w", err)
+		return fmt.Errorf("smtp client failed: %w", err)
 	}
 	defer func() { _ = client.Close() }()
 
 	if params.TLS == "starttls" {
 		if err := client.StartTLS(tlsConfig); err != nil {
-			return fmt.Errorf("STARTTLS failed: %w", err)
+			return fmt.Errorf("smtp STARTTLS failed: %w", err)
 		}
 	}
 	if params.Auth != nil {
 		if err := client.Auth(params.Auth); err != nil {
-			return fmt.Errorf("SMTP auth failed: %w", err)
+			return fmt.Errorf("smtp auth failed: %w", err)
 		}
 	}
 	if err := client.Mail(params.From); err != nil {
-		return fmt.Errorf("MAIL FROM failed: %w", err)
+		return fmt.Errorf("smtp MAIL FROM failed: %w", err)
 	}
 	if err := client.Rcpt(to); err != nil {
-		return fmt.Errorf("RCPT TO failed: %w", err)
+		return fmt.Errorf("smtp RCPT TO failed: %w", err)
 	}
 	w, err := client.Data()
 	if err != nil {
-		return fmt.Errorf("DATA failed: %w", err)
+		return fmt.Errorf("smtp DATA failed: %w", err)
 	}
 	if _, err := w.Write(msg); err != nil {
-		return fmt.Errorf("write failed: %w", err)
+		return fmt.Errorf("smtp write failed: %w", err)
 	}
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("close failed: %w", err)
+		return fmt.Errorf("smtp close failed: %w", err)
 	}
 	return client.Quit()
 }
