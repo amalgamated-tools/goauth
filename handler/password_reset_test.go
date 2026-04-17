@@ -343,7 +343,7 @@ func TestRequestReset_defaultTokenTTL(t *testing.T) {
 	require.False(t, capturedExpiresAt.Before(minExpiry) || capturedExpiresAt.After(maxExpiry))
 }
 
-func TestRequestReset_OIDCOnlyUserSkipsToken(t *testing.T) {
+func TestRequestReset_oidcOnlyUserSkipsToken(t *testing.T) {
 	// OIDC-only accounts (empty PasswordHash) must not receive a reset token.
 	tokenCreated := false
 	emailSent := false
@@ -395,7 +395,7 @@ func TestResetPassword_expiredTokenSentinel(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestResetPassword_OIDCOnlyUser(t *testing.T) {
+func TestResetPassword_oidcOnlyUser(t *testing.T) {
 	// Attempting to reset the password of an OIDC-only account must be rejected.
 	users := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {

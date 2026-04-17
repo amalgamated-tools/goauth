@@ -191,7 +191,7 @@ func TestLogin_wrongPassword(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestLogin_OIDCOnlyAccount(t *testing.T) {
+func TestLogin_oidcOnlyAccount(t *testing.T) {
 	// User with no password hash (OIDC-only).
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -367,7 +367,7 @@ func TestChangePassword_missingFields(t *testing.T) {
 	}
 }
 
-func TestChangePassword_OIDCAccount(t *testing.T) {
+func TestChangePassword_oidcAccount(t *testing.T) {
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return &auth.User{ID: "u1", PasswordHash: ""}, nil
