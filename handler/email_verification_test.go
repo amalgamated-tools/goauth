@@ -165,8 +165,8 @@ func TestSendVerificationStoreError(t *testing.T) {
 		},
 	}
 	w := postJSON(t, newEmailVerificationHandler(store, verStore).SendVerification, `{"email":"alice@test.com"}`)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
 	}
 }
 

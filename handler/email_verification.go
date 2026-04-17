@@ -80,14 +80,14 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 	plaintext, err := auth.GenerateRandomHex(verificationTokenBytes)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to generate verification token", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to send verification email")
+		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "if that address is registered, a verification email has been sent"})
 		return
 	}
 	tokenHash := auth.HashHighEntropyToken(plaintext)
 
 	if _, err := h.Verifications.CreateEmailVerification(r.Context(), user.ID, tokenHash, time.Now().UTC().Add(h.tokenTTL())); err != nil {
 		slog.ErrorContext(r.Context(), "failed to store verification token", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to send verification email")
+		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "if that address is registered, a verification email has been sent"})
 		return
 	}
 
