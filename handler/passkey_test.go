@@ -317,5 +317,3 @@ func TestLoadWebAuthnCredentialsSkipsCorrupted(t *testing.T) {
 		t.Errorf("expected 0 valid credentials, got %d", len(result))
 	}
 }
-
-

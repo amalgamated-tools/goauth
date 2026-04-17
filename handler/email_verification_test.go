@@ -17,9 +17,9 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockEmailVerificationStore struct {
-	createFunc   func(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*auth.EmailVerificationToken, error)
-	consumeFunc  func(ctx context.Context, tokenHash string) (*auth.EmailVerificationToken, error)
-	setVerified  func(ctx context.Context, userID string) error
+	createFunc  func(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*auth.EmailVerificationToken, error)
+	consumeFunc func(ctx context.Context, tokenHash string) (*auth.EmailVerificationToken, error)
+	setVerified func(ctx context.Context, userID string) error
 }
 
 func (m *mockEmailVerificationStore) CreateEmailVerification(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*auth.EmailVerificationToken, error) {

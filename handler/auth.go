@@ -21,13 +21,13 @@ var dummyLoginBcryptHash = func() []byte {
 
 // AuthHandler holds dependencies for email/password auth endpoints.
 type AuthHandler struct {
-	Users                auth.UserStore
-	JWT                  *auth.JWTManager
-	CookieName           string
-	SecureCookies        bool
-	DisableSignup        bool
-	RequireVerification  bool
-	Verifications        auth.EmailVerificationStore
+	Users               auth.UserStore
+	JWT                 *auth.JWTManager
+	CookieName          string
+	SecureCookies       bool
+	DisableSignup       bool
+	RequireVerification bool
+	Verifications       auth.EmailVerificationStore
 }
 
 type signupRequest struct {
