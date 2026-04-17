@@ -67,9 +67,13 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	if h.Sender == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "magic link sending is not configured")
+		return
+	}
 	if err := h.Sender(r.Context(), req.Email, token); err != nil {
 		slog.ErrorContext(r.Context(), "failed to send magic link email",
-			slog.String("email", req.Email), slog.Any("error", err))
+			slog.Any("error", err))
 		// Do not surface delivery failures to avoid leaking information.
 	}
 

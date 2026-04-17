@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -152,7 +153,7 @@ func (m *mockMagicLinkStore) FindAndDeleteMagicLink(ctx context.Context, tokenHa
 	if m.findAndDeleteFunc != nil {
 		return m.findAndDeleteFunc(ctx, tokenHash)
 	}
-	return nil, nil
+	return nil, sql.ErrNoRows
 }
 func (m *mockMagicLinkStore) DeleteExpiredMagicLinks(ctx context.Context) error {
 	if m.deleteExpiredFunc != nil {
