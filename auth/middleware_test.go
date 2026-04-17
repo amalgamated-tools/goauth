@@ -393,7 +393,7 @@ func TestCachingAdminCheckerCachesResult(t *testing.T) {
 	cached := newCachingAdminChecker(delegate, time.Hour)
 
 	ctx := context.Background()
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		ok, err := cached.IsAdmin(ctx, "user-1")
 		require.NoErrorf(t, err, "call %d", i)
 		require.Truef(t, ok, "call %d", i)

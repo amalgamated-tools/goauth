@@ -20,14 +20,14 @@ func newTestRateLimiter(rate float64, burst int) *RateLimiter {
 
 func TestRateLimiterAllowsUpToBurst(t *testing.T) {
 	rl := NewRateLimiter(1, 3)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		require.Truef(t, rl.allow("key"), "call %d should be allowed within burst", i+1)
 	}
 }
 
 func TestRateLimiterDeniesAfterBurst(t *testing.T) {
 	rl := NewRateLimiter(1, 3)
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		rl.allow("key")
 	}
 	require.False(t, rl.allow("key"))

@@ -167,7 +167,7 @@ func TestCachingRoleCheckerCachesHasRole(t *testing.T) {
 	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Hour)
 	ctx := context.Background()
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		ok, err := checker.HasRole(ctx, "u1", RoleAdmin)
 		require.NoErrorf(t, err, "call %d", i)
 		require.Truef(t, ok, "call %d", i)
@@ -188,7 +188,7 @@ func TestCachingRoleCheckerCachesHasPermission(t *testing.T) {
 	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Hour)
 	ctx := context.Background()
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		ok, err := checker.HasPermission(ctx, "u1", PermWriteContent)
 		require.NoErrorf(t, err, "call %d", i)
 		require.Truef(t, ok, "call %d", i)

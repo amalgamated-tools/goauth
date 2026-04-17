@@ -1,9 +1,13 @@
-.PHONY: all lint lint-require lint-errorfcheck fmt hardfmt test testsum modernize
+.PHONY: help all lint lint-require lint-errorfcheck fmt hardfmt test testsum modernize
 
+.DEFAULT_GOAL := help
 # Tooling commands
 GOLANGCI_LINT_CMD = go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@1c222b488bbc2c0ae2cad8423a24b8452f2fc3a9
+MODERNIZE_CMD = go run golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize@latest
 
-# Build everything: frontend then Go binary
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make <target>\n\nTargets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  %-16s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+
 all: lint fmt test
 
 lint:
@@ -37,5 +41,8 @@ test:
 testsum:
 	gotestsum -- -v ./...
 
-modernize:
-	go run golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize@latest -fix  ./...
+modernize: ## One-shot: rewrite Go code to current stdlib idioms (review the diff)
+	$(MODERNIZE_CMD) -fix ./...
+
+generate:
+	go generate ./...

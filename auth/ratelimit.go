@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -168,8 +169,8 @@ func ipFromRequestTrusted(r *http.Request, trustedProxies []*net.IPNet) string {
 		return remoteHost
 	}
 	parts := strings.Split(xff, ",")
-	for i := len(parts) - 1; i >= 0; i-- {
-		candidate := strings.TrimSpace(parts[i])
+	for _, v := range slices.Backward(parts) {
+		candidate := strings.TrimSpace(v)
 		if candidate == "" {
 			continue
 		}

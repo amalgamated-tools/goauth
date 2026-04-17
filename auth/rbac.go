@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 )
@@ -89,10 +90,8 @@ func (s *StoreRoleChecker) HasRole(ctx context.Context, userID string, role Role
 	if err != nil {
 		return false, fmt.Errorf("get roles: %w", err)
 	}
-	for _, r := range roles {
-		if r == role {
-			return true, nil
-		}
+	if slices.Contains(roles, role) {
+		return true, nil
 	}
 	return false, nil
 }
@@ -106,10 +105,8 @@ func (s *StoreRoleChecker) HasPermission(ctx context.Context, userID string, per
 	rolePermMu.RLock()
 	defer rolePermMu.RUnlock()
 	for _, role := range roles {
-		for _, p := range rolePermissions[role] {
-			if p == perm {
-				return true, nil
-			}
+		if slices.Contains(rolePermissions[role], perm) {
+			return true, nil
 		}
 	}
 	return false, nil
