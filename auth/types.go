@@ -134,13 +134,13 @@ type Session struct {
 type SessionStore interface {
 	// CreateSession persists a new session and returns it.
 	CreateSession(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error)
-	// FindSessionByID returns a session by its ID. Returns sql.ErrNoRows when not found.
+	// FindSessionByID returns a session by its ID. Returns ErrNotFound when not found.
 	FindSessionByID(ctx context.Context, id string) (*Session, error)
-	// FindSessionByRefreshTokenHash returns a session by its refresh token hash. Returns sql.ErrNoRows when not found.
+	// FindSessionByRefreshTokenHash returns a session by its refresh token hash. Returns ErrNotFound when not found.
 	FindSessionByRefreshTokenHash(ctx context.Context, refreshTokenHash string) (*Session, error)
 	// ListSessionsByUser returns all sessions belonging to a user.
 	ListSessionsByUser(ctx context.Context, userID string) ([]Session, error)
-	// DeleteSession removes a session by ID, scoped to a user. Returns sql.ErrNoRows when not found.
+	// DeleteSession removes a session by ID, scoped to a user. Returns ErrNotFound when not found.
 	DeleteSession(ctx context.Context, id, userID string) error
 	// DeleteAllSessionsByUser removes all sessions for a user.
 	DeleteAllSessionsByUser(ctx context.Context, userID string) error
@@ -186,7 +186,7 @@ type EmailVerificationStore interface {
 	// CreateEmailVerification stores a new hashed token for the given user.
 	CreateEmailVerification(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*EmailVerificationToken, error)
 	// ConsumeEmailVerification looks up the token by its hash, deletes it, and
-	// returns it. Returns sql.ErrNoRows when not found.
+	// returns it. Returns ErrNotFound when not found.
 	ConsumeEmailVerification(ctx context.Context, tokenHash string) (*EmailVerificationToken, error)
 	// SetEmailVerified marks the user's email address as verified.
 	SetEmailVerified(ctx context.Context, userID string) error

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -210,7 +209,7 @@ func (h *OIDCHandler) handleLinkCallback(w http.ResponseWriter, r *http.Request,
 func (h *OIDCHandler) findOrCreateUser(ctx context.Context, subject, email, name string) (*auth.User, error) {
 	if user, err := h.Users.FindByOIDCSubject(ctx, subject); err == nil {
 		return user, nil
-	} else if err != sql.ErrNoRows {
+	} else if !errors.Is(err, auth.ErrNotFound) {
 		return nil, err
 	}
 	if user, err := h.Users.FindByEmail(ctx, email); err == nil {
@@ -218,7 +217,7 @@ func (h *OIDCHandler) findOrCreateUser(ctx context.Context, subject, email, name
 			slog.WarnContext(ctx, "failed to link OIDC subject to email-matched user", slog.String("user_id", user.ID), slog.Any("error", linkErr))
 		}
 		return user, nil
-	} else if err != sql.ErrNoRows {
+	} else if !errors.Is(err, auth.ErrNotFound) {
 		return nil, err
 	}
 	if user, err := h.Users.CreateOIDCUser(ctx, name, email, subject); err == nil {
