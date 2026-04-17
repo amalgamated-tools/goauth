@@ -14,9 +14,10 @@ import (
 
 // Sentinel errors.
 var (
-	ErrInvalidToken = errors.New("invalid token")
-	ErrExpiredToken = errors.New("token expired")
-	ErrEmailExists  = errors.New("email already exists")
+	ErrInvalidToken     = errors.New("invalid token")
+	ErrExpiredToken     = errors.New("token expired")
+	ErrEmailExists      = errors.New("email already exists")
+	ErrEmailNotVerified = errors.New("email not verified")
 	// ErrNotFound is returned by store methods when the requested record does
 	// not exist. Implementations must return this (or wrap it) instead of
 	// driver-specific errors such as sql.ErrNoRows.
@@ -37,13 +38,23 @@ type PasswordResetToken struct {
 // User represents an authenticated user. Consuming applications may embed
 // this in a larger struct to add app-specific fields.
 type User struct {
-	ID           string
-	Name         string
-	Email        string
-	PasswordHash string
-	OIDCSubject  *string
-	IsAdmin      bool
-	CreatedAt    time.Time
+	ID            string
+	Name          string
+	Email         string
+	PasswordHash  string
+	OIDCSubject   *string
+	IsAdmin       bool
+	EmailVerified bool
+	CreatedAt     time.Time
+}
+
+// EmailVerificationToken represents an email address verification request.
+type EmailVerificationToken struct {
+	ID        string
+	UserID    string
+	TokenHash string
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 // APIKey represents a long-lived authentication token.
@@ -133,6 +144,17 @@ type MagicLinkStore interface {
 	FindAndDeleteMagicLink(ctx context.Context, tokenHash string) (*MagicLink, error)
 	// DeleteExpiredMagicLinks removes all records whose ExpiresAt is in the past.
 	DeleteExpiredMagicLinks(ctx context.Context) error
+}
+
+// EmailVerificationStore defines data access for email verification tokens.
+type EmailVerificationStore interface {
+	// CreateEmailVerification stores a new hashed token for the given user.
+	CreateEmailVerification(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*EmailVerificationToken, error)
+	// ConsumeEmailVerification looks up the token by its hash, deletes it, and
+	// returns it. Returns sql.ErrNoRows when not found.
+	ConsumeEmailVerification(ctx context.Context, tokenHash string) (*EmailVerificationToken, error)
+	// SetEmailVerified marks the user's email address as verified.
+	SetEmailVerified(ctx context.Context, userID string) error
 }
 
 // TOTPSecret represents a stored TOTP secret for a user.

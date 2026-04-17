@@ -451,7 +451,7 @@ func TestCachingAdminCheckerExpiry(t *testing.T) {
 
 	ctx := context.Background()
 	if _, err := cached.IsAdmin(ctx, "u"); err != nil {
-		t.Fatalf("IsAdmin: %v", err)
+		t.Fatal(err)
 	}
 
 	// Manually expire the entry.
@@ -462,7 +462,7 @@ func TestCachingAdminCheckerExpiry(t *testing.T) {
 	cached.mu.Unlock()
 
 	if _, err := cached.IsAdmin(ctx, "u"); err != nil {
-		t.Fatalf("IsAdmin: %v", err)
+		t.Fatal(err)
 	}
 	if calls != 2 {
 		t.Errorf("expected 2 delegate calls after expiry, got %d", calls)
