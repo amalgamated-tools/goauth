@@ -63,7 +63,7 @@ func (c Config) Enabled() bool {
 // Validate checks the config and returns Params ready for Send.
 func (c Config) Validate() (Params, error) {
 	if c.Host == "" {
-		return Params{}, fmt.Errorf("host required")
+		return Params{}, fmt.Errorf("smtp host required")
 	}
 	from := strings.TrimSpace(c.From)
 	if from == "" {
