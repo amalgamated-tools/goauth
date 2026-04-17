@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -90,59 +89,9 @@ func ToUserDTO(u *auth.User) UserDTO {
 	}
 }
 
-// issueTokens creates a new access JWT (and optionally a session with a refresh
-// token) for the given user. It writes the access cookie and optional refresh
-// cookie, and returns the tokens to embed in the response body. On any error it
-// writes an HTTP error and returns false.
+// issueTokens delegates to the package-level issueTokens helper.
 func (h *AuthHandler) issueTokens(w http.ResponseWriter, r *http.Request, userID string) (accessToken, refreshToken string, ok bool) {
-	if h.Sessions != nil {
-		rawRefresh, err := auth.GenerateRandomHex(32)
-		if err != nil {
-			slog.ErrorContext(r.Context(), "failed to generate refresh token", slog.Any("error", err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "failed to create session")
-			return "", "", false
-		}
-		refreshHash := auth.HashHighEntropyToken(rawRefresh)
-
-		ttl := h.RefreshTokenTTL
-		if ttl <= 0 {
-			ttl = DefaultRefreshTokenTTL
-		}
-
-		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			ip = r.RemoteAddr
-		}
-
-		sess, err := h.Sessions.CreateSession(r.Context(), userID, refreshHash,
-			r.UserAgent(), ip, time.Now().Add(ttl))
-		if err != nil {
-			slog.ErrorContext(r.Context(), "failed to create session", slog.Any("error", err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "failed to create session")
-			return "", "", false
-		}
-
-		accessToken, err = h.JWT.CreateTokenWithSession(r.Context(), userID, sess.ID)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "failed to create token")
-			return "", "", false
-		}
-
-		if h.RefreshCookieName != "" {
-			SetRefreshCookie(w, rawRefresh, h.RefreshCookieName, h.SecureCookies, int(ttl.Seconds()))
-		}
-		SetAuthCookie(w, accessToken, h.CookieName, h.SecureCookies)
-		return accessToken, rawRefresh, true
-	}
-
-	var err error
-	accessToken, err = h.JWT.CreateToken(r.Context(), userID)
-	if err != nil {
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create token")
-		return "", "", false
-	}
-	SetAuthCookie(w, accessToken, h.CookieName, h.SecureCookies)
-	return accessToken, "", true
+	return issueTokens(w, r, userID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 }
 
 // Signup creates a new user account.
