@@ -230,7 +230,9 @@ func TestCachingRoleCheckerExpiryHasRole(t *testing.T) {
 	crc := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Nanosecond).(*cachingRoleChecker)
 	ctx := context.Background()
 
-	crc.HasRole(ctx, "u1", RoleAdmin)
+	if _, err := crc.HasRole(ctx, "u1", RoleAdmin); err != nil {
+		t.Fatal(err)
+	}
 
 	// Manually expire the entry.
 	crc.roleMu.Lock()
@@ -240,7 +242,9 @@ func TestCachingRoleCheckerExpiryHasRole(t *testing.T) {
 	crc.roleEntries[key] = e
 	crc.roleMu.Unlock()
 
-	crc.HasRole(ctx, "u1", RoleAdmin)
+	if _, err := crc.HasRole(ctx, "u1", RoleAdmin); err != nil {
+		t.Fatal(err)
+	}
 	if calls != 2 {
 		t.Errorf("expected 2 delegate calls after expiry, got %d", calls)
 	}
@@ -257,7 +261,9 @@ func TestCachingRoleCheckerExpiryHasPermission(t *testing.T) {
 	crc := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Nanosecond).(*cachingRoleChecker)
 	ctx := context.Background()
 
-	crc.HasPermission(ctx, "u1", PermWriteContent)
+	if _, err := crc.HasPermission(ctx, "u1", PermWriteContent); err != nil {
+		t.Fatal(err)
+	}
 
 	// Manually expire the entry.
 	crc.permMu.Lock()
@@ -267,7 +273,9 @@ func TestCachingRoleCheckerExpiryHasPermission(t *testing.T) {
 	crc.permEntries[key] = e
 	crc.permMu.Unlock()
 
-	crc.HasPermission(ctx, "u1", PermWriteContent)
+	if _, err := crc.HasPermission(ctx, "u1", PermWriteContent); err != nil {
+		t.Fatal(err)
+	}
 	if calls != 2 {
 		t.Errorf("expected 2 delegate calls after expiry, got %d", calls)
 	}
