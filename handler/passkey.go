@@ -132,8 +132,6 @@ func (h *PasskeyHandler) BeginRegistration(w http.ResponseWriter, r *http.Reques
 	waCreds := loadWebAuthnCredentials(existingCreds)
 	waUser := &passkeyUser{user: user, credentials: waCreds}
 
-	_ = h.Passkeys.DeleteExpiredChallenges(r.Context())
-
 	options, sd, err := h.WebAuthn.BeginRegistration(waUser, webauthn.WithExclusions(webauthn.Credentials(waCreds).CredentialDescriptors()))
 	if err != nil {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to begin registration")
@@ -199,7 +197,6 @@ func (h *PasskeyHandler) BeginAuthentication(w http.ResponseWriter, r *http.Requ
 		writeError(r.Context(), w, http.StatusServiceUnavailable, "passkeys not configured")
 		return
 	}
-	_ = h.Passkeys.DeleteExpiredChallenges(r.Context())
 	options, sd, err := h.WebAuthn.BeginDiscoverableLogin()
 	if err != nil {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to begin login")
