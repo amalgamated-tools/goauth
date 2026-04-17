@@ -11,12 +11,11 @@ import (
 
 func TestLoadConfigDefaults(t *testing.T) {
 	// Ensure no SMTP env vars are set.
-	os.Unsetenv("SMTP_HOST")
-	os.Unsetenv("SMTP_PORT")
-	os.Unsetenv("SMTP_USERNAME")
-	os.Unsetenv("SMTP_PASSWORD")
-	os.Unsetenv("SMTP_FROM")
-	os.Unsetenv("SMTP_TLS")
+	for _, k := range []string{"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_TLS"} {
+		if err := os.Unsetenv(k); err != nil {
+			t.Fatalf("unsetenv %s: %v", k, err)
+		}
+	}
 
 	cfg := LoadConfig()
 
