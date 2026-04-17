@@ -207,3 +207,105 @@ func TestTokenHasCorrectClaims(t *testing.T) {
 		t.Error("expected non-nil IssuedAt")
 	}
 }
+
+func TestCreateTokenWithSession(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+
+	tok, err := mgr.CreateTokenWithSession(ctx, "user-xyz", "sess-001")
+	if err != nil {
+		t.Fatalf("CreateTokenWithSession: %v", err)
+	}
+
+	claims, err := mgr.ValidateToken(ctx, tok)
+	if err != nil {
+		t.Fatalf("ValidateToken: %v", err)
+	}
+	if claims.UserID != "user-xyz" {
+		t.Errorf("expected UserID %q, got %q", "user-xyz", claims.UserID)
+	}
+	if claims.ID != "sess-001" {
+		t.Errorf("expected jti %q, got %q", "sess-001", claims.ID)
+	}
+}
+
+func TestCreateTokenWithSessionEmptySessionID(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+
+	tok, err := mgr.CreateTokenWithSession(ctx, "user-xyz", "")
+	if err != nil {
+		t.Fatalf("CreateTokenWithSession: %v", err)
+	}
+	claims, err := mgr.ValidateToken(ctx, tok)
+	if err != nil {
+		t.Fatalf("ValidateToken: %v", err)
+	}
+	if claims.ID != "" {
+		t.Errorf("expected empty jti, got %q", claims.ID)
+	}
+}
+
+func TestParseTokenClaimsValid(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+
+	tok, _ := mgr.CreateTokenWithSession(ctx, "user-parse", "sess-parse")
+	claims, err := mgr.ParseTokenClaims(tok)
+	if err != nil {
+		t.Fatalf("ParseTokenClaims: %v", err)
+	}
+	if claims.UserID != "user-parse" {
+		t.Errorf("expected UserID %q, got %q", "user-parse", claims.UserID)
+	}
+	if claims.ID != "sess-parse" {
+		t.Errorf("expected jti %q, got %q", "sess-parse", claims.ID)
+	}
+}
+
+func TestParseTokenClaimsIgnoresExpiry(t *testing.T) {
+	ctx := context.Background()
+	// Negative TTL produces a token that is immediately expired.
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", -time.Hour, "testapp")
+
+	tok, _ := mgr.CreateTokenWithSession(ctx, "user-exp", "sess-exp")
+
+	// ValidateToken should reject it.
+	_, err := mgr.ValidateToken(ctx, tok)
+	if err != ErrExpiredToken {
+		t.Fatalf("expected ErrExpiredToken from ValidateToken, got %v", err)
+	}
+
+	// ParseTokenClaims should still succeed (ignores expiry).
+	claims, err := mgr.ParseTokenClaims(tok)
+	if err != nil {
+		t.Fatalf("ParseTokenClaims should succeed on expired token: %v", err)
+	}
+	if claims.UserID != "user-exp" {
+		t.Errorf("expected UserID %q, got %q", "user-exp", claims.UserID)
+	}
+	if claims.ID != "sess-exp" {
+		t.Errorf("expected jti %q, got %q", "sess-exp", claims.ID)
+	}
+}
+
+func TestParseTokenClaimsInvalidToken(t *testing.T) {
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+
+	_, err := mgr.ParseTokenClaims("this.is.not.a.jwt")
+	if err != ErrInvalidToken {
+		t.Errorf("expected ErrInvalidToken, got %v", err)
+	}
+}
+
+func TestParseTokenClaimsWrongSignature(t *testing.T) {
+	ctx := context.Background()
+	mgr1, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	mgr2, _ := NewJWTManager("other-secret-32-bytes-long-here!", time.Hour, "testapp")
+
+	tok, _ := mgr1.CreateToken(ctx, "user-sig")
+	_, err := mgr2.ParseTokenClaims(tok)
+	if err != ErrInvalidToken {
+		t.Errorf("expected ErrInvalidToken for wrong signature, got %v", err)
+	}
+}

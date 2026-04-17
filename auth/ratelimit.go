@@ -97,6 +97,11 @@ func (rl *RateLimiter) clientIP(r *http.Request) string {
 	return ipFromRequest(r)
 }
 
+// Allow reports whether the request's client IP is within the rate limit.
+func (rl *RateLimiter) Allow(r *http.Request) bool {
+	return rl.allow(rl.clientIP(r))
+}
+
 // Middleware returns Chi-compatible middleware applying rate limiting.
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -2,13 +2,13 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
 	"golang.org/x/crypto/bcrypt"
@@ -204,7 +204,7 @@ func TestLoginMissingFields(t *testing.T) {
 func TestLoginUserNotFound(t *testing.T) {
 	store := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 	}
 	w := postJSON(t, newAuthHandler(store).Login,
@@ -318,7 +318,7 @@ func TestMeSuccess(t *testing.T) {
 func TestMeNotFound(t *testing.T) {
 	store := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, auth.ErrNotFound
 		},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/me", nil)
@@ -538,6 +538,275 @@ func TestChangePasswordFindUserError(t *testing.T) {
 	w := httptest.NewRecorder()
 	newAuthHandler(store).ChangePassword(w, req)
 
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Session-enabled flows
+// ---------------------------------------------------------------------------
+
+func TestLoginCreatesSessionAndReturnsRefreshToken(t *testing.T) {
+	hash := hashPassword(t, "goodpassword123")
+	store := &mockUserStore{
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return &auth.User{ID: "u1", Email: "alice@test.com", PasswordHash: hash}, nil
+		},
+	}
+	sessions := &mockSessionStore{}
+	h := newAuthHandlerWithSessions(store, sessions)
+
+	w := postJSON(t, h.Login, `{"email":"alice@test.com","password":"goodpassword123"}`)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+	var resp AuthResponse
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Token == "" {
+		t.Error("expected non-empty access token")
+	}
+	if resp.RefreshToken == "" {
+		t.Error("expected non-empty refresh token when sessions enabled")
+	}
+}
+
+func TestSignupCreatesSessionAndReturnsRefreshToken(t *testing.T) {
+	sessions := &mockSessionStore{}
+	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
+
+	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected 201, got %d; body: %s", w.Code, w.Body.String())
+	}
+	var resp AuthResponse
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Token == "" {
+		t.Error("expected non-empty access token")
+	}
+	if resp.RefreshToken == "" {
+		t.Error("expected non-empty refresh token when sessions enabled")
+	}
+}
+
+func TestSignupNoRefreshTokenWithoutSessions(t *testing.T) {
+	h := newAuthHandler(&mockUserStore{})
+	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", w.Code)
+	}
+	var resp AuthResponse
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	if resp.RefreshToken != "" {
+		t.Error("expected empty refresh_token when sessions not configured")
+	}
+}
+
+func TestLoginSessionCreateError(t *testing.T) {
+	hash := hashPassword(t, "goodpassword123")
+	store := &mockUserStore{
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return &auth.User{ID: "u1", Email: "alice@test.com", PasswordHash: hash}, nil
+		},
+	}
+	sessions := &mockSessionStore{
+		createFunc: func(_ context.Context, _, _, _, _ string, _ time.Time) (*auth.Session, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	h := newAuthHandlerWithSessions(store, sessions)
+
+	w := postJSON(t, h.Login, `{"email":"alice@test.com","password":"goodpassword123"}`)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
+}
+
+func TestLogoutRevokesSession(t *testing.T) {
+	var deletedID string
+	sessions := &mockSessionStore{
+		deleteFunc: func(_ context.Context, id, _ string) error {
+			deletedID = id
+			return nil
+		},
+	}
+	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
+
+	// Create a token with a known session ID.
+	tok, _ := h.JWT.CreateTokenWithSession(context.Background(), "u1", "sess-logout")
+
+	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	w := httptest.NewRecorder()
+	h.Logout(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if deletedID != "sess-logout" {
+		t.Errorf("expected session %q to be revoked, got %q", "sess-logout", deletedID)
+	}
+}
+
+func TestLogoutClearsRefreshCookie(t *testing.T) {
+	sessions := &mockSessionStore{}
+	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
+	h.RefreshCookieName = "refresh"
+
+	tok, _ := h.JWT.CreateToken(context.Background(), "u1")
+
+	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "auth", Value: tok})
+	w := httptest.NewRecorder()
+	h.Logout(w, req)
+
+	var refreshCleared bool
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "refresh" && c.MaxAge == -1 {
+			refreshCleared = true
+		}
+	}
+	if !refreshCleared {
+		t.Error("expected refresh cookie to be cleared on logout")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// RefreshToken
+// ---------------------------------------------------------------------------
+
+func TestRefreshTokenSuccess(t *testing.T) {
+	rawRefresh := "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
+	hash := auth.HashHighEntropyToken(rawRefresh)
+	sessions := &mockSessionStore{
+		findByRefreshTokenFunc: func(_ context.Context, h string) (*auth.Session, error) {
+			if h == hash {
+				return &auth.Session{ID: "sess-1", UserID: "u1", ExpiresAt: time.Now().Add(time.Hour)}, nil
+			}
+			return nil, errors.New("not found")
+		},
+	}
+	store := &mockUserStore{
+		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
+			return &auth.User{ID: id, Name: "Alice", Email: "alice@test.com"}, nil
+		},
+	}
+	h := newAuthHandlerWithSessions(store, sessions)
+
+	body := `{"refresh_token":"` + rawRefresh + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/refresh", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.RefreshToken(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d; body: %s", w.Code, w.Body.String())
+	}
+	var resp AuthResponse
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Token == "" {
+		t.Error("expected new access token")
+	}
+	if resp.RefreshToken == "" {
+		t.Error("expected new refresh token")
+	}
+	// New refresh token must differ from the original.
+	if resp.RefreshToken == rawRefresh {
+		t.Error("refresh token should be rotated")
+	}
+}
+
+func TestRefreshTokenSessionsDisabled(t *testing.T) {
+	h := newAuthHandler(&mockUserStore{})
+	w := postJSON(t, h.RefreshToken, `{"refresh_token":"anytoken"}`)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 when sessions not configured, got %d", w.Code)
+	}
+}
+
+func TestRefreshTokenMissing(t *testing.T) {
+	sessions := &mockSessionStore{}
+	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
+	w := postJSON(t, h.RefreshToken, `{"refresh_token":""}`)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing refresh token, got %d", w.Code)
+	}
+}
+
+func TestRefreshTokenInvalidToken(t *testing.T) {
+	sessions := &mockSessionStore{
+		findByRefreshTokenFunc: func(_ context.Context, _ string) (*auth.Session, error) {
+			return nil, auth.ErrNotFound
+		},
+	}
+	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
+	w := postJSON(t, h.RefreshToken, `{"refresh_token":"unknowntoken"}`)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for unknown refresh token, got %d", w.Code)
+	}
+}
+
+func TestRefreshTokenExpiredSession(t *testing.T) {
+	rawRefresh := "expiredtoken0011223344556677889900aabbccddeeff00112233445566778899"
+	hash := auth.HashHighEntropyToken(rawRefresh)
+	sessions := &mockSessionStore{
+		findByRefreshTokenFunc: func(_ context.Context, h string) (*auth.Session, error) {
+			if h == hash {
+				return &auth.Session{ID: "sess-exp", UserID: "u1", ExpiresAt: time.Now().Add(-time.Hour)}, nil
+			}
+			return nil, auth.ErrNotFound
+		},
+	}
+	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
+
+	body := `{"refresh_token":"` + rawRefresh + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/refresh", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.RefreshToken(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for expired refresh token, got %d", w.Code)
+	}
+}
+
+func TestRefreshTokenFromCookie(t *testing.T) {
+	rawRefresh := "cookietoken0011223344556677889900aabbccddeeff00112233445566778899"
+	hash := auth.HashHighEntropyToken(rawRefresh)
+	sessions := &mockSessionStore{
+		findByRefreshTokenFunc: func(_ context.Context, h string) (*auth.Session, error) {
+			if h == hash {
+				return &auth.Session{ID: "sess-cookie", UserID: "u1", ExpiresAt: time.Now().Add(time.Hour)}, nil
+			}
+			return nil, auth.ErrNotFound
+		},
+	}
+	store := &mockUserStore{
+		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
+			return &auth.User{ID: id}, nil
+		},
+	}
+	h := newAuthHandlerWithSessions(store, sessions)
+	h.RefreshCookieName = "refresh"
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "refresh", Value: rawRefresh})
+	w := httptest.NewRecorder()
+	h.RefreshToken(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 with refresh cookie, got %d; body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRefreshTokenStoreError(t *testing.T) {
+	sessions := &mockSessionStore{
+		findByRefreshTokenFunc: func(_ context.Context, _ string) (*auth.Session, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
+	w := postJSON(t, h.RefreshToken, `{"refresh_token":"anytoken"}`)
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", w.Code)
 	}

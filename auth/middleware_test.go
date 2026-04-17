@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -32,7 +31,7 @@ func (m *mockAPIKeyStore) ValidateAPIKey(ctx context.Context, keyHash string) (s
 	if m.validateFunc != nil {
 		return m.validateFunc(ctx, keyHash)
 	}
-	return "", "", sql.ErrNoRows
+	return "", "", ErrNotFound
 }
 func (m *mockAPIKeyStore) TouchAPIKeyLastUsed(ctx context.Context, id string) error {
 	if m.touchFunc != nil {
@@ -41,6 +40,61 @@ func (m *mockAPIKeyStore) TouchAPIKeyLastUsed(ctx context.Context, id string) er
 	return nil
 }
 func (m *mockAPIKeyStore) DeleteAPIKey(ctx context.Context, id, userID string) error { return nil }
+
+// --- mockSessionStore ----------------------------------------------------------
+
+type mockSessionStore struct {
+	findByIDFunc           func(ctx context.Context, id string) (*Session, error)
+	findByRefreshTokenFunc func(ctx context.Context, hash string) (*Session, error)
+	createFunc             func(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error)
+	listFunc               func(ctx context.Context, userID string) ([]Session, error)
+	deleteFunc             func(ctx context.Context, id, userID string) error
+	deleteAllFunc          func(ctx context.Context, userID string) error
+	deleteExpiredFunc      func(ctx context.Context) error
+}
+
+func (m *mockSessionStore) FindSessionByID(ctx context.Context, id string) (*Session, error) {
+	if m.findByIDFunc != nil {
+		return m.findByIDFunc(ctx, id)
+	}
+	return nil, ErrNotFound
+}
+func (m *mockSessionStore) FindSessionByRefreshTokenHash(ctx context.Context, hash string) (*Session, error) {
+	if m.findByRefreshTokenFunc != nil {
+		return m.findByRefreshTokenFunc(ctx, hash)
+	}
+	return nil, ErrNotFound
+}
+func (m *mockSessionStore) CreateSession(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error) {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, userID, refreshTokenHash, userAgent, ipAddress, expiresAt)
+	}
+	return &Session{ID: "sess-id", UserID: userID, ExpiresAt: expiresAt}, nil
+}
+func (m *mockSessionStore) ListSessionsByUser(ctx context.Context, userID string) ([]Session, error) {
+	if m.listFunc != nil {
+		return m.listFunc(ctx, userID)
+	}
+	return nil, nil
+}
+func (m *mockSessionStore) DeleteSession(ctx context.Context, id, userID string) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(ctx, id, userID)
+	}
+	return nil
+}
+func (m *mockSessionStore) DeleteAllSessionsByUser(ctx context.Context, userID string) error {
+	if m.deleteAllFunc != nil {
+		return m.deleteAllFunc(ctx, userID)
+	}
+	return nil
+}
+func (m *mockSessionStore) DeleteExpiredSessions(ctx context.Context) error {
+	if m.deleteExpiredFunc != nil {
+		return m.deleteExpiredFunc(ctx)
+	}
+	return nil
+}
 
 // --- context helpers -----------------------------------------------------------
 
@@ -173,7 +227,7 @@ func TestResolveUserValidJWT(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	token, _ := mgr.CreateToken(ctx, "user-jwt")
-	uid, err := resolveUser(ctx, token, tokenSourceHeader, mgr, nil, "")
+	uid, _, err := resolveUser(ctx, token, tokenSourceHeader, mgr, nil, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -186,7 +240,7 @@ func TestResolveUserInvalidJWT(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-	_, err := resolveUser(ctx, "bad.token", tokenSourceHeader, mgr, nil, "")
+	_, _, err := resolveUser(ctx, "bad.token", tokenSourceHeader, mgr, nil, "")
 	if !errors.Is(err, ErrInvalidToken) {
 		t.Errorf("expected ErrInvalidToken, got %v", err)
 	}
@@ -202,7 +256,7 @@ func TestResolveUserAPIKeyFromHeader(t *testing.T) {
 		},
 	}
 
-	uid, err := resolveUser(ctx, "app_somehexkey", tokenSourceHeader, mgr, store, "app_")
+	uid, _, err := resolveUser(ctx, "app_somehexkey", tokenSourceHeader, mgr, store, "app_")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -222,7 +276,7 @@ func TestResolveUserAPIKeyFromCookieRejected(t *testing.T) {
 	}
 
 	// API keys in cookies must be rejected.
-	_, err := resolveUser(ctx, "app_somehexkey", tokenSourceCookie, mgr, store, "app_")
+	_, _, err := resolveUser(ctx, "app_somehexkey", tokenSourceCookie, mgr, store, "app_")
 	if !errors.Is(err, ErrInvalidToken) {
 		t.Errorf("expected ErrInvalidToken for API key from cookie, got %v", err)
 	}
@@ -232,9 +286,9 @@ func TestResolveUserAPIKeyNotFound(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-	store := &mockAPIKeyStore{} // returns sql.ErrNoRows by default
+	store := &mockAPIKeyStore{} // returns ErrNotFound by default
 
-	_, err := resolveUser(ctx, "app_unknownkey", tokenSourceHeader, mgr, store, "app_")
+	_, _, err := resolveUser(ctx, "app_unknownkey", tokenSourceHeader, mgr, store, "app_")
 	if !errors.Is(err, ErrInvalidToken) {
 		t.Errorf("expected ErrInvalidToken, got %v", err)
 	}
@@ -450,7 +504,9 @@ func TestCachingAdminCheckerExpiry(t *testing.T) {
 	cached := newCachingAdminChecker(delegate, time.Nanosecond).(*cachingAdminChecker)
 
 	ctx := context.Background()
-	cached.IsAdmin(ctx, "u")
+	if _, err := cached.IsAdmin(ctx, "u"); err != nil {
+		t.Fatal(err)
+	}
 
 	// Manually expire the entry.
 	cached.mu.Lock()
@@ -459,7 +515,9 @@ func TestCachingAdminCheckerExpiry(t *testing.T) {
 	cached.entries["u"] = e
 	cached.mu.Unlock()
 
-	cached.IsAdmin(ctx, "u")
+	if _, err := cached.IsAdmin(ctx, "u"); err != nil {
+		t.Fatal(err)
+	}
 	if calls != 2 {
 		t.Errorf("expected 2 delegate calls after expiry, got %d", calls)
 	}
@@ -475,7 +533,7 @@ func TestResolveUserAPIKeyStoreError(t *testing.T) {
 		},
 	}
 
-	_, err := resolveUser(ctx, "app_somekey", tokenSourceHeader, mgr, store, "app_")
+	_, _, err := resolveUser(ctx, "app_somekey", tokenSourceHeader, mgr, store, "app_")
 	if err == nil {
 		t.Error("expected error from store")
 	}
@@ -553,5 +611,211 @@ func TestAdminMiddlewareInternalError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", w.Code)
+	}
+}
+
+// --- Session validation in Middleware -----------------------------------------
+
+func TestMiddlewareValidSessionJWT(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	token, _ := mgr.CreateTokenWithSession(ctx, "user-sess", "sess-abc")
+
+	store := &mockSessionStore{
+		findByIDFunc: func(_ context.Context, id string) (*Session, error) {
+			if id == "sess-abc" {
+				return &Session{ID: id, UserID: "user-sess", ExpiresAt: time.Now().Add(time.Hour)}, nil
+			}
+			return nil, ErrNotFound
+		},
+	}
+
+	cfg := Config{CookieName: "auth", Sessions: store}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := makeMiddlewareRequest(mgr, cfg, nil, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if got := w.Header().Get("X-User-ID"); got != "user-sess" {
+		t.Errorf("expected userID %q, got %q", "user-sess", got)
+	}
+}
+
+func TestMiddlewareRevokedSession(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	token, _ := mgr.CreateTokenWithSession(ctx, "user-revoked", "sess-revoked")
+
+	store := &mockSessionStore{
+		// Session not found → revoked.
+		findByIDFunc: func(_ context.Context, _ string) (*Session, error) {
+			return nil, ErrNotFound
+		},
+	}
+
+	cfg := Config{CookieName: "auth", Sessions: store}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := makeMiddlewareRequest(mgr, cfg, nil, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for revoked session, got %d", w.Code)
+	}
+}
+
+func TestMiddlewareExpiredSession(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	token, _ := mgr.CreateTokenWithSession(ctx, "user-expired", "sess-expired")
+
+	store := &mockSessionStore{
+		findByIDFunc: func(_ context.Context, id string) (*Session, error) {
+			return &Session{ID: id, UserID: "user-expired", ExpiresAt: time.Now().Add(-time.Second)}, nil
+		},
+	}
+
+	cfg := Config{CookieName: "auth", Sessions: store}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := makeMiddlewareRequest(mgr, cfg, nil, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for expired session, got %d", w.Code)
+	}
+}
+
+func TestMiddlewareNoSessionStoreSkipsCheck(t *testing.T) {
+	// Without a session store, no session check is performed even if jti is present.
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	token, _ := mgr.CreateTokenWithSession(ctx, "user-noss", "sess-noss")
+
+	cfg := Config{CookieName: "auth"} // Sessions is nil
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := makeMiddlewareRequest(mgr, cfg, nil, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 without session store, got %d", w.Code)
+	}
+}
+
+func TestMiddlewareAPIKeyBypassesSessionCheck(t *testing.T) {
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+
+	apiStore := &mockAPIKeyStore{
+		validateFunc: func(_ context.Context, _ string) (string, string, error) {
+			return "user-api", "key-id", nil
+		},
+	}
+	sessStore := &mockSessionStore{
+		findByIDFunc: func(_ context.Context, _ string) (*Session, error) {
+			// Should never be called for API key requests.
+			return nil, ErrNotFound
+		},
+	}
+
+	cfg := Config{CookieName: "auth", APIKeyPrefix: "app_", Sessions: sessStore}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer app_somehexkey")
+
+	handler := Middleware(mgr, cfg, apiStore)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-User-ID", UserIDFromContext(r.Context()))
+		w.WriteHeader(http.StatusOK)
+	}))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for API key, got %d", w.Code)
+	}
+	if got := w.Header().Get("X-User-ID"); got != "user-api" {
+		t.Errorf("expected userID %q, got %q", "user-api", got)
+	}
+}
+
+func TestAdminMiddlewareValidSession(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	token, _ := mgr.CreateTokenWithSession(ctx, "admin-user", "sess-admin")
+
+	sessStore := &mockSessionStore{
+		findByIDFunc: func(_ context.Context, id string) (*Session, error) {
+			return &Session{ID: id, UserID: "admin-user", ExpiresAt: time.Now().Add(time.Hour)}, nil
+		},
+	}
+	checker := &mockAdminChecker{isAdminFunc: func(_ context.Context, _ string) (bool, error) { return true, nil }}
+
+	cfg := Config{CookieName: "auth", Sessions: sessStore}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := makeAdminRequest(mgr, checker, cfg, nil, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestAdminMiddlewareRevokedSession(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	token, _ := mgr.CreateTokenWithSession(ctx, "admin-user", "sess-revoked-admin")
+
+	sessStore := &mockSessionStore{
+		findByIDFunc: func(_ context.Context, _ string) (*Session, error) {
+			return nil, ErrNotFound
+		},
+	}
+	checker := &mockAdminChecker{isAdminFunc: func(_ context.Context, _ string) (bool, error) { return true, nil }}
+
+	cfg := Config{CookieName: "auth", Sessions: sessStore}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := makeAdminRequest(mgr, checker, cfg, nil, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for revoked admin session, got %d", w.Code)
+	}
+}
+
+// TestResolveUserJWTWithSessionID verifies that resolveUser returns the session
+// ID embedded in the jti claim.
+func TestResolveUserJWTWithSessionID(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+
+	token, _ := mgr.CreateTokenWithSession(ctx, "user-jti", "sess-jti")
+	uid, sessID, err := resolveUser(ctx, token, tokenSourceHeader, mgr, nil, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if uid != "user-jti" {
+		t.Errorf("expected userID %q, got %q", "user-jti", uid)
+	}
+	if sessID != "sess-jti" {
+		t.Errorf("expected sessionID %q, got %q", "sess-jti", sessID)
+	}
+}
+
+// TestResolveUserAPIKeyHasNoSessionID verifies that API key auth returns an
+// empty session ID.
+func TestResolveUserAPIKeyHasNoSessionID(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+
+	store := &mockAPIKeyStore{
+		validateFunc: func(_ context.Context, _ string) (string, string, error) {
+			return "user-api", "key-id", nil
+		},
+	}
+
+	_, sessID, err := resolveUser(ctx, "app_somehexkey", tokenSourceHeader, mgr, store, "app_")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sessID != "" {
+		t.Errorf("expected empty sessionID for API key, got %q", sessID)
 	}
 }
