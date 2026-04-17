@@ -18,6 +18,23 @@ go get github.com/amalgamated-tools/goauth
 
 Requires Go 1.21+.
 
+## Development
+
+Run the standard checks with:
+
+```sh
+make lint
+make test
+```
+
+The lint target also runs the custom `errorfcheck` analyzer, which reports `fmt.Errorf` calls whose format strings have no verbs. You can run it directly with:
+
+```sh
+make lint-errorfcheck
+# or
+go run ./cmd/errorfcheck ./...
+```
+
 ## Quick start
 
 ```go
