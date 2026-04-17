@@ -47,7 +47,7 @@ func ContextWithUserID(ctx context.Context, userID string) context.Context {
 type tokenSource int
 
 const (
-	tokenSourceNone   tokenSource = iota
+	tokenSourceNone tokenSource = iota
 	tokenSourceHeader
 	tokenSourceCookie
 )

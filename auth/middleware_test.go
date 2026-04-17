@@ -45,13 +45,13 @@ func (m *mockAPIKeyStore) DeleteAPIKey(ctx context.Context, id, userID string) e
 // --- mockSessionStore ----------------------------------------------------------
 
 type mockSessionStore struct {
-	findByIDFunc            func(ctx context.Context, id string) (*Session, error)
-	findByRefreshTokenFunc  func(ctx context.Context, hash string) (*Session, error)
-	createFunc              func(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error)
-	listFunc                func(ctx context.Context, userID string) ([]Session, error)
-	deleteFunc              func(ctx context.Context, id, userID string) error
-	deleteAllFunc           func(ctx context.Context, userID string) error
-	deleteExpiredFunc       func(ctx context.Context) error
+	findByIDFunc           func(ctx context.Context, id string) (*Session, error)
+	findByRefreshTokenFunc func(ctx context.Context, hash string) (*Session, error)
+	createFunc             func(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error)
+	listFunc               func(ctx context.Context, userID string) ([]Session, error)
+	deleteFunc             func(ctx context.Context, id, userID string) error
+	deleteAllFunc          func(ctx context.Context, userID string) error
+	deleteExpiredFunc      func(ctx context.Context) error
 }
 
 func (m *mockSessionStore) FindSessionByID(ctx context.Context, id string) (*Session, error) {

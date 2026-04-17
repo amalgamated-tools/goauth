@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,12 +27,12 @@ var dummyLoginBcryptHash = func() []byte {
 
 // AuthHandler holds dependencies for email/password auth endpoints.
 type AuthHandler struct {
-	Users         auth.UserStore
-	JWT           *auth.JWTManager
-	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
+	Users    auth.UserStore
+	JWT      *auth.JWTManager
+	Sessions auth.SessionStore // optional; nil disables session tracking and refresh tokens
 	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
 	// DefaultRefreshTokenTTL when Sessions is non-nil.
-	RefreshTokenTTL   time.Duration
+	RefreshTokenTTL time.Duration
 	// RefreshCookieName is the name of the HttpOnly cookie used to store the
 	// refresh token. When empty the refresh token is only returned in the
 	// response body.
@@ -202,7 +201,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.Users.FindByEmail(r.Context(), req.Email)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, auth.ErrNotFound) {
 			_ = bcrypt.CompareHashAndPassword(dummyLoginBcryptHash, []byte(req.Password))
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid email or password")
 			return
@@ -280,7 +279,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	hash := auth.HashHighEntropyToken(rawRefresh)
 	sess, err := h.Sessions.FindSessionByRefreshTokenHash(r.Context(), hash)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired refresh token")
 			return
 		}
@@ -302,7 +301,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.Users.FindByID(r.Context(), sess.UserID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusUnauthorized, "user not found")
 			return
 		}
@@ -325,7 +324,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	user, err := h.Users.FindByID(r.Context(), userID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 			return
 		}

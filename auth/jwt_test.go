@@ -309,4 +309,3 @@ func TestParseTokenClaimsWrongSignature(t *testing.T) {
 		t.Errorf("expected ErrInvalidToken for wrong signature, got %v", err)
 	}
 }
-
