@@ -346,3 +346,34 @@ func TestVerifyMagicLinkWithSessionsCreateSessionError(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+func TestVerifyMagicLinkWithSessionsCreateTokenError(t *testing.T) {
+	var deletedSessionID string
+	sessions := &mockSessionStore{
+		createFunc: func(_ context.Context, userID, _, _, _ string, _ time.Time) (*auth.Session, error) {
+			return &auth.Session{ID: "sess-orphan", UserID: userID}, nil
+		},
+		deleteFunc: func(_ context.Context, id, _ string) error {
+			deletedSessionID = id
+			return nil
+		},
+	}
+	userStore := &mockUserStore{
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return &auth.User{ID: "u1", Email: "alice@example.com"}, nil
+		},
+	}
+	h := newMagicLinkHandlerWithSessions(userStore, validMagicLinkStore("alice@example.com"), sessions)
+	h.JWT = &mockTokenCreator{
+		createTokenWithSessionFunc: func(_ context.Context, _, _ string) (string, error) {
+			return "", errors.New("jwt signing error")
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=sometoken", nil)
+	w := httptest.NewRecorder()
+	h.VerifyMagicLink(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, "sess-orphan", deletedSessionID, "orphaned session must be cleaned up")
+}
