@@ -28,8 +28,8 @@ const (
 )
 
 var (
-	rolePermMu          sync.RWMutex
-	defaultRolePerms    = map[Role][]Permission{
+	rolePermMu       sync.RWMutex
+	defaultRolePerms = map[Role][]Permission{
 		RoleAdmin:  {PermManageUsers, PermReadContent, PermWriteContent},
 		RoleEditor: {PermReadContent, PermWriteContent},
 		RoleViewer: {PermReadContent},
@@ -115,16 +115,24 @@ func (s *StoreRoleChecker) HasPermission(ctx context.Context, userID string, per
 	return false, nil
 }
 
+const (
+	cacheSweepInterval         = time.Minute
+	defaultRoleCacheMaxEntries = 4096
+	defaultPermCacheMaxEntries = 4096
+)
+
 // cachingRoleChecker wraps a RoleChecker and caches results for ttl.
 type cachingRoleChecker struct {
 	delegate RoleChecker
 	ttl      time.Duration
 
-	roleMu      sync.RWMutex
-	roleEntries map[roleCacheKey]roleCacheEntry
+	roleMu            sync.RWMutex
+	roleEntries       map[roleCacheKey]roleCacheEntry
+	roleLastSweepTime time.Time
 
-	permMu      sync.RWMutex
-	permEntries map[permCacheKey]permCacheEntry
+	permMu            sync.RWMutex
+	permEntries       map[permCacheKey]permCacheEntry
+	permLastSweepTime time.Time
 }
 
 type roleCacheKey struct {
@@ -148,16 +156,50 @@ type permCacheEntry struct {
 }
 
 // NewCachingRoleChecker wraps delegate and caches HasRole/HasPermission results
-// for ttl. If ttl <= 0, a default of 5 seconds is used.
+// for ttl. If ttl <= 0, defaultMiddlewareCacheTTL is used.
 func NewCachingRoleChecker(delegate RoleChecker, ttl time.Duration) RoleChecker {
 	if ttl <= 0 {
-		ttl = 5 * time.Second
+		ttl = defaultMiddlewareCacheTTL
 	}
 	return &cachingRoleChecker{
 		delegate:    delegate,
 		ttl:         ttl,
 		roleEntries: make(map[roleCacheKey]roleCacheEntry),
 		permEntries: make(map[permCacheKey]permCacheEntry),
+	}
+}
+
+func (c *cachingRoleChecker) sweepRoleEntriesLocked(now time.Time) {
+	if now.Sub(c.roleLastSweepTime) >= cacheSweepInterval {
+		c.roleLastSweepTime = now
+		for k, e := range c.roleEntries {
+			if !e.expiresAt.After(now) {
+				delete(c.roleEntries, k)
+			}
+		}
+	}
+	for len(c.roleEntries) >= defaultRoleCacheMaxEntries {
+		for k := range c.roleEntries {
+			delete(c.roleEntries, k)
+			break
+		}
+	}
+}
+
+func (c *cachingRoleChecker) sweepPermEntriesLocked(now time.Time) {
+	if now.Sub(c.permLastSweepTime) >= cacheSweepInterval {
+		c.permLastSweepTime = now
+		for k, e := range c.permEntries {
+			if !e.expiresAt.After(now) {
+				delete(c.permEntries, k)
+			}
+		}
+	}
+	for len(c.permEntries) >= defaultPermCacheMaxEntries {
+		for k := range c.permEntries {
+			delete(c.permEntries, k)
+			break
+		}
 	}
 }
 
@@ -178,6 +220,7 @@ func (c *cachingRoleChecker) HasRole(ctx context.Context, userID string, role Ro
 	}
 
 	c.roleMu.Lock()
+	c.sweepRoleEntriesLocked(now)
 	c.roleEntries[key] = roleCacheEntry{result: result, expiresAt: now.Add(c.ttl)}
 	c.roleMu.Unlock()
 	return result, nil
@@ -200,6 +243,7 @@ func (c *cachingRoleChecker) HasPermission(ctx context.Context, userID string, p
 	}
 
 	c.permMu.Lock()
+	c.sweepPermEntriesLocked(now)
 	c.permEntries[key] = permCacheEntry{result: result, expiresAt: now.Add(c.ttl)}
 	c.permMu.Unlock()
 	return result, nil
