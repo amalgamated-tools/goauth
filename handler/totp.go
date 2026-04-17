@@ -116,14 +116,14 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid TOTP code")
 		return
 	}
-	if h.UsedCodes != nil {
-		h.UsedCodes.MarkUsed(userID, req.Code)
-	}
 
 	if _, err := h.TOTP.CreateTOTPSecret(r.Context(), userID, req.Secret); err != nil {
 		slog.ErrorContext(r.Context(), "failed to save TOTP secret", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to save TOTP secret")
 		return
+	}
+	if h.UsedCodes != nil {
+		h.UsedCodes.MarkUsed(userID, req.Code)
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK, map[string]bool{"enrolled": true})
