@@ -22,9 +22,10 @@ import (
 //   - GET  /totp/status — check whether TOTP is enrolled.
 //   - DELETE /totp      — remove the enrolled TOTP secret.
 type TOTPHandler struct {
-	TOTP   auth.TOTPStore
-	Users  auth.UserStore
-	Issuer string
+	TOTP      auth.TOTPStore
+	Users     auth.UserStore
+	Issuer    string
+	UsedCodes *auth.TOTPUsedCodeCache // required for replay protection
 }
 
 type totpGenerateResponse struct {
@@ -100,6 +101,12 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := auth.UserIDFromContext(r.Context())
+	if h.UsedCodes != nil && h.UsedCodes.WasUsed(userID, req.Code) {
+		writeError(r.Context(), w, http.StatusUnauthorized, "invalid TOTP code")
+		return
+	}
+
 	ok, err := auth.ValidateTOTP(req.Secret, req.Code)
 	if err != nil {
 		writeError(r.Context(), w, http.StatusBadRequest, "invalid TOTP secret")
@@ -109,8 +116,10 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid TOTP code")
 		return
 	}
+	if h.UsedCodes != nil {
+		h.UsedCodes.MarkUsed(userID, req.Code)
+	}
 
-	userID := auth.UserIDFromContext(r.Context())
 	if _, err := h.TOTP.CreateTOTPSecret(r.Context(), userID, req.Secret); err != nil {
 		slog.ErrorContext(r.Context(), "failed to save TOTP secret", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to save TOTP secret")
@@ -132,6 +141,11 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.UserIDFromContext(r.Context())
+	if h.UsedCodes != nil && h.UsedCodes.WasUsed(userID, req.Code) {
+		writeError(r.Context(), w, http.StatusUnauthorized, "invalid TOTP code")
+		return
+	}
+
 	stored, err := h.TOTP.GetTOTPSecret(r.Context(), userID)
 	if err != nil {
 		if errors.Is(err, auth.ErrTOTPNotFound) {
@@ -150,6 +164,9 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid TOTP code")
 		return
+	}
+	if h.UsedCodes != nil {
+		h.UsedCodes.MarkUsed(userID, req.Code)
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK, map[string]bool{"valid": true})

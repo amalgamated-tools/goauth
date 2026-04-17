@@ -48,9 +48,10 @@ func (m *mockTOTPStore) DeleteTOTPSecret(ctx context.Context, userID string) err
 // newTOTPHandler returns a TOTPHandler wired with mock stores.
 func newTOTPHandler(totp auth.TOTPStore, users auth.UserStore) *TOTPHandler {
 	return &TOTPHandler{
-		TOTP:   totp,
-		Users:  users,
-		Issuer: "TestApp",
+		TOTP:      totp,
+		Users:     users,
+		Issuer:    "TestApp",
+		UsedCodes: &auth.TOTPUsedCodeCache{},
 	}
 }
 
@@ -268,6 +269,60 @@ func TestTOTPVerifySuccess(t *testing.T) {
 	var resp map[string]bool
 	_ = json.NewDecoder(w.Body).Decode(&resp)
 	require.True(t, resp["valid"])
+}
+
+func TestTOTPVerifyReplayRejected(t *testing.T) {
+	secret, err := auth.GenerateTOTPSecret()
+	require.NoError(t, err)
+	code := totpCode(t, secret)
+
+	store := &mockTOTPStore{
+		getFunc: func(_ context.Context, _ string) (*auth.TOTPSecret, error) {
+			return &auth.TOTPSecret{Secret: secret}, nil
+		},
+	}
+	h := newTOTPHandler(store, &mockUserStore{})
+
+	// First use succeeds.
+	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
+		r = withUserID(r, "u1")
+		h.Verify(w, r)
+	}, `{"code":"`+code+`"}`)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Immediate replay is rejected.
+	w = postJSON(t, func(w http.ResponseWriter, r *http.Request) {
+		r = withUserID(r, "u1")
+		h.Verify(w, r)
+	}, `{"code":"`+code+`"}`)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestTOTPVerifyReplayIndependentPerUser(t *testing.T) {
+	secret, err := auth.GenerateTOTPSecret()
+	require.NoError(t, err)
+	code := totpCode(t, secret)
+
+	store := &mockTOTPStore{
+		getFunc: func(_ context.Context, _ string) (*auth.TOTPSecret, error) {
+			return &auth.TOTPSecret{Secret: secret}, nil
+		},
+	}
+	h := newTOTPHandler(store, &mockUserStore{})
+
+	// u1 uses the code first.
+	w := postJSON(t, func(w http.ResponseWriter, r *http.Request) {
+		r = withUserID(r, "u1")
+		h.Verify(w, r)
+	}, `{"code":"`+code+`"}`)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// u2 can still use the same code (independent replay cache per user).
+	w = postJSON(t, func(w http.ResponseWriter, r *http.Request) {
+		r = withUserID(r, "u2")
+		h.Verify(w, r)
+	}, `{"code":"`+code+`"}`)
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestTOTPVerifyMissingCode(t *testing.T) {
