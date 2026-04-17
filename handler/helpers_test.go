@@ -394,7 +394,7 @@ func TestClearAuthCookie(t *testing.T) {
 // ToUserDTO
 // ---------------------------------------------------------------------------
 
-func TestToUserDTO_withOIDC(t *testing.T) {
+func TestToUserDTO_withOidc(t *testing.T) {
 	sub := "oidc-sub"
 	u := &auth.User{ID: "u1", Name: "Alice", Email: "alice@example.com", OIDCSubject: &sub, IsAdmin: true}
 	dto := ToUserDTO(u)
@@ -405,7 +405,7 @@ func TestToUserDTO_withOIDC(t *testing.T) {
 	require.True(t, dto.IsAdmin)
 }
 
-func TestToUserDTO_withoutOIDC(t *testing.T) {
+func TestToUserDTO_withoutOidc(t *testing.T) {
 	u := &auth.User{ID: "u2", Name: "Bob", Email: "bob@example.com"}
 	dto := ToUserDTO(u)
 	require.False(t, dto.OIDCLinked)

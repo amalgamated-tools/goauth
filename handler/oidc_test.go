@@ -27,7 +27,7 @@ func newTestOIDCHandler() *OIDCHandler {
 // signLinkState / parseLinkState
 // ---------------------------------------------------------------------------
 
-func TestParseLinkState_roundTrip(t *testing.T) {
+func TestLinkState_roundTrip(t *testing.T) {
 	h := newTestOIDCHandler()
 
 	randomState := "somerandomstate1234"
