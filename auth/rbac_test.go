@@ -3,8 +3,10 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -518,4 +520,135 @@ func TestNewAdminCheckerFromRoleChecker_error(t *testing.T) {
 	ac := NewAdminCheckerFromRoleChecker(rc)
 	_, err := ac.IsAdmin(context.Background(), "u1")
 	require.Error(t, err)
+}
+
+// --- FIFO cache eviction order -----------------------------------------------
+
+func TestCachingRoleCheckerEvictsOldestRole(t *testing.T) {
+	store := &mockRBACUserStore{
+		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
+			return []Role{RoleAdmin}, nil
+		},
+	}
+	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Hour).(*cachingRoleChecker)
+	ctx := context.Background()
+
+	// Fill the cache to capacity.
+	for i := 0; i < defaultRoleCacheMaxEntries; i++ {
+		userID := fmt.Sprintf("user-%d", i)
+		_, err := checker.HasRole(ctx, userID, RoleAdmin)
+		require.NoError(t, err)
+	}
+	require.Equal(t, defaultRoleCacheMaxEntries, len(checker.roleEntries))
+
+	// One more insertion must evict the oldest entry (user-0), not a random one.
+	_, err := checker.HasRole(ctx, "user-new", RoleAdmin)
+	require.NoError(t, err)
+
+	checker.roleMu.RLock()
+	defer checker.roleMu.RUnlock()
+
+	_, oldestPresent := checker.roleEntries[roleCacheKey{userID: "user-0", role: RoleAdmin}]
+	require.False(t, oldestPresent, "oldest entry (user-0) should have been evicted")
+
+	_, secondPresent := checker.roleEntries[roleCacheKey{userID: "user-1", role: RoleAdmin}]
+	require.True(t, secondPresent, "second-oldest entry (user-1) should still be present")
+
+	require.Equal(t, defaultRoleCacheMaxEntries, len(checker.roleEntries))
+}
+
+func TestCachingRoleCheckerEvictsOldestPerm(t *testing.T) {
+	store := &mockRBACUserStore{
+		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
+			return []Role{RoleAdmin}, nil
+		},
+	}
+	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Hour).(*cachingRoleChecker)
+	ctx := context.Background()
+
+	// Fill the perm cache to capacity.
+	for i := 0; i < defaultPermCacheMaxEntries; i++ {
+		userID := fmt.Sprintf("user-%d", i)
+		_, err := checker.HasPermission(ctx, userID, PermReadContent)
+		require.NoError(t, err)
+	}
+	require.Equal(t, defaultPermCacheMaxEntries, len(checker.permEntries))
+
+	// One more insertion must evict the oldest entry, not a random one.
+	_, err := checker.HasPermission(ctx, "user-new", PermReadContent)
+	require.NoError(t, err)
+
+	checker.permMu.RLock()
+	defer checker.permMu.RUnlock()
+
+	_, oldestPresent := checker.permEntries[permCacheKey{userID: "user-0", perm: PermReadContent}]
+	require.False(t, oldestPresent, "oldest perm entry (user-0) should have been evicted")
+
+	_, secondPresent := checker.permEntries[permCacheKey{userID: "user-1", perm: PermReadContent}]
+	require.True(t, secondPresent, "second-oldest perm entry (user-1) should still be present")
+
+	require.Equal(t, defaultPermCacheMaxEntries, len(checker.permEntries))
+}
+
+func TestCachingRoleCheckerReinsertAfterExpiry(t *testing.T) {
+	// Verify that a key re-inserted after expiry is correctly tracked in the
+	// order queue and does not cause incorrect eviction of newer entries.
+	store := &mockRBACUserStore{
+		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
+			return []Role{RoleAdmin}, nil
+		},
+	}
+	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Hour).(*cachingRoleChecker)
+	ctx := context.Background()
+
+	// Insert "user-0" and immediately expire it.
+	_, err := checker.HasRole(ctx, "user-0", RoleAdmin)
+	require.NoError(t, err)
+	checker.roleMu.Lock()
+	k := roleCacheKey{userID: "user-0", role: RoleAdmin}
+	e := checker.roleEntries[k]
+	e.expiresAt = time.Now().Add(-time.Second)
+	checker.roleEntries[k] = e
+	checker.roleMu.Unlock()
+
+	// Re-insert "user-0" — this should create a new order entry with a new seq.
+	_, err = checker.HasRole(ctx, "user-0", RoleAdmin)
+	require.NoError(t, err)
+
+	checker.roleMu.RLock()
+	mapEntry := checker.roleEntries[k]
+	lastOrder := checker.roleOrder[len(checker.roleOrder)-1]
+	checker.roleMu.RUnlock()
+
+	// The map entry's seq should match the last order entry's seq.
+	require.Equal(t, mapEntry.seq, lastOrder.seq, "re-inserted entry seq must match order queue")
+}
+
+func TestCachingRoleCheckerConcurrentAccess(t *testing.T) {
+	t.Parallel()
+	store := &mockRBACUserStore{
+		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
+			return []Role{RoleAdmin}, nil
+		},
+	}
+	checker := NewCachingRoleChecker(NewStoreRoleChecker(store), time.Hour)
+	ctx := context.Background()
+
+	const goroutines = 20
+	const callsPerGoroutine = 200
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for g := range goroutines {
+		go func() {
+			defer wg.Done()
+			for i := range callsPerGoroutine {
+				userID := fmt.Sprintf("user-%d-%d", g, i%10)
+				ok, err := checker.HasRole(ctx, userID, RoleAdmin)
+				require.NoError(t, err)
+				require.True(t, ok)
+			}
+		}()
+	}
+	wg.Wait()
 }
