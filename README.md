@@ -585,7 +585,7 @@ h := &handler.MagicLinkHandler{
     Users:             userStore,
     MagicLinks:        magicLinkStore,
     JWT:               jwtMgr,
-    Sender:            func(ctx, email, token string) error { /* send email */ return nil },
+    Sender:            func(ctx context.Context, email, token string) error { /* send email */ return nil },
     CookieName:        "session",
     SecureCookies:     true,
     Sessions:          sessionStore,      // optional
@@ -605,7 +605,7 @@ Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account 
 h := &handler.EmailVerificationHandler{
     Users:         userStore,
     Verifications: verificationStore,
-    SendEmail:     func(ctx, to, token string) error { /* send email */ return nil },
+    SendEmail:     func(ctx context.Context, to, token string) error { /* send email */ return nil },
     TokenTTL:      24 * time.Hour, // defaults to 24 hours
 }
 
@@ -621,7 +621,7 @@ GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks 
 h := &handler.PasswordResetHandler{
     Users:          userStore,
     Resets:         passwordResetStore,
-    SendResetEmail: func(ctx, toEmail, rawToken string) error { /* send email */ return nil },
+    SendResetEmail: func(ctx context.Context, toEmail, rawToken string) error { /* send email */ return nil },
     TokenTTL:       time.Hour, // defaults to 1 hour
     RateLimiter:    rl,        // optional; recommended to limit abuse
 }
