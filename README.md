@@ -103,6 +103,12 @@ claims, err := jwtMgr.ValidateToken(ctx, tokenString)
 claims, err := jwtMgr.ParseTokenClaims(tokenString)
 
 encrypter, err := jwtMgr.NewSecretEncrypter() // AES-256-GCM, derived from JWT secret
+
+// HMACSign/HMACVerify use an OIDC-derived sub-key for creating and verifying
+// HMAC-SHA256 signatures. Useful for custom flows that need a MAC tied to the
+// JWT secret (e.g. signed redirect state) without exposing the raw secret.
+sig := jwtMgr.HMACSign(data)
+ok  := jwtMgr.HMACVerify(data, sig)
 ```
 
 Sentinel errors: `auth.ErrInvalidToken`, `auth.ErrExpiredToken`, `auth.ErrNotFound`, `auth.ErrEmailExists`, `auth.ErrEmailNotVerified`, `auth.ErrSessionRevoked`, `auth.ErrTOTPNotFound`, `auth.ErrInvalidTOTPCode`, `auth.ErrOIDCSubjectAlreadyLinked`.
@@ -373,6 +379,10 @@ uri := auth.TOTPProvisioningURI(secret, user.Email, "MyApp")
 // During verification – validate a 6-digit code.
 // Uses a ±1 time-step window to tolerate clock skew (~30 s).
 ok, err := auth.ValidateTOTP(secret, code)
+
+// GenerateTOTPCode computes the expected code for a given time.
+// Intended for testing and tooling; use ValidateTOTP in production.
+code, err := auth.GenerateTOTPCode(secret, time.Now())
 ```
 
 **Replay protection** – `ValidateTOTP` alone does not prevent a valid code from being used twice within the ~90-second window. Use `auth.TOTPUsedCodeCache` (zero value is ready to use) in `TOTPHandler` to block replays:
@@ -403,7 +413,7 @@ h := &handler.AuthHandler{
     SecureCookies:     true,
     DisableSignup:     false,    // set true to prevent self-registration
     Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
-    RefreshTokenTTL:   7 * 24 * time.Hour, // defaults to 7 days when Sessions is set
+    RefreshTokenTTL:   7 * 24 * time.Hour, // defaults to handler.DefaultRefreshTokenTTL (7 days) when Sessions is set
     RefreshCookieName: "refresh",  // optional; stores refresh token in an HttpOnly cookie
     RequireVerification: true,     // optional; rejects login for unverified email addresses
     Verifications:     verificationStore, // required when EmailVerificationHandler is mounted
@@ -506,6 +516,16 @@ DELETE /sessions        → h.RevokeAll  // revoke all sessions for the current 
 
 Each `SessionDTO` in the list response contains `id`, `user_agent`, `ip_address`, `expires_at`, and `created_at`. The `id` can be passed to `Revoke` to force a remote sign-out.
 
+```go
+type SessionDTO struct {
+    ID         string    `json:"id"`
+    UserAgent  string    `json:"user_agent"`
+    IPAddress  string    `json:"ip_address"`
+    ExpiresAt  time.Time `json:"expires_at"`
+    CreatedAt  time.Time `json:"created_at"`
+}
+```
+
 ### PasskeyHandler – WebAuthn
 
 ```go
@@ -538,6 +558,21 @@ DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential
 ```
 
 Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client. Discoverable login is used so users do not need to enter an identifier before presenting a passkey.
+
+#### Response types
+
+`ListCredentials` returns a `[]handler.PasskeyCredentialDTO`:
+
+```go
+type PasskeyCredentialDTO struct {
+    ID        string    `json:"id"`
+    Name      string    `json:"name"`
+    AAGUID    string    `json:"aaguid"`
+    CreatedAt time.Time `json:"created_at"`
+}
+```
+
+The `id` field can be passed to `DeleteCredential` to remove a specific passkey.
 
 ### TOTPHandler – TOTP / MFA
 
