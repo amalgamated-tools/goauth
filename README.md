@@ -1,15 +1,15 @@
 # goauth
 
-**goauth** is a router-agnostic Go library that provides complete authentication infrastructure for web applications. It covers JWT session management, email/password auth, OIDC (SSO) login, WebAuthn passkeys, API key authentication, rate limiting, AES-256-GCM encryption, and SMTP email delivery.
+**goauth** is a router-agnostic Go library that provides complete authentication infrastructure for web applications. It covers JWT session management, email/password auth, OIDC (SSO) login, WebAuthn passkeys, API key authentication, magic link (passwordless) login, TOTP/MFA, email verification, password reset, RBAC, rate limiting, AES-256-GCM encryption, and SMTP email delivery.
 
 ## Packages
 
 | Package | Import path | Purpose |
 |---|---|---|
-| `auth` | `github.com/amalgamated-tools/goauth/auth` | Core primitives: JWT, middleware, rate limiting, RBAC, crypto, store interfaces |
+| `auth` | `github.com/amalgamated-tools/goauth/auth` | Core primitives: JWT, middleware, RBAC, TOTP, rate limiting, crypto, store interfaces |
 | `handler` | `github.com/amalgamated-tools/goauth/handler` | Ready-to-mount HTTP handlers for every auth flow |
 | `smtp` | `github.com/amalgamated-tools/goauth/smtp` | SMTP email delivery with TLS/STARTTLS support |
-| `maintenance` | `github.com/amalgamated-tools/goauth/maintenance` | Background goroutine for periodic cleanup of expired tokens and sessions |
+| `maintenance` | `github.com/amalgamated-tools/goauth/maintenance` | Background cleanup of expired tokens and sessions |
 
 ## Installation
 
@@ -95,7 +95,7 @@ claims, err := jwtMgr.ValidateToken(ctx, tokenString)
 encrypter, err := jwtMgr.NewSecretEncrypter() // AES-256-GCM, derived from JWT secret
 ```
 
-Sentinel errors: `auth.ErrInvalidToken`, `auth.ErrExpiredToken`.
+Sentinel errors: `auth.ErrInvalidToken`, `auth.ErrExpiredToken`, `auth.ErrNotFound`, `auth.ErrEmailExists`, `auth.ErrEmailNotVerified`, `auth.ErrSessionRevoked`, `auth.ErrTOTPNotFound`, `auth.ErrInvalidTOTPCode`, `auth.ErrOIDCSubjectAlreadyLinked`.
 
 ### Sentinel errors reference
 
@@ -124,13 +124,23 @@ cfg := auth.Config{
 r.Use(auth.Middleware(jwtMgr, cfg, apiKeyStore))
 
 // Require admin on a route group.
+// The second argument is an auth.AdminChecker; UserStore satisfies this interface.
 r.Use(auth.AdminMiddleware(jwtMgr, userStore, cfg, apiKeyStore))
+
+// Require a specific role or permission on a route group (see RBAC below).
+r.Use(auth.RequireRole(jwtMgr, roleChecker, cfg, apiKeyStore, auth.RoleEditor))
+r.Use(auth.RequirePermission(jwtMgr, roleChecker, cfg, apiKeyStore, auth.PermWriteContent))
 
 // Read the resolved user ID anywhere downstream.
 userID := auth.UserIDFromContext(r.Context())
+
+// Store/retrieve arbitrary roles in context for downstream handlers.
+ctx := r.Context()
+ctx = auth.ContextWithRoles(ctx, []auth.Role{auth.RoleAdmin})
+roles := auth.RolesFromContext(ctx)
 ```
 
-Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header. Admin status is checked via the `UserStore.IsAdmin` method and cached for 5 seconds per user.
+Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header. Admin status is checked via the `AdminChecker.IsAdmin` method and cached for 5 seconds per user.
 
 When `Sessions` is set the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. API key requests bypass the session check.
 
@@ -207,8 +217,8 @@ hash := auth.HashHighEntropyToken(token)
 // Generate n random bytes as lowercase hex.
 hex, err := auth.GenerateRandomHex(20) // 40-char hex string
 
-// Generate n random bytes as a URL-safe base64 string (no padding).
-b64, err := auth.GenerateRandomBase64(32) // used internally for magic links / reset tokens
+// Generate n random bytes as URL-safe base64.
+b64, err := auth.GenerateRandomBase64(32) // 43-char base64url string
 
 // Generate a dummy bcrypt hash for timing-safe "user not found" paths.
 dummy := auth.MustGenerateDummyBcryptHash("fallback-secret")
@@ -226,7 +236,7 @@ plaintext, err  := enc.Decrypt(ciphertext)
 
 ### Store interfaces
 
-The library defines four interfaces that consuming applications implement against their own database.
+The library defines store interfaces that consuming applications implement against their own database.
 
 #### UserStore
 
@@ -303,54 +313,118 @@ type PasskeyStore interface {
 ```go
 type MagicLinkStore interface {
     CreateMagicLink(ctx, email, tokenHash string, expiresAt time.Time) (*MagicLink, error)
-    // FindAndDeleteMagicLink atomically retrieves and removes the record.
-    // Returns ErrNotFound when not found.
     FindAndDeleteMagicLink(ctx, tokenHash string) (*MagicLink, error)
     DeleteExpiredMagicLinks(ctx) error
 }
 ```
 
-Only the SHA-256 hash of the raw token is persisted. `FindAndDeleteMagicLink` must be atomic (SELECT + DELETE in one transaction) to prevent replay.
+`FindAndDeleteMagicLink` atomically retrieves and removes the record matching `tokenHash`. Returns `auth.ErrNotFound` when not found. Only the SHA-256 hash of the raw token is persisted.
 
 #### EmailVerificationStore
 
 ```go
 type EmailVerificationStore interface {
     CreateEmailVerification(ctx, userID, tokenHash string, expiresAt time.Time) (*EmailVerificationToken, error)
-    // ConsumeEmailVerification looks up the token by hash, deletes it, and returns it.
-    // Returns ErrNotFound when not found.
     ConsumeEmailVerification(ctx, tokenHash string) (*EmailVerificationToken, error)
     SetEmailVerified(ctx, userID string) error
 }
 ```
 
+`ConsumeEmailVerification` atomically looks up and deletes the token. Returns `auth.ErrNotFound` when not found.
+
 #### TOTPStore
 
 ```go
 type TOTPStore interface {
-    // CreateTOTPSecret replaces any existing secret for the user.
     CreateTOTPSecret(ctx, userID, secret string) (*TOTPSecret, error)
-    // GetTOTPSecret returns ErrTOTPNotFound when none exists.
     GetTOTPSecret(ctx, userID string) (*TOTPSecret, error)
     DeleteTOTPSecret(ctx, userID string) error
 }
 ```
 
-The `Secret` field is the unpadded base32-encoded TOTP secret. Applications may encrypt it at rest before storing.
+`GetTOTPSecret` returns `auth.ErrTOTPNotFound` when no secret is enrolled for the user. `CreateTOTPSecret` replaces any existing secret. The `Secret` field holds the unpadded base32-encoded TOTP secret.
 
 #### PasswordResetStore
 
 ```go
 type PasswordResetStore interface {
     CreatePasswordResetToken(ctx, userID, tokenHash string, expiresAt time.Time) (*PasswordResetToken, error)
-    // FindPasswordResetToken returns ErrInvalidToken when not found.
     FindPasswordResetToken(ctx, tokenHash string) (*PasswordResetToken, error)
     DeletePasswordResetToken(ctx, id string) error
     DeleteExpiredPasswordResetTokens(ctx) error
 }
 ```
 
-Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
+`FindPasswordResetToken` returns `auth.ErrInvalidToken` when no matching record exists. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
+
+#### RBACUserStore
+
+```go
+type RBACUserStore interface {
+    GetRoles(ctx, userID string) ([]Role, error)
+    AssignRole(ctx, userID string, role Role) error
+    RevokeRole(ctx, userID string, role Role) error
+}
+```
+
+Implement this interface to enable role-based access control. It is separate from `UserStore` and only required when you use `RequireRole` or `RequirePermission` middleware.
+
+### RBAC
+
+The `auth` package provides a flexible role and permission system.
+
+#### Built-in roles and permissions
+
+| Role | Permissions |
+|---|---|
+| `auth.RoleAdmin` | `PermManageUsers`, `PermReadContent`, `PermWriteContent` |
+| `auth.RoleEditor` | `PermReadContent`, `PermWriteContent` |
+| `auth.RoleViewer` | `PermReadContent` |
+
+Custom roles can be registered at startup:
+
+```go
+auth.RegisterRolePermissions("billing", []auth.Permission{"manage_subscriptions", "read_invoices"})
+```
+
+#### RoleChecker
+
+```go
+// Build a RoleChecker backed by your RBACUserStore.
+checker := auth.NewStoreRoleChecker(rbacStore)
+
+// Wrap with a cache (TTL <= 0 → 5 s default).
+cachedChecker := auth.NewCachingRoleChecker(checker, 30*time.Second)
+
+ok, err := cachedChecker.HasRole(ctx, userID, auth.RoleAdmin)
+ok, err := cachedChecker.HasPermission(ctx, userID, auth.PermWriteContent)
+```
+
+Use `auth.NewAdminCheckerFromRoleChecker(rc)` to adapt a `RoleChecker` into an `AdminChecker` for `AdminMiddleware` when you have already adopted the RBAC store.
+
+### TOTP / MFA
+
+```go
+// During enrollment – generate a secret and return a QR code URI.
+secret, err := auth.GenerateTOTPSecret()
+uri := auth.TOTPProvisioningURI(secret, user.Email, "MyApp")
+
+// During verification – validate a 6-digit code.
+// Uses a ±1 time-step window to tolerate clock skew (~30 s).
+ok, err := auth.ValidateTOTP(secret, code)
+```
+
+**Replay protection** – `ValidateTOTP` alone does not prevent a valid code from being used twice within the ~90-second window. Use `auth.TOTPUsedCodeCache` (zero value is ready to use) in `TOTPHandler` to block replays:
+
+```go
+var usedCodes auth.TOTPUsedCodeCache // process-local; zero value ready to use
+
+if usedCodes.WasUsed(userID, code) {
+    // reject
+}
+// ... validate code ...
+usedCodes.MarkUsed(userID, code)
+```
 
 ---
 
@@ -370,6 +444,8 @@ h := &handler.AuthHandler{
     Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
     RefreshTokenTTL:   7 * 24 * time.Hour, // defaults to 7 days when Sessions is set
     RefreshCookieName: "refresh",  // optional; stores refresh token in an HttpOnly cookie
+    RequireVerification: true,     // optional; rejects login for unverified email addresses
+    Verifications:     verificationStore, // required when EmailVerificationHandler is mounted
 }
 
 // Routes
@@ -482,69 +558,6 @@ DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential
 
 Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client. Discoverable login is used so users do not need to enter an identifier before presenting a passkey.
 
-### MagicLinkHandler – passwordless email login
-
-```go
-h := &handler.MagicLinkHandler{
-    Users:             userStore,
-    MagicLinks:        magicLinkStore,
-    JWT:               jwtMgr,
-    Sender:            func(ctx context.Context, email, token string) error { /* send email */ return nil },
-    CookieName:        "session",
-    SecureCookies:     true,
-    Sessions:          sessionStore,      // optional
-    RefreshTokenTTL:   7 * 24 * time.Hour,
-    RefreshCookieName: "refresh",         // optional
-}
-
-// Routes
-POST /auth/magic-link/request  → h.RequestMagicLink  // always 200; sends token to email if address is known
-GET  /auth/magic-link/verify   → h.VerifyMagicLink   // ?token=<raw-token>; issues JWT + optional refresh token
-```
-
-- Tokens expire after **15 minutes** and are one-time use (atomically deleted on redemption).
-- If the email address is not registered, `VerifyMagicLink` auto-provisions a passwordless account (empty `PasswordHash`).
-- `RequestMagicLink` always returns 200 to avoid leaking whether an address is registered.
-
-### EmailVerificationHandler
-
-```go
-h := &handler.EmailVerificationHandler{
-    Users:         userStore,
-    Verifications: emailVerificationStore,
-    SendEmail:     func(ctx context.Context, to, token string) error { /* send email */ return nil },
-    TokenTTL:      24 * time.Hour, // defaults to 24 h
-}
-
-// Routes
-POST /verify-email/send  → h.SendVerification  // always 200; sends token if address is registered and unverified
-GET  /verify-email       → h.VerifyEmail       // ?token=<plaintext-token>; marks email as verified
-```
-
-- Tokens expire after `TokenTTL` (default 24 hours).
-- `SendVerification` always returns 200 to avoid leaking account existence.
-- `VerifyEmail` returns 400 on invalid/expired tokens and 200 on success.
-
-### PasswordResetHandler
-
-```go
-h := &handler.PasswordResetHandler{
-    Users:          userStore,
-    Resets:         passwordResetStore,
-    SendResetEmail: func(ctx context.Context, toEmail, rawToken string) error { /* send email */ return nil },
-    TokenTTL:       time.Hour, // defaults to 1 h
-    RateLimiter:    rl,        // optional; recommended on the request endpoint
-}
-
-// Routes
-POST /password-reset/request  → h.RequestReset    // always 200; sends token if email is registered
-POST /password-reset/confirm  → h.ResetPassword   // {"token":"…","newPassword":"…"}
-```
-
-- Only accounts with a non-empty `PasswordHash` can use this flow (OIDC-only accounts are silently skipped).
-- `RequestReset` applies `RateLimiter` (if set) before processing.
-- Tokens are consumed (deleted) on successful use. If email delivery fails, the orphaned token is cleaned up automatically.
-
 ### TOTPHandler – TOTP / MFA
 
 ```go
@@ -552,30 +565,80 @@ h := &handler.TOTPHandler{
     TOTP:      totpStore,
     Users:     userStore,
     Issuer:    "MyApp",
-    UsedCodes: auth.TOTPUsedCodeCache{}, // zero value is ready; embed in a long-lived struct
+    UsedCodes: auth.TOTPUsedCodeCache{}, // zero value is ready to use; prevents replay attacks
 }
 
-// All routes require auth middleware.
-POST   /totp/generate  → h.Generate  // generate secret + provisioning URI (not yet saved)
-POST   /totp/enroll    → h.Enroll    // {"secret":"…","code":"…"}; verifies code, then saves secret
-POST   /totp/verify    → h.Verify    // {"code":"…"}; validates against enrolled secret
-GET    /totp/status    → h.Status    // {"enrolled":true|false}
-DELETE /totp           → h.Disable   // removes enrolled secret (204 No Content)
+// Authenticated routes
+POST   /totp/generate   → h.Generate   // generate secret + provisioning URI (not persisted)
+POST   /totp/enroll     → h.Enroll     // verify first code and persist the secret
+POST   /totp/verify     → h.Verify     // verify a code against the enrolled secret
+GET    /totp/status     → h.Status     // check whether TOTP is enrolled
+DELETE /totp            → h.Disable    // remove enrolled secret (204 No Content)
 ```
 
-**Enrollment flow:**
+Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI for the QR code, then `Enroll` verifies the first code from the authenticator app and persists the secret. `UsedCodes` provides process-local replay protection within the ~90-second TOTP validity window.
 
-1. `POST /totp/generate` — server returns `secret` (base32) and `provisioning_uri` (otpauth://). Display the URI as a QR code.
-2. User scans QR code with their authenticator app.
-3. `POST /totp/enroll` — client sends the same `secret` plus the first 6-digit `code`. On success the secret is persisted.
+### MagicLinkHandler – passwordless login
 
-`TOTPUsedCodeCache` (zero value ready) prevents replay attacks within the ~90-second validity window. It is safe for concurrent use. For multi-instance deployments, supplement with a shared distributed cache keyed by `userID + "\x00" + code`.
+```go
+h := &handler.MagicLinkHandler{
+    Users:             userStore,
+    MagicLinks:        magicLinkStore,
+    JWT:               jwtMgr,
+    Sender:            func(ctx, email, token string) error { /* send email */ return nil },
+    CookieName:        "session",
+    SecureCookies:     true,
+    Sessions:          sessionStore,      // optional
+    RefreshTokenTTL:   7 * 24 * time.Hour,
+    RefreshCookieName: "refresh",
+}
+
+POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login link (200 whether or not email is registered)
+GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → issues JWT
+```
+
+Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account when no user exists for the email address. `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration; validation and operational errors still surface as non-200 responses.
+
+### EmailVerificationHandler – email address verification
+
+```go
+h := &handler.EmailVerificationHandler{
+    Users:         userStore,
+    Verifications: verificationStore,
+    SendEmail:     func(ctx, to, token string) error { /* send email */ return nil },
+    TokenTTL:      24 * time.Hour, // defaults to 24 hours
+}
+
+POST /verify-email/send   → h.SendVerification   // send verification email (200 whether or not email is registered)
+GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks email verified
+```
+
+`SendVerification` silently skips already-verified addresses and returns the same success response whether or not the address is registered, preventing enumeration. Set `RequireVerification: true` on `AuthHandler` to gate login on email verification.
+
+### PasswordResetHandler – email-based password reset
+
+```go
+h := &handler.PasswordResetHandler{
+    Users:          userStore,
+    Resets:         passwordResetStore,
+    SendResetEmail: func(ctx, toEmail, rawToken string) error { /* send email */ return nil },
+    TokenTTL:       time.Hour, // defaults to 1 hour
+    RateLimiter:    rl,        // optional; recommended to limit abuse
+}
+
+POST /password-reset/request   → h.RequestReset    // send reset email (200 whether or not email is registered)
+POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
+```
+
+Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use.
 
 ### Cookie helpers
 
 ```go
-handler.SetAuthCookie(w, token, cookieName, secure)   // HttpOnly, SameSite=Strict
+handler.SetAuthCookie(w, token, cookieName, secure)         // HttpOnly, SameSite=Strict
 handler.ClearAuthCookie(w, cookieName, secure)
+handler.SetRefreshCookie(w, token, cookieName, secure, maxAge) // HttpOnly, SameSite=Strict
+handler.ClearRefreshCookie(w, cookieName, secure)
 ```
 
 ---
@@ -596,7 +659,7 @@ stop := maintenance.StartCleanup(ctx, 10*time.Minute,
 defer stop() // blocks until the goroutine exits
 ```
 
-- Each cleaner runs once immediately when `StartCleanup` is called, then once per `interval`.
+- Each cleaner runs once immediately when `StartCleanup` is called, then once per `interval`. Each cleaner is called with the context passed to `StartCleanup`.
 - Panics inside a cleaner are recovered and logged via `slog`; they do not stop other cleaners.
 - `stop()` cancels the goroutine and blocks until it exits — always defer it to avoid goroutine leaks.
 - `interval` must be positive; `StartCleanup` panics otherwise.
@@ -643,4 +706,5 @@ if cfg.Enabled() {
 - **Refresh token rotation** – Each `RefreshToken` call atomically replaces the refresh token. The old token is consumed and cannot be reused, limiting the impact of token theft.
 - **TOTP replay protection** – `TOTPUsedCodeCache` prevents a valid 6-digit code from being accepted twice within the ~90-second validity window. For multi-instance deployments, supplement with a shared external cache.
 - **Magic links / reset tokens** – Raw tokens are never stored; only their SHA-256 hash is persisted. Tokens are one-time use and short-lived (15 min for magic links, 1 h for password resets by default).
-- **Email enumeration** – `RequestMagicLink`, `SendVerification`, and `RequestReset` always return HTTP 200, regardless of whether the email is registered, to prevent account enumeration.
+- **Password reset** – Reset tokens are bound to accounts that have a password hash. OIDC-only accounts cannot use the password reset flow.
+- **Email enumeration** – `RequestMagicLink`, `RequestReset`, and `SendVerification` return the same success response whether or not the email is registered, preventing enumeration via timing or response differences. Validation and operational errors still surface as non-200 responses.
