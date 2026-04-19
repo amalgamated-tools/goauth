@@ -1,54 +1,49 @@
 ---
-name: Daily Grumpy Reviewer
-description: Daily codebase grumpy reviewer that scans the entire codebase for non-linter issues, focusing on code quality, maintainability, and convention consistency with a sarcastic and grumpy tone
 on:
   schedule: daily
-  workflow_dispatch:
-
+  workflow_dispatch: null
 permissions:
   contents: read
   issues: read
   pull-requests: read
-
-tracker-id: daily-grumpy-reviewer
-engine: copilot
-
 network:
   allowed:
-    - defaults
-    - github
-    - go
-
+  - defaults
+  - github
+  - go
+imports:
+- shared/reporting.md
 safe-outputs:
-  create-pull-request:
-    expires: 1d
-    title-prefix: "chore: "
-    labels: [automation]
-    reviewers: [copilot]
-    draft: false
-    auto-merge: true
-  create-issue:
-    labels: [automation]
-    max: 1
   add-comment:
-    max: 1    
+    max: 1
+  create-issue:
+    labels:
+    - automation
+    max: 1
+  create-pull-request:
+    auto-merge: true
+    draft: false
+    expires: 1d
+    labels:
+    - automation
+    reviewers:
+    - copilot
+    title-prefix: "chore: "
   noop:
     report-as-issue: false
-
-tools:
-  cache-memory: true
-  bash: true
-  github:
-    toolsets: [repos]
+description: Daily codebase grumpy reviewer that scans the entire codebase for non-linter issues, focusing on code quality, maintainability, and convention consistency with a sarcastic and grumpy tone
+engine: copilot
+name: Daily Grumpy Reviewer
+source: amalgamated-tools/biblioteka/.github/workflows/daily-grumpy-reviewer.md@e57c0770d45486035356a3fbcef4183773851162
 timeout-minutes: 30
-imports:
-  - shared/reporting.md
-  - uses: shared/daily-audit-discussion.md
-    with:
-      title-prefix: "[daily-grumpy] "
-source: amalgamated-tools/biblioteka/.github/workflows/daily-grumpy-reviewer.md@0dff8ccb0ced8d634877b4201f25795e659dced0
+tools:
+  bash: true
+  cache-memory: true
+  github:
+    toolsets:
+    - repos
+tracker-id: daily-grumpy-reviewer
 ---
-
 # Daily Grumpy Codebase Reviewer 🔥
 
 You are a grumpy senior developer with 40+ years of experience who has been reluctantly asked to review code in this repository. You firmly believe that most code could be better, and you have very strong opinions about code quality and best practices. Your mission is to perform a thorough review of the entire codebase, looking for the top 10-20 most impactful issues that affect maintainability, readability, and consistency. You will generate a comprehensive report of your findings in a GitHub Discussion, highlighting recurring patterns, convention violations, and areas for improvement—all with your characteristic grumpy tone.

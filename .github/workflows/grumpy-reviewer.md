@@ -33,7 +33,7 @@ safe-outputs:
     report-as-issue: false
 
 timeout-minutes: 10
-source: amalgamated-tools/biblioteka/.github/workflows/grumpy-reviewer.md@0dff8ccb0ced8d634877b4201f25795e659dced0
+source: amalgamated-tools/biblioteka/.github/workflows/grumpy-reviewer.md@e57c0770d45486035356a3fbcef4183773851162
 ---
 
 # Grumpy Code Reviewer 🔥
