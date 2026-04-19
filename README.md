@@ -121,6 +121,7 @@ r.Use(auth.RequirePermission(jwtMgr, roleChecker, cfg, apiKeyStore, auth.PermWri
 userID := auth.UserIDFromContext(r.Context())
 
 // Store/retrieve arbitrary roles in context for downstream handlers.
+ctx := r.Context()
 ctx = auth.ContextWithRoles(ctx, []auth.Role{auth.RoleAdmin})
 roles := auth.RolesFromContext(ctx)
 ```
@@ -337,8 +338,8 @@ checker := auth.NewStoreRoleChecker(rbacStore)
 // Wrap with a cache (TTL <= 0 → 5 s default).
 cachedChecker := auth.NewCachingRoleChecker(checker, 30*time.Second)
 
-ok, err := checker.HasRole(ctx, userID, auth.RoleAdmin)
-ok, err := checker.HasPermission(ctx, userID, auth.PermWriteContent)
+ok, err := cachedChecker.HasRole(ctx, userID, auth.RoleAdmin)
+ok, err := cachedChecker.HasPermission(ctx, userID, auth.PermWriteContent)
 ```
 
 Use `auth.NewAdminCheckerFromRoleChecker(rc)` to adapt a `RoleChecker` into an `AdminChecker` for `AdminMiddleware` when you have already adopted the RBAC store.
@@ -386,7 +387,7 @@ h := &handler.AuthHandler{
     RefreshTokenTTL:   7 * 24 * time.Hour, // defaults to 7 days when Sessions is set
     RefreshCookieName: "refresh",  // optional; stores refresh token in an HttpOnly cookie
     RequireVerification: true,     // optional; rejects login for unverified email addresses
-    Verifications:     verificationStore, // required when RequireVerification is true
+    Verifications:     verificationStore, // required when EmailVerificationHandler is mounted
 }
 
 // Routes
@@ -534,11 +535,11 @@ h := &handler.MagicLinkHandler{
     RefreshCookieName: "refresh",
 }
 
-POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login link (always 200)
+POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login link (200 whether or not email is registered)
 GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → issues JWT
 ```
 
-Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account when no user exists for the email address. `RequestMagicLink` always returns 200 to avoid leaking whether an address is registered.
+Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account when no user exists for the email address. `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration; validation and operational errors still surface as non-200 responses.
 
 ### EmailVerificationHandler – email address verification
 
@@ -550,11 +551,11 @@ h := &handler.EmailVerificationHandler{
     TokenTTL:      24 * time.Hour, // defaults to 24 hours
 }
 
-POST /verify-email/send   → h.SendVerification   // send verification email (always 200)
+POST /verify-email/send   → h.SendVerification   // send verification email (200 whether or not email is registered)
 GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks email verified
 ```
 
-`SendVerification` silently skips already-verified addresses and always returns 200 to avoid leaking whether an address is registered. Set `RequireVerification: true` on `AuthHandler` to gate login on email verification.
+`SendVerification` silently skips already-verified addresses and returns the same success response whether or not the address is registered, preventing enumeration. Set `RequireVerification: true` on `AuthHandler` to gate login on email verification.
 
 ### PasswordResetHandler – email-based password reset
 
@@ -567,11 +568,11 @@ h := &handler.PasswordResetHandler{
     RateLimiter:    rl,        // optional; recommended to limit abuse
 }
 
-POST /password-reset/request   → h.RequestReset    // send reset email (always 200)
+POST /password-reset/request   → h.RequestReset    // send reset email (200 whether or not email is registered)
 POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
 ```
 
-Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` always returns 200. Reset tokens are consumed (deleted) after successful use.
+Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use.
 
 ### Cookie helpers
 
@@ -642,4 +643,4 @@ defer stop() // cancels the goroutine and waits for it to exit
 - **Refresh token rotation** – Each `RefreshToken` call atomically replaces the refresh token. The old token is consumed and cannot be reused, limiting the impact of token theft.
 - **TOTP replay protection** – Use `TOTPUsedCodeCache` in `TOTPHandler` to prevent a valid code from being accepted twice within its ~90-second window.
 - **Password reset** – Reset tokens are bound to accounts that have a password hash. OIDC-only accounts cannot use the password reset flow.
-- **Email enumeration** – `RequestMagicLink`, `RequestReset`, and `SendVerification` always return 200 to prevent username/email enumeration via timing or response differences.
+- **Email enumeration** – `RequestMagicLink`, `RequestReset`, and `SendVerification` return the same success response whether or not the email is registered, preventing enumeration via timing or response differences. Validation and operational errors still surface as non-200 responses.
