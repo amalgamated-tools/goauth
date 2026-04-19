@@ -180,9 +180,9 @@ ok, err  = cached.HasPermission(ctx, userID, auth.PermWriteContent)
 
 ```go
 type RBACUserStore interface {
-    GetRoles(ctx, userID string) ([]Role, error)
-    AssignRole(ctx, userID string, role Role) error
-    RevokeRole(ctx, userID string, role Role) error
+    GetRoles(ctx context.Context, userID string) ([]Role, error)
+    AssignRole(ctx context.Context, userID string, role Role) error
+    RevokeRole(ctx context.Context, userID string, role Role) error
 }
 ```
 
@@ -361,9 +361,9 @@ type PasswordResetStore interface {
 
 ```go
 type RBACUserStore interface {
-    GetRoles(ctx, userID string) ([]Role, error)
-    AssignRole(ctx, userID string, role Role) error
-    RevokeRole(ctx, userID string, role Role) error
+    GetRoles(ctx context.Context, userID string) ([]Role, error)
+    AssignRole(ctx context.Context, userID string, role Role) error
+    RevokeRole(ctx context.Context, userID string, role Role) error
 }
 ```
 
