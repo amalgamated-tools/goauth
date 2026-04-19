@@ -89,8 +89,18 @@ jwtMgr, err := auth.NewJWTManager(secret, ttl, issuer)
 // issuer  – value used for iss/aud claims (defaults to "goauth")
 
 token, err := jwtMgr.CreateToken(ctx, userID)
+// CreateTokenWithSession embeds the session ID as the JWT jti claim.
+// Use this (or let AuthHandler do it automatically) when Sessions is enabled.
+token, err := jwtMgr.CreateTokenWithSession(ctx, userID, sessionID)
+
 claims, err := jwtMgr.ValidateToken(ctx, tokenString)
-// claims.UserID contains the subject
+// claims.UserID contains the subject; claims.ID contains the session ID (jti)
+
+// ParseTokenClaims validates the signature (and iss/aud) but ignores all
+// time-based claim validation (expiry, not-before, issued-at).
+// Useful for logout or audit flows that need the session ID from a token
+// that may be expired, not yet valid, or otherwise outside time-based checks.
+claims, err := jwtMgr.ParseTokenClaims(tokenString)
 
 encrypter, err := jwtMgr.NewSecretEncrypter() // AES-256-GCM, derived from JWT secret
 ```
@@ -120,8 +130,11 @@ r.Use(auth.RequirePermission(jwtMgr, roleChecker, cfg, apiKeyStore, auth.PermWri
 // Read the resolved user ID anywhere downstream.
 userID := auth.UserIDFromContext(r.Context())
 
+// ContextWithUserID injects a user ID into a context manually.
+// Useful in tests or custom middleware that bypass the standard auth flow.
+ctx := auth.ContextWithUserID(r.Context(), userID)
+
 // Store/retrieve arbitrary roles in context for downstream handlers.
-ctx := r.Context()
 ctx = auth.ContextWithRoles(ctx, []auth.Role{auth.RoleAdmin})
 roles := auth.RolesFromContext(ctx)
 ```
@@ -146,6 +159,12 @@ r.Use(rl.Middleware)
 
 // Wrap a single handler instead of a full middleware chain.
 http.HandleFunc("/login", rl.Wrap(myHandler))
+
+// Programmatic check (returns bool, does not write an HTTP response).
+if !rl.Allow(r) {
+    http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+    return
+}
 ```
 
 Stale visitor entries are swept lazily every 5 minutes.
@@ -401,6 +420,26 @@ POST   /auth/password        → h.ChangePassword // change password (requires a
 ```
 
 Password constraints: 8–72 bytes. Bcrypt cost 12.
+
+#### Response types
+
+`Signup`, `Login`, and `RefreshToken` return an auth response wrapper that includes `user: handler.UserDTO`, while `Me` and `UpdateProfile` return a bare `handler.UserDTO`:
+
+```go
+type UserDTO struct {
+    ID            string `json:"id"`
+    Name          string `json:"name"`
+    Email         string `json:"email"`
+    OIDCLinked    bool   `json:"oidc_linked"`
+    IsAdmin       bool   `json:"is_admin"`
+    EmailVerified bool   `json:"email_verified"`
+}
+
+// Convert an auth.User to a UserDTO (useful in custom handlers or tests).
+dto := handler.ToUserDTO(user)
+```
+
+`Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when Sessions is set), and `user` (a `UserDTO`).
 
 #### Session tracking and refresh token rotation
 
