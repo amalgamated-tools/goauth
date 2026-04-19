@@ -241,6 +241,10 @@ b64, err := auth.GenerateRandomBase64(32) // 43-char base64url string
 
 // Generate a dummy bcrypt hash for timing-safe "user not found" paths.
 dummy := auth.MustGenerateDummyBcryptHash("fallback-secret")
+
+// BcryptCost is the work factor used throughout the library (cost 12).
+// Use it when hashing passwords in your own code to stay consistent.
+hash, err := bcrypt.GenerateFromPassword([]byte(password), auth.BcryptCost)
 ```
 
 #### SecretEncrypter (AES-256-GCM)
@@ -431,6 +435,10 @@ uri := auth.TOTPProvisioningURI(secret, user.Email, "MyApp")
 // During verification – validate a 6-digit code.
 // Uses a ±1 time-step window to tolerate clock skew (~30 s).
 ok, err := auth.ValidateTOTP(secret, code)
+
+// GenerateTOTPCode produces the current code for a secret at a given time.
+// Intended for testing and CLI tooling; use ValidateTOTP in application code.
+code, err := auth.GenerateTOTPCode(secret, time.Now())
 ```
 
 **Replay protection** – `ValidateTOTP` alone does not prevent a valid code from being used twice within the ~90-second window. Use `auth.TOTPUsedCodeCache` (zero value is ready to use) in `TOTPHandler` to block replays:
@@ -461,7 +469,7 @@ h := &handler.AuthHandler{
     SecureCookies:     true,
     DisableSignup:     false,    // set true to prevent self-registration
     Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
-    RefreshTokenTTL:   7 * 24 * time.Hour, // defaults to 7 days when Sessions is set
+    RefreshTokenTTL:   7 * 24 * time.Hour, // defaults to handler.DefaultRefreshTokenTTL (7 days) when Sessions is set
     RefreshCookieName: "refresh",  // optional; stores refresh token in an HttpOnly cookie
     RequireVerification: true,     // optional; rejects login for unverified email addresses
     Verifications:     verificationStore, // required when EmailVerificationHandler is mounted
@@ -596,6 +604,17 @@ DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential
 ```
 
 Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client. Discoverable login is used so users do not need to enter an identifier before presenting a passkey.
+
+`FinishRegistration` returns a `handler.PasskeyCredentialDTO` (201 Created) and `ListCredentials` returns `[]handler.PasskeyCredentialDTO`:
+
+```go
+type PasskeyCredentialDTO struct {
+    ID        string    `json:"id"`
+    Name      string    `json:"name"`
+    AAGUID    string    `json:"aaguid"`
+    CreatedAt time.Time `json:"created_at"`
+}
+```
 
 ### TOTPHandler – TOTP / MFA
 
