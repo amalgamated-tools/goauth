@@ -7,16 +7,16 @@ import (
 	"encoding/base32"
 	"encoding/binary"
 	"fmt"
-	"math"
 	"net/url"
 	"strconv"
 	"time"
 )
 
 const (
-	totpDigits = 6
-	totpPeriod = 30 // seconds
-	totpSkew   = 1  // time steps allowed before/after current
+	totpDigits  = 6
+	totpPeriod  = 30 // seconds
+	totpSkew    = 1  // time steps allowed before/after current
+	totpModulo  = 1_000_000 // 10^totpDigits; avoids float64 via math.Pow10 on the hot path
 )
 
 // GenerateTOTPSecret generates a cryptographically random 20-byte secret and
@@ -98,6 +98,6 @@ func hotpCode(key []byte, counter uint64) string {
 		(uint32(h[offset+2]) << 8) |
 		uint32(h[offset+3])
 
-	otp := truncated % uint32(math.Pow10(totpDigits))
+	otp := truncated % totpModulo
 	return fmt.Sprintf("%0*d", totpDigits, otp)
 }
