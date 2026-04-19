@@ -96,7 +96,8 @@ token, err := jwtMgr.CreateTokenWithSession(ctx, userID, sessionID)
 claims, err := jwtMgr.ValidateToken(ctx, tokenString)
 // claims.UserID contains the subject; claims.ID contains the session ID (jti)
 
-// ParseTokenClaims validates the signature but ignores expiry.
+// ParseTokenClaims validates the signature (and iss/aud) but ignores all
+// time-based claim validation (expiry, not-before, issued-at).
 // Useful for logout flows that need the session ID from an expired token.
 claims, err := jwtMgr.ParseTokenClaims(tokenString)
 
@@ -130,7 +131,7 @@ userID := auth.UserIDFromContext(r.Context())
 
 // ContextWithUserID injects a user ID into a context manually.
 // Useful in tests or custom middleware that bypass the standard auth flow.
-ctx = auth.ContextWithUserID(r.Context(), userID)
+ctx := auth.ContextWithUserID(r.Context(), userID)
 
 // Store/retrieve arbitrary roles in context for downstream handlers.
 ctx = auth.ContextWithRoles(ctx, []auth.Role{auth.RoleAdmin})
