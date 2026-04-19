@@ -98,7 +98,8 @@ claims, err := jwtMgr.ValidateToken(ctx, tokenString)
 
 // ParseTokenClaims validates the signature (and iss/aud) but ignores all
 // time-based claim validation (expiry, not-before, issued-at).
-// Useful for logout flows that need the session ID from an expired token.
+// Useful for logout or audit flows that need the session ID from a token
+// that may be expired, not yet valid, or otherwise outside time-based checks.
 claims, err := jwtMgr.ParseTokenClaims(tokenString)
 
 encrypter, err := jwtMgr.NewSecretEncrypter() // AES-256-GCM, derived from JWT secret
@@ -422,7 +423,7 @@ Password constraints: 8–72 bytes. Bcrypt cost 12.
 
 #### Response types
 
-`Signup`, `Login`, `RefreshToken`, `Me`, and `UpdateProfile` return a `handler.UserDTO`:
+`Signup`, `Login`, and `RefreshToken` return an auth response wrapper that includes `user: handler.UserDTO`, while `Me` and `UpdateProfile` return a bare `handler.UserDTO`:
 
 ```go
 type UserDTO struct {
