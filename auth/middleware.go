@@ -191,7 +191,7 @@ func Middleware(jwtMgr *JWTManager, cfg Config, apiKeys APIKeyStore) func(http.H
 				}
 			}
 
-			ctx := context.WithValue(r.Context(), userIDKey, userID)
+			ctx := ContextWithUserID(r.Context(), userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -309,7 +309,7 @@ func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKe
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), userIDKey, userID)
+			ctx := ContextWithUserID(r.Context(), userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
