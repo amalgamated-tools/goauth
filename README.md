@@ -172,9 +172,9 @@ goauth ships a lightweight RBAC layer built on top of `RBACUserStore`. Three bui
 
 | Role | Permissions |
 |---|---|
-| `auth.RoleAdmin` | `manage_users`, `read_content`, `write_content` |
-| `auth.RoleEditor` | `read_content`, `write_content` |
-| `auth.RoleViewer` | `read_content` |
+| `auth.RoleAdmin` | `auth.PermManageUsers`, `auth.PermReadContent`, `auth.PermWriteContent` |
+| `auth.RoleEditor` | `auth.PermReadContent`, `auth.PermWriteContent` |
+| `auth.RoleViewer` | `auth.PermReadContent` |
 
 ```go
 // Extend or override role permissions at startup.
@@ -194,19 +194,12 @@ cached := auth.NewCachingRoleChecker(checker, 30*time.Second)
 // Use in handlers.
 ok, err := cached.HasRole(ctx, userID, auth.RoleAdmin)
 ok, err  = cached.HasPermission(ctx, userID, auth.PermWriteContent)
+
+// Adapt a RoleChecker to satisfy AdminChecker (for use with AdminMiddleware).
+adminChecker := auth.NewAdminCheckerFromRoleChecker(cached)
 ```
 
-**`RBACUserStore` interface**
-
-```go
-type RBACUserStore interface {
-    GetRoles(ctx context.Context, userID string) ([]Role, error)
-    AssignRole(ctx context.Context, userID string, role Role) error
-    RevokeRole(ctx context.Context, userID string, role Role) error
-}
-```
-
-`RBACUserStore` is independent of `UserStore`; implement it only when you want role-based access control.
+See [`RBACUserStore`](#rbacuserstore) in the Store interfaces section below.
 
 ### RateLimiter
 
@@ -398,39 +391,6 @@ type RBACUserStore interface {
 ```
 
 Implement this interface to enable role-based access control. It is separate from `UserStore` and only required when you use `RequireRole` or `RequirePermission` middleware.
-
-### RBAC
-
-The `auth` package provides a flexible role and permission system.
-
-#### Built-in roles and permissions
-
-| Role | Permissions |
-|---|---|
-| `auth.RoleAdmin` | `PermManageUsers`, `PermReadContent`, `PermWriteContent` |
-| `auth.RoleEditor` | `PermReadContent`, `PermWriteContent` |
-| `auth.RoleViewer` | `PermReadContent` |
-
-Custom roles can be registered at startup:
-
-```go
-auth.RegisterRolePermissions("billing", []auth.Permission{"manage_subscriptions", "read_invoices"})
-```
-
-#### RoleChecker
-
-```go
-// Build a RoleChecker backed by your RBACUserStore.
-checker := auth.NewStoreRoleChecker(rbacStore)
-
-// Wrap with a cache (TTL <= 0 → 5 s default).
-cachedChecker := auth.NewCachingRoleChecker(checker, 30*time.Second)
-
-ok, err := cachedChecker.HasRole(ctx, userID, auth.RoleAdmin)
-ok, err := cachedChecker.HasPermission(ctx, userID, auth.PermWriteContent)
-```
-
-Use `auth.NewAdminCheckerFromRoleChecker(rc)` to adapt a `RoleChecker` into an `AdminChecker` for `AdminMiddleware` when you have already adopted the RBAC store.
 
 ### TOTP / MFA
 
