@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	totpDigits  = 6
-	totpPeriod  = 30 // seconds
-	totpSkew    = 1  // time steps allowed before/after current
-	totpModulo  = 1_000_000 // 10^totpDigits; avoids float64 via math.Pow10 on the hot path
+	totpDigits = 6
+	totpPeriod = 30        // seconds
+	totpSkew   = 1         // time steps allowed before/after current
+	totpModulo = 1_000_000 // 10^totpDigits; avoids float64 via math.Pow10 on the hot path
 )
 
 // GenerateTOTPSecret generates a cryptographically random 20-byte secret and
