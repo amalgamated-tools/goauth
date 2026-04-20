@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/base32"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -162,4 +163,13 @@ func TestHOTPCode_rfc4226Vectors(t *testing.T) {
 		got := hotpCode(key, tc.counter)
 		require.Equalf(t, tc.code, got, "counter=%d", tc.counter)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Constant consistency
+// ---------------------------------------------------------------------------
+
+func TestTotpModuloMatchesDigits(t *testing.T) {
+	require.Equal(t, uint32(math.Pow10(totpDigits)), uint32(totpModulo),
+		"totpModulo must equal 10^totpDigits; update totpModulo when totpDigits changes")
 }
