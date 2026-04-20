@@ -445,7 +445,7 @@ ok, err := auth.ValidateTOTP(secret, code)
 
 // GenerateTOTPCode computes the expected code for a given time.
 // Intended for testing and tooling; use ValidateTOTP in production.
-code, err := auth.GenerateTOTPCode(secret, time.Now())
+generatedCode, err := auth.GenerateTOTPCode(secret, time.Now())
 ```
 
 **Replay protection** – `ValidateTOTP` alone does not prevent a valid code from being used twice within the ~90-second window. Use `auth.TOTPUsedCodeCache` (zero value is ready to use) in `TOTPHandler` to block replays:
@@ -476,7 +476,7 @@ h := &handler.AuthHandler{
     SecureCookies:     true,
     DisableSignup:     false,    // set true to prevent self-registration
     Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
-    RefreshTokenTTL:   7 * 24 * time.Hour, // defaults to handler.DefaultRefreshTokenTTL (7 days) when Sessions is set
+    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // defaults to 7 days when Sessions is set
     RefreshCookieName: "refresh",  // optional; stores refresh token in an HttpOnly cookie
     RequireVerification: true,     // optional; rejects login for unverified email addresses
     Verifications:     verificationStore, // required when EmailVerificationHandler is mounted
