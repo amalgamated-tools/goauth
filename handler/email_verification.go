@@ -15,6 +15,8 @@ const (
 	defaultVerificationTokenTTL = 24 * time.Hour
 	// 32 random bytes = 64 hex chars = 256 bits of entropy.
 	verificationTokenBytes = 32
+
+	verificationOKMessage = "if that address is registered, a verification email has been sent"
 )
 
 // EmailVerificationHandler holds dependencies for email verification endpoints.
@@ -67,26 +69,26 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 		if !errors.Is(err, auth.ErrNotFound) {
 			slog.ErrorContext(r.Context(), "failed to find user for email verification", slog.Any("error", err))
 		}
-		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "if that address is registered, a verification email has been sent"})
+		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": verificationOKMessage})
 		return
 	}
 
 	if user.EmailVerified {
-		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "if that address is registered, a verification email has been sent"})
+		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": verificationOKMessage})
 		return
 	}
 
 	plaintext, err := auth.GenerateRandomHex(verificationTokenBytes)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to generate verification token", slog.Any("error", err))
-		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "if that address is registered, a verification email has been sent"})
+		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": verificationOKMessage})
 		return
 	}
 	tokenHash := auth.HashHighEntropyToken(plaintext)
 
 	if _, err := h.Verifications.CreateEmailVerification(r.Context(), user.ID, tokenHash, time.Now().UTC().Add(h.tokenTTL())); err != nil {
 		slog.ErrorContext(r.Context(), "failed to store verification token", slog.Any("error", err))
-		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "if that address is registered, a verification email has been sent"})
+		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": verificationOKMessage})
 		return
 	}
 
@@ -96,7 +98,7 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 		}
 	}
 
-	writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "if that address is registered, a verification email has been sent"})
+	writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": verificationOKMessage})
 }
 
 // VerifyEmail consumes a verification token from the query string and marks
