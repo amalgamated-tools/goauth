@@ -107,8 +107,9 @@ encrypter, err := jwtMgr.NewSecretEncrypter() // AES-256-GCM, derived from JWT s
 // HMACSign/HMACVerify use an OIDC-derived sub-key for creating and verifying
 // HMAC-SHA256 signatures. Useful for custom flows that need a MAC tied to the
 // JWT secret (e.g. signed redirect state) without exposing the raw secret.
+data := []byte("example payload")
 sig := jwtMgr.HMACSign(data)
-ok  := jwtMgr.HMACVerify(data, sig)
+ok := jwtMgr.HMACVerify(data, sig)
 ```
 
 Sentinel errors: `auth.ErrInvalidToken`, `auth.ErrExpiredToken`, `auth.ErrNotFound`, `auth.ErrEmailExists`, `auth.ErrEmailNotVerified`, `auth.ErrSessionRevoked`, `auth.ErrTOTPNotFound`, `auth.ErrInvalidTOTPCode`, `auth.ErrOIDCSubjectAlreadyLinked`.
@@ -561,7 +562,7 @@ Registration and authentication use server-side challenge storage (via `PasskeyS
 
 #### Response types
 
-`ListCredentials` returns a `[]handler.PasskeyCredentialDTO`:
+`FinishRegistration` returns a single `PasskeyCredentialDTO` (HTTP 201); `ListCredentials` returns `[]PasskeyCredentialDTO` (HTTP 200):
 
 ```go
 type PasskeyCredentialDTO struct {
