@@ -238,7 +238,7 @@ Stale visitor entries are swept lazily every 5 minutes.
 
 ```go
 // Hash a high-entropy token (e.g. API key) with SHA-256.
-hash := auth.HashHighEntropyToken(token)
+tokenHash := auth.HashHighEntropyToken(token)
 
 // Generate n random bytes as lowercase hex.
 hex, err := auth.GenerateRandomHex(20) // 40-char hex string
@@ -249,10 +249,9 @@ b64, err := auth.GenerateRandomBase64(32) // 43-char base64url string
 // Generate a dummy bcrypt hash for timing-safe "user not found" paths.
 dummy := auth.MustGenerateDummyBcryptHash("fallback-secret")
 
-// auth.BcryptCost is the bcrypt work factor used by the library (12).
-// Reference it when you need to hash passwords in the same way (e.g. seeding
-// a test database).
-hash, err := bcrypt.GenerateFromPassword([]byte(password), auth.BcryptCost)
+// BcryptCost is the work factor used throughout the library (cost 12).
+// Use it when hashing passwords in your own code to stay consistent.
+passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), auth.BcryptCost)
 ```
 
 #### SecretEncrypter (AES-256-GCM)
@@ -446,7 +445,7 @@ ok, err := auth.ValidateTOTP(secret, code)
 
 // GenerateTOTPCode computes the expected code for a given time.
 // Intended for testing and tooling; use ValidateTOTP in production.
-code, err := auth.GenerateTOTPCode(secret, time.Now())
+generatedCode, err := auth.GenerateTOTPCode(secret, time.Now())
 ```
 
 **Replay protection** – `ValidateTOTP` alone does not prevent a valid code from being used twice within the ~90-second window. Use `auth.TOTPUsedCodeCache` (zero value is ready to use) in `TOTPHandler` to block replays:
@@ -477,7 +476,7 @@ h := &handler.AuthHandler{
     SecureCookies:     true,
     DisableSignup:     false,    // set true to prevent self-registration
     Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
-    RefreshTokenTTL:   7 * 24 * time.Hour, // defaults to handler.DefaultRefreshTokenTTL (7 days) when Sessions is set
+    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // defaults to 7 days when Sessions is set
     RefreshCookieName: "refresh",  // optional; stores refresh token in an HttpOnly cookie
     RequireVerification: true,     // optional; rejects login for unverified email addresses
     Verifications:     verificationStore, // required when EmailVerificationHandler is mounted
@@ -643,6 +642,7 @@ type PasskeyCredentialDTO struct {
 ```
 
 The `id` field can be passed to `DeleteCredential` to remove a specific passkey.
+
 
 ### TOTPHandler – TOTP / MFA
 
