@@ -54,8 +54,11 @@ func MustGenerateDummyBcryptHash(secret string) []byte {
 }
 
 // SecretEncrypter encrypts and decrypts sensitive values using AES-256-GCM.
+// The AES block cipher is created once at construction time and reused across
+// Encrypt/Decrypt calls; cipher.Block is safe for concurrent use because its
+// key schedule is read-only after construction.
 type SecretEncrypter struct {
-	key []byte
+	block cipher.Block
 }
 
 const secretEncryptPrefix = "enc:v1:"
@@ -66,7 +69,11 @@ func newSecretEncrypter(secret []byte) (*SecretEncrypter, error) {
 	if _, err := r.Read(key); err != nil {
 		return nil, fmt.Errorf("derive encryption key: %w", err)
 	}
-	return &SecretEncrypter{key: key}, nil
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("create AES cipher: %w", err)
+	}
+	return &SecretEncrypter{block: block}, nil
 }
 
 // Encrypt encrypts plaintext using AES-256-GCM.
@@ -74,11 +81,7 @@ func (e *SecretEncrypter) Encrypt(plaintext string) (string, error) {
 	if plaintext == "" {
 		return "", nil
 	}
-	block, err := aes.NewCipher(e.key)
-	if err != nil {
-		return "", fmt.Errorf("create AES cipher: %w", err)
-	}
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := cipher.NewGCM(e.block)
 	if err != nil {
 		return "", fmt.Errorf("create GCM: %w", err)
 	}
@@ -99,11 +102,7 @@ func (e *SecretEncrypter) Decrypt(value string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("base64 decode: %w", err)
 	}
-	block, err := aes.NewCipher(e.key)
-	if err != nil {
-		return "", fmt.Errorf("create AES cipher: %w", err)
-	}
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := cipher.NewGCM(e.block)
 	if err != nil {
 		return "", fmt.Errorf("create GCM: %w", err)
 	}
