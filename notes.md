@@ -15,26 +15,26 @@
 - RateLimiter cleanup: lazy, once per 5-minute window — efficient.
 - cachingRoleChecker / cachingAdminChecker: well-designed with FIFO eviction and sweep.
 - TOTPUsedCodeCache: uses sync.Map for entries (concurrent-safe, lazy GC sweep).
+- cipher.Block (aes.NewCipher) is safe for concurrent reads after construction (key schedule is read-only).
 
 ## Optimisation Backlog
 | Priority | Focus Area | Opportunity | Estimated Impact | Status |
 |----------|-----------|-------------|-----------------|--------|
-| HIGH | Code-Level | hotpCode: replace math.Pow10(totpDigits) with constant 1_000_000 | Remove float64 op + math import on hot auth path | PR submitted |
+| HIGH | Code-Level | hotpCode: replace math.Pow10(totpDigits) with constant 1_000_000 | Remove float64 op + math import on hot auth path | MERGED PR #39 |
+| MEDIUM | Code-Level | SecretEncrypter: cache cipher.Block to avoid AES key expansion per call | Saves ~60-100ns on every Encrypt/Decrypt | PR #44 submitted |
 | MEDIUM | Code-Level | hotpCode: fmt.Sprintf("%0*d",...) uses runtime width — could use "%06d" (static) | Minor format-parse savings, 3× per TOTP validation | Candidate |
 | MEDIUM | Code-Level | TOTPUsedCodeCache uses string concat (userID+"\x00"+code) as key — minor alloc per call | Minor per-call alloc savings | Candidate |
-| MEDIUM | Network/IO | No HTTP response compression (gzip/br) — no middleware in this lib (consumer responsibility) | N/A — lib doesn't serve HTTP directly |
-| LOW | Code-Level | crypto.go: Encrypt/Decrypt create a new AES cipher block per call — could cache cipher.Block | Saves ~500ns per encrypt/decrypt if called frequently | Candidate |
 | LOW | Data | No benchmarks for any code paths — measurement infrastructure gap | Enables future evidence-based optimisation |
 
 ## Work In Progress
-- PR submitted: efficiency/totp-constant-modulo — replace math.Pow10 with totpModulo=1_000_000
+- PR #44 submitted: efficiency/cache-aes-cipher-block — cache cipher.Block in SecretEncrypter
 
 ## Completed Work
-(none yet)
+- PR #39: MERGED 2026-04-20 — replace math.Pow10 with totpModulo=1_000_000 integer constant
 
 ## Backlog Cursor
 - Scanned: auth/, handler/, smtp/ directories
-- Last task: Task 1 (commands), Task 2 (identify), Task 3 (implement)
+- Last tasks run: Task 3 (implement), Task 7 (monthly summary update)
 
 ## Last Run
-- 2026-04-19: First run. Discovered commands, scanned codebase, submitted TOTP constant PR.
+- 2026-04-20: PR #39 noted as merged. Created PR #44 (cipher.Block caching). Updated monthly issue #40.
