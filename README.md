@@ -249,12 +249,15 @@ passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), auth.BcryptCo
 
 #### SecretEncrypter (AES-256-GCM)
 
+`SecretEncrypter` is safe for concurrent use. The AES block cipher is initialised once at construction time; `Encrypt` and `Decrypt` each create their own `cipher.AEAD` instance so there is no shared mutable GCM state between goroutines. The raw derived key is zeroed immediately after the cipher is created.
+
 ```go
 enc, err := jwtMgr.NewSecretEncrypter()
 
 ciphertext, err := enc.Encrypt("sensitive value")
 plaintext, err  := enc.Decrypt(ciphertext)
 // Decrypt is a no-op if the value doesn't start with the "enc:v1:" prefix.
+// Encrypt and Decrypt return an error if called on a zero-value SecretEncrypter.
 ```
 
 ### Store interfaces
@@ -742,6 +745,7 @@ if cfg.Enabled() {
 ## Security notes
 
 - **Secrets** – Pass a secret of at least `auth.MinSecretLength` (32) bytes to `NewJWTManager`. A shorter secret is accepted but not recommended.
+- **Key material zeroisation** – `SecretEncrypter` zeros the HKDF-derived AES key immediately after the block cipher is initialised, reducing the window during which raw key bytes are live on the heap.
 - **API keys** – Only the SHA-256 hash of each key is stored. The plaintext key cannot be recovered after the creation response.
 - **Timing attacks** – `AuthHandler.Login` always runs a bcrypt comparison even when the user is not found, preventing username enumeration via timing.
 - **OIDC PKCE** – The OIDC flow uses S256 PKCE and validates the state parameter on every callback.
