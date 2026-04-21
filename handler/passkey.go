@@ -169,7 +169,11 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	user, _ := h.Users.FindByID(r.Context(), userID)
+	user, err := h.Users.FindByID(r.Context(), userID)
+	if err != nil {
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
+		return
+	}
 	existingCreds, _ := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
 	waUser := &passkeyUser{user: user, credentials: loadWebAuthnCredentials(r.Context(), existingCreds)}
 

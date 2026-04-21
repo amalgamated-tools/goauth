@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/require"
 )
 
@@ -137,6 +138,41 @@ func TestPasskey_finishRegistration_notConfigured(t *testing.T) {
 	h.FinishRegistration(w, req)
 
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestPasskey_finishRegistration_findByIDError(t *testing.T) {
+	wa, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "Test",
+		RPID:          "localhost",
+		RPOrigins:     []string{"http://localhost"},
+	})
+	require.NoError(t, err)
+
+	challengeJSON := `{"session_data":{"challenge":"dGVzdA","rpId":"localhost","user_id":null,"expires":"2099-01-01T00:00:00Z","userVerification":""},"name":"test-key"}`
+	store := &mockPasskeyStore{
+		getAndDeleteChallengeFunc: func(_ context.Context, _ string) (*auth.PasskeyChallenge, error) {
+			return &auth.PasskeyChallenge{
+				ID:          "sess-1",
+				SessionData: challengeJSON,
+				ExpiresAt:   time.Now().Add(5 * time.Minute),
+			}, nil
+		},
+	}
+	users := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, errors.New("db unavailable")
+		},
+	}
+
+	h := newPasskeyHandler(store, users)
+	h.WebAuthn = wa
+
+	req := httptest.NewRequest(http.MethodPost, "/passkeys/register/finish?session_id=sess-1", nil)
+	req = withUserID(req, "u1")
+	w := httptest.NewRecorder()
+	h.FinishRegistration(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestPasskey_beginAuthentication_notConfigured(t *testing.T) {
