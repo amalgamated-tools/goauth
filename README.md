@@ -609,8 +609,8 @@ All passkey endpoints return `{"error": "<message>"}` JSON on failure. The table
 
 | Endpoint | Status | Condition |
 |---|---|---|
-| All endpoints | `503 Service Unavailable` | `WebAuthn` field is `nil` (passkeys not configured) |
-| `BeginRegistration` | `400 Bad Request` | `name` is empty or exceeds 100 characters |
+| `BeginRegistration`, `FinishRegistration`, `BeginAuthentication`, `FinishAuthentication` | `503 Service Unavailable` | `WebAuthn` field is `nil` (passkeys not configured) |
+| `BeginRegistration` | `400 Bad Request` | Invalid JSON request body, `name` is empty, or `name` exceeds 100 characters |
 | `BeginRegistration` | `500 Internal Server Error` | User lookup failed, WebAuthn ceremony error, or challenge storage error |
 | `FinishRegistration` | `400 Bad Request` | `session_id` query parameter missing, session not found, session expired, or session belongs to a different user |
 | `FinishRegistration` | `400 Bad Request` | WebAuthn attestation verification failed |
