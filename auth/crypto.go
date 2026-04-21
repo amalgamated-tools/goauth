@@ -78,6 +78,9 @@ func newSecretEncrypter(secret []byte) (*SecretEncrypter, error) {
 
 // Encrypt encrypts plaintext using AES-256-GCM.
 func (e *SecretEncrypter) Encrypt(plaintext string) (string, error) {
+	if e.block == nil {
+		return "", errors.New("encrypter not initialized")
+	}
 	if plaintext == "" {
 		return "", nil
 	}
@@ -95,6 +98,9 @@ func (e *SecretEncrypter) Encrypt(plaintext string) (string, error) {
 
 // Decrypt decrypts a value previously encrypted by Encrypt.
 func (e *SecretEncrypter) Decrypt(value string) (string, error) {
+	if e.block == nil {
+		return "", errors.New("encrypter not initialized")
+	}
 	if !strings.HasPrefix(value, secretEncryptPrefix) {
 		return value, nil
 	}
