@@ -603,6 +603,27 @@ type PasskeyCredentialDTO struct {
 
 The `id` field can be passed to `DeleteCredential` to remove a specific passkey.
 
+#### Error responses
+
+All passkey endpoints return `{"error": "<message>"}` JSON on failure. The table below lists the non-200 status codes each endpoint can produce.
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| All endpoints | `503 Service Unavailable` | `WebAuthn` field is `nil` (passkeys not configured) |
+| `BeginRegistration` | `400 Bad Request` | `name` is empty or exceeds 100 characters |
+| `BeginRegistration` | `500 Internal Server Error` | User lookup failed, WebAuthn ceremony error, or challenge storage error |
+| `FinishRegistration` | `400 Bad Request` | `session_id` query parameter missing, session not found, session expired, or session belongs to a different user |
+| `FinishRegistration` | `400 Bad Request` | WebAuthn attestation verification failed |
+| `FinishRegistration` | `500 Internal Server Error` | User lookup failed (transient store error) or credential storage failed |
+| `BeginAuthentication` | `500 Internal Server Error` | WebAuthn ceremony error or challenge storage error |
+| `FinishAuthentication` | `400 Bad Request` | `session_id` query parameter missing |
+| `FinishAuthentication` | `401 Unauthorized` | Session not found, session expired, or WebAuthn assertion verification failed |
+| `FinishAuthentication` | `500 Internal Server Error` | JWT creation failed |
+| `ListCredentials` | `500 Internal Server Error` | Store error while listing credentials |
+| `DeleteCredential` | `400 Bad Request` | Credential ID missing from URL |
+| `DeleteCredential` | `404 Not Found` | Credential not found or does not belong to the authenticated user |
+| `DeleteCredential` | `500 Internal Server Error` | Store error while deleting credential |
+
 
 ### TOTPHandler – TOTP / MFA
 
