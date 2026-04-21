@@ -745,7 +745,7 @@ if cfg.Enabled() {
 ## Security notes
 
 - **Secrets** – Pass a secret of at least `auth.MinSecretLength` (32) bytes to `NewJWTManager`. A shorter secret is accepted but not recommended.
-- **Key material zeroisation** – `SecretEncrypter` zeros the HKDF-derived AES key immediately after the block cipher is initialised, reducing the window during which raw key bytes are live on the heap.
+- **Key material zeroisation** – `SecretEncrypter` zeros the HKDF-derived AES key immediately after the block cipher is initialised, reducing the window during which raw key bytes are live in memory.
 - **API keys** – Only the SHA-256 hash of each key is stored. The plaintext key cannot be recovered after the creation response.
 - **Timing attacks** – `AuthHandler.Login` always runs a bcrypt comparison even when the user is not found, preventing username enumeration via timing.
 - **OIDC PKCE** – The OIDC flow uses S256 PKCE and validates the state parameter on every callback.
