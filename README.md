@@ -549,18 +549,20 @@ Keys are 160-bit random values prefixed with the configured string. Only the SHA
 `List` returns a JSON array of key metadata objects. `Create` returns the same shape plus a `key` field containing the full raw key (returned exactly once):
 
 ```go
+// Illustrative response shapes (actual types are unexported in the handler package)
+
 // Returned by List (and by Create, which also includes Key)
-type APIKeyDTO struct {
+type apiKeyDTO struct {
     ID         string     `json:"id"`
     Name       string     `json:"name"`
-    KeyPrefix  string     `json:"key_prefix"` // first 12 hex chars of the raw key
+    KeyPrefix  string     `json:"key_prefix"` // configured prefix + first 12 hex chars of the random portion
     LastUsedAt *time.Time `json:"last_used_at"` // null until first use
     CreatedAt  time.Time  `json:"created_at"`
 }
 
 // Returned by Create only
-type APIKeyCreateResponse struct {
-    APIKeyDTO
+type apiKeyCreateResponse struct {
+    apiKeyDTO
     Key string `json:"key"` // full raw API key; present in Create response only
 }
 ```
