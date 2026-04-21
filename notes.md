@@ -21,20 +21,21 @@
 | Priority | Focus Area | Opportunity | Estimated Impact | Status |
 |----------|-----------|-------------|-----------------|--------|
 | HIGH | Code-Level | hotpCode: replace math.Pow10(totpDigits) with constant 1_000_000 | Remove float64 op + math import on hot auth path | MERGED PR #39 |
-| MEDIUM | Code-Level | SecretEncrypter: cache cipher.Block to avoid AES key expansion per call | Saves ~60-100ns on every Encrypt/Decrypt | PR #44 submitted |
-| MEDIUM | Code-Level | hotpCode: fmt.Sprintf("%0*d",...) uses runtime width — could use "%06d" (static) | Minor format-parse savings, 3× per TOTP validation | Candidate |
+| MEDIUM | Code-Level | SecretEncrypter: cache cipher.Block to avoid AES key expansion per call | Saves ~60-100ns on every Encrypt/Decrypt | MERGED PR #44 |
+| MEDIUM | Code-Level | hotpCode: fmt.Sprintf("%0*d",...) uses runtime width — use "%06d" (static) | Minor format-parse savings, 3× per TOTP validation | PR #54 submitted |
 | MEDIUM | Code-Level | TOTPUsedCodeCache uses string concat (userID+"\x00"+code) as key — minor alloc per call | Minor per-call alloc savings | Candidate |
 | LOW | Data | No benchmarks for any code paths — measurement infrastructure gap | Enables future evidence-based optimisation |
 
 ## Work In Progress
-- PR #44 submitted: efficiency/cache-aes-cipher-block — cache cipher.Block in SecretEncrypter
+- PR #54 submitted: efficiency/totp-static-format-width — static fmt.Sprintf width in hotpCode
 
 ## Completed Work
 - PR #39: MERGED 2026-04-20 — replace math.Pow10 with totpModulo=1_000_000 integer constant
+- PR #44: MERGED ~2026-04-21 — cache cipher.Block in SecretEncrypter
 
 ## Backlog Cursor
 - Scanned: auth/, handler/, smtp/ directories
 - Last tasks run: Task 3 (implement), Task 7 (monthly summary update)
 
 ## Last Run
-- 2026-04-20: PR #39 noted as merged. Created PR #44 (cipher.Block caching). Updated monthly issue #40.
+- 2026-04-21: Noted PR #44 merged. Created PR #54 (fmt.Sprintf static width). Updated monthly issue #40.
