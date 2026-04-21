@@ -281,6 +281,23 @@ type UserStore interface {
 Return `auth.ErrNotFound` (or wrap it) when a record is not found — handlers check for this sentinel to produce correct HTTP status codes.  
 Return `auth.ErrEmailExists` from `CreateUser` when a duplicate email is detected.
 
+The `User` struct returned by store methods has the following fields:
+
+```go
+type User struct {
+    ID            string
+    Name          string
+    Email         string
+    PasswordHash  string  // empty for OIDC-only accounts (no password set)
+    OIDCSubject   *string // nil when no OIDC identity is linked
+    IsAdmin       bool
+    EmailVerified bool
+    CreatedAt     time.Time
+}
+```
+
+Accounts with an empty `PasswordHash` cannot authenticate or reset passwords through password-based flows; they are treated as OIDC-only.
+
 #### APIKeyStore
 
 ```go
@@ -527,6 +544,27 @@ DELETE /api-keys/{id}   → h.Delete
 
 Keys are 160-bit random values prefixed with the configured string. Only the SHA-256 hash is persisted. The raw key is returned in the `key` field of the creation response only.
 
+#### Response types
+
+`List` returns a JSON array of key metadata objects. `Create` returns the same shape plus a `key` field containing the full raw key (returned exactly once):
+
+```go
+// Returned by List (and by Create, which also includes Key)
+type APIKeyDTO struct {
+    ID         string     `json:"id"`
+    Name       string     `json:"name"`
+    KeyPrefix  string     `json:"key_prefix"` // first 12 hex chars of the raw key
+    LastUsedAt *time.Time `json:"last_used_at"` // null until first use
+    CreatedAt  time.Time  `json:"created_at"`
+}
+
+// Returned by Create only
+type APIKeyCreateResponse struct {
+    APIKeyDTO
+    Key string `json:"key"` // full raw API key; present in Create response only
+}
+```
+
 ### SessionHandler – session listing and revocation
 
 ```go
@@ -660,6 +698,8 @@ GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks 
 ```
 
 `SendVerification` silently skips already-verified addresses and returns the same success response whether or not the address is registered, preventing enumeration. Set `RequireVerification: true` on `AuthHandler` to gate login on email verification.
+
+When `SendEmail` is `nil`, verification tokens are still created and stored but no email is delivered. This is useful in testing environments where email delivery is not required.
 
 ### PasswordResetHandler – email-based password reset
 
