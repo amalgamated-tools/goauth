@@ -70,6 +70,7 @@ func newSecretEncrypter(secret []byte) (*SecretEncrypter, error) {
 		return nil, fmt.Errorf("derive encryption key: %w", err)
 	}
 	block, err := aes.NewCipher(key)
+	clear(key)
 	if err != nil {
 		return nil, fmt.Errorf("create AES cipher: %w", err)
 	}
