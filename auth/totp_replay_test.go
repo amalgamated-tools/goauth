@@ -54,7 +54,7 @@ func TestTOTPUsedCodeCache_MaybeSweep_removesExpired(t *testing.T) {
 	require.False(t, present)
 }
 
-func TestTOTPUsedCodeCache_MaybeSweep_skipsRecentlySwiped(t *testing.T) {
+func TestTOTPUsedCodeCache_MaybeSweep_skipsRecentlySwept(t *testing.T) {
 	var c TOTPUsedCodeCache
 
 	// Set lastSweep to just now so the sweep threshold is NOT crossed.
