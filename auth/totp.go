@@ -99,5 +99,5 @@ func hotpCode(key []byte, counter uint64) string {
 		uint32(h[offset+3])
 
 	otp := truncated % totpModulo
-	return fmt.Sprintf("%0*d", totpDigits, otp)
+	return fmt.Sprintf("%06d", otp) // totpDigits=6 is a compile-time constant; static width avoids runtime arg-pop
 }

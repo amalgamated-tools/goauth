@@ -173,3 +173,15 @@ func TestTotpModuloMatchesDigits(t *testing.T) {
 	require.Equal(t, uint32(math.Pow10(totpDigits)), uint32(totpModulo),
 		"totpModulo must equal 10^totpDigits; update totpModulo when totpDigits changes")
 }
+
+func TestHOTPCode_outputLengthMatchesDigits(t *testing.T) {
+	// hotpCode uses a hardcoded format string "%06d"; this test catches drift if
+	// totpDigits is ever changed without updating the format string width.
+	key := []byte("12345678901234567890")
+	for counter := uint64(0); counter < 10; counter++ {
+		code := hotpCode(key, counter)
+		require.Lenf(t, code, totpDigits,
+			"hotpCode output length must equal totpDigits (%d); update format string in hotpCode if totpDigits changes",
+			totpDigits)
+	}
+}
