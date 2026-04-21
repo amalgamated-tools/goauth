@@ -199,6 +199,8 @@ ok, err = cached.HasPermission(ctx, userID, auth.PermWriteContent)
 adminChecker := auth.NewAdminCheckerFromRoleChecker(cached)
 ```
 
+`NewCachingRoleChecker` holds up to **4,096** role-check results and **4,096** permission-check results per process. When either cache is full, the oldest-inserted entry is evicted (FIFO). Expired entries are swept once per minute. Passing `ttl <= 0` uses the default middleware TTL of 5 seconds.
+
 See [`RBACUserStore`](#rbacuserstore) in the Store interfaces section below.
 
 ### RateLimiter
@@ -315,6 +317,8 @@ type APIKeyStore interface {
 ```
 
 `ValidateAPIKey` is given the SHA-256 hex hash of the raw key. Store only the hash — never the plaintext key.
+
+The middleware calls `TouchAPIKeyLastUsed` at most once every **5 minutes** per key ID to reduce write pressure on the store. Implementations do not need to debounce it themselves.
 
 #### SessionStore
 
