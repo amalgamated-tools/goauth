@@ -671,7 +671,7 @@ Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI 
 | `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store` |
 | `Enroll` | 200 | `{"enrolled": true}` |
 | `Verify` | 200 | `{"valid": true}` |
-| `Status` | 200 | `{"enrolled": true\|false}` |
+| `Status` | 200 | `{"enrolled": <bool>}` |
 | `Disable` | 204 | *(no body)* |
 
 ### MagicLinkHandler – passwordless login
@@ -697,7 +697,7 @@ Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account 
 
 #### Response types
 
-`VerifyMagicLink` returns HTTP 200 with the same `AuthResponse` wrapper as `AuthHandler.Login` — `token`, `refresh_token` (when `Sessions` is set), and `user` (`UserDTO`). It also sets an `HttpOnly` session cookie and, when `RefreshCookieName` is set, an `HttpOnly` refresh token cookie.
+`VerifyMagicLink` returns HTTP 200 with the same `AuthResponse` wrapper as `AuthHandler.Login` — `token`, `refresh_token` (when `Sessions` is set), and `user` (`UserDTO`). It also sets an `HttpOnly` session cookie and, when `Sessions` is set and `RefreshCookieName` is non-empty, an `HttpOnly` refresh token cookie.
 
 `RequestMagicLink` returns HTTP 200 with `{"message": "if that email is valid, a login link has been sent"}`.
 
