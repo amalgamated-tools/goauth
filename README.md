@@ -664,6 +664,16 @@ DELETE /totp            → h.Disable    // remove enrolled secret (204 No Conte
 
 Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI for the QR code, then `Enroll` verifies the first code from the authenticator app and persists the secret. `UsedCodes` provides process-local replay protection within the ~90-second TOTP validity window.
 
+#### Response types
+
+| Route | HTTP status | Response body |
+|---|---|---|
+| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store` |
+| `Enroll` | 200 | `{"enrolled": true}` |
+| `Verify` | 200 | `{"valid": true}` |
+| `Status` | 200 | `{"enrolled": true\|false}` |
+| `Disable` | 204 | *(no body)* |
+
 ### MagicLinkHandler – passwordless login
 
 ```go
@@ -680,10 +690,18 @@ h := &handler.MagicLinkHandler{
 }
 
 POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login link (200 whether or not email is registered)
-GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → issues JWT
+GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → AuthResponse (HTTP 200)
 ```
 
 Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account when no user exists for the email address. `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration; validation and operational errors still surface as non-200 responses.
+
+#### Response types
+
+`VerifyMagicLink` returns HTTP 200 with the same `AuthResponse` wrapper as `AuthHandler.Login` — `token`, `refresh_token` (when `Sessions` is set), and `user` (`UserDTO`). It also sets an `HttpOnly` session cookie and, when `RefreshCookieName` is set, an `HttpOnly` refresh token cookie.
+
+`RequestMagicLink` returns HTTP 200 with `{"message": "if that email is valid, a login link has been sent"}`.
+
+Session tracking and refresh token rotation work identically to `AuthHandler` — set `Sessions`, `RefreshTokenTTL`, and `RefreshCookieName` to enable them.
 
 ### EmailVerificationHandler – email address verification
 
