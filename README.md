@@ -193,7 +193,7 @@ cached := auth.NewCachingRoleChecker(checker, 30*time.Second)
 
 // Use in handlers.
 ok, err := cached.HasRole(ctx, userID, auth.RoleAdmin)
-ok, err  = cached.HasPermission(ctx, userID, auth.PermWriteContent)
+ok, err = cached.HasPermission(ctx, userID, auth.PermWriteContent)
 
 // Adapt a RoleChecker to satisfy AdminChecker (for use with AdminMiddleware).
 adminChecker := auth.NewAdminCheckerFromRoleChecker(cached)
