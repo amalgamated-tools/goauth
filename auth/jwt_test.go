@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	jwtPkg "github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -214,5 +215,57 @@ func TestParseTokenClaims_wrongSignature(t *testing.T) {
 
 	tok, _ := mgr1.CreateToken(ctx, "user-sig")
 	_, err := mgr2.ParseTokenClaims(tok)
+	require.ErrorIs(t, err, ErrInvalidToken)
+}
+
+// ---------------------------------------------------------------------------
+// ParseTokenClaims — additional branch coverage
+// ---------------------------------------------------------------------------
+
+func TestParseTokenClaims_wrongIssuer(t *testing.T) {
+	// Token signed by issuer-a but parsed by a manager expecting issuer-b.
+	// Both managers share the same signing secret so the signature is valid,
+	// but the manual issuer check must reject it.
+	ctx := context.Background()
+	mgr1, _ := NewJWTManager("shared-secret-32-bytes-long-here!", time.Hour, "issuer-a")
+	mgr2, _ := NewJWTManager("shared-secret-32-bytes-long-here!", time.Hour, "issuer-b")
+
+	tok, _ := mgr1.CreateToken(ctx, "user-iss")
+	_, err := mgr2.ParseTokenClaims(tok)
+	require.ErrorIs(t, err, ErrInvalidToken)
+}
+
+func TestParseTokenClaims_wrongAudience(t *testing.T) {
+	// Craft a token with a valid issuer but wrong audience so the audience
+	// check (not the issuer check) returns ErrInvalidToken.
+	secret := []byte("shared-secret-32-bytes-long-here!")
+	mgr, _ := NewJWTManager(string(secret), time.Hour, "testapp")
+
+	// Use golang-jwt directly to sign a token with the right issuer but a
+	// mismatched audience, bypassing the JWTManager helper.
+	now := time.Now()
+	rawClaims := Claims{
+		UserID: "user-aud",
+		RegisteredClaims: jwtPkg.RegisteredClaims{
+			Issuer:    "testapp",
+			Audience:  jwtPkg.ClaimStrings{"different-audience"},
+			Subject:   "user-aud",
+			IssuedAt:  jwtPkg.NewNumericDate(now),
+			ExpiresAt: jwtPkg.NewNumericDate(now.Add(time.Hour)),
+		},
+	}
+	tok, err := jwtPkg.NewWithClaims(jwtPkg.SigningMethodHS256, rawClaims).SignedString(secret)
+	require.NoError(t, err)
+
+	_, err = mgr.ParseTokenClaims(tok)
+	require.ErrorIs(t, err, ErrInvalidToken)
+}
+
+func TestParseTokenClaims_wrongAlgorithm(t *testing.T) {
+	// A syntactically valid JWT header that claims RS256 must be rejected by
+	// the inner signing-method guard before any signature check occurs.
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	badToken := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.invalidsig"
+	_, err := mgr.ParseTokenClaims(badToken)
 	require.ErrorIs(t, err, ErrInvalidToken)
 }

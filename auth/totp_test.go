@@ -173,3 +173,39 @@ func TestTotpModuloMatchesDigits(t *testing.T) {
 	require.Equal(t, uint32(math.Pow10(totpDigits)), uint32(totpModulo),
 		"totpModulo must equal 10^totpDigits; update totpModulo when totpDigits changes")
 }
+
+// ---------------------------------------------------------------------------
+// GenerateTOTPCode
+// ---------------------------------------------------------------------------
+
+func TestGenerateTOTPCode_roundTrip(t *testing.T) {
+	secret, err := GenerateTOTPSecret()
+	require.NoError(t, err)
+
+	// GenerateTOTPCode for the current time step should produce a code that
+	// ValidateTOTP accepts.
+	code, err := GenerateTOTPCode(secret, time.Now())
+	require.NoError(t, err)
+	require.Len(t, code, totpDigits)
+
+	ok, err := ValidateTOTP(secret, code)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestGenerateTOTPCode_invalidSecret(t *testing.T) {
+	_, err := GenerateTOTPCode("not-valid-base32!!!", time.Now())
+	require.Error(t, err)
+}
+
+func TestGenerateTOTPCode_matchesHOTP(t *testing.T) {
+	// Compare GenerateTOTPCode output against hotpCode directly.
+	secret, _ := GenerateTOTPSecret()
+	keyBytes, _ := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secret)
+	t0 := time.Unix(0, 0)
+	step := uint64(t0.Unix() / totpPeriod)
+
+	code, err := GenerateTOTPCode(secret, t0)
+	require.NoError(t, err)
+	require.Equal(t, hotpCode(keyBytes, step), code)
+}

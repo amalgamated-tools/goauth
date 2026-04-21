@@ -111,3 +111,35 @@ func TestSecretEncrypter_wrongKey(t *testing.T) {
 	_, err := enc2.Decrypt(ciphertext)
 	require.Error(t, err)
 }
+
+func TestGenerateRandomBase64_length(t *testing.T) {
+	s, err := GenerateRandomBase64(16)
+	require.NoError(t, err)
+	// 16 bytes encoded as unpadded base64 produce ceiling(16*4/3) = 22 characters.
+	require.NotEmpty(t, s)
+}
+
+func TestGenerateRandomBase64_isRandom(t *testing.T) {
+	s1, err := GenerateRandomBase64(32)
+	require.NoError(t, err)
+	s2, err := GenerateRandomBase64(32)
+	require.NoError(t, err)
+	require.NotEqual(t, s1, s2)
+}
+
+func TestGenerateRandomBase64_isURLSafe(t *testing.T) {
+	// Run several times so probability of missing '+' or '/' characters is negligible.
+	for i := 0; i < 20; i++ {
+		s, err := GenerateRandomBase64(64)
+		require.NoError(t, err)
+		require.NotContains(t, s, "+", "raw URL-safe base64 must not contain '+'")
+		require.NotContains(t, s, "/", "raw URL-safe base64 must not contain '/'")
+		require.NotContains(t, s, "=", "raw URL-safe base64 must not contain padding '='")
+	}
+}
+
+func TestGenerateRandomBase64_zeroBytes(t *testing.T) {
+	s, err := GenerateRandomBase64(0)
+	require.NoError(t, err)
+	require.Empty(t, s)
+}
