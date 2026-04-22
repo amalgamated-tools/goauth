@@ -19,6 +19,8 @@ const (
 	totpModulo = 1_000_000 // 10^totpDigits; avoids float64 via math.Pow10 on the hot path
 )
 
+var totpFormat = fmt.Sprintf("%%0%dd", totpDigits)
+
 // GenerateTOTPSecret generates a cryptographically random 20-byte secret and
 // returns it as an unpadded base32 string, which is the format expected by
 // authenticator apps (Google Authenticator, Authy, etc.).
@@ -99,5 +101,5 @@ func hotpCode(key []byte, counter uint64) string {
 		uint32(h[offset+3])
 
 	otp := truncated % totpModulo
-	return fmt.Sprintf("%0*d", totpDigits, otp)
+	return fmt.Sprintf(totpFormat, otp)
 }

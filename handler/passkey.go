@@ -59,6 +59,10 @@ type PasskeyCredentialDTO struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+func toPasskeyCredentialDTO(c auth.PasskeyCredential) PasskeyCredentialDTO {
+	return PasskeyCredentialDTO{ID: c.ID, Name: c.Name, AAGUID: c.AAGUID, CreatedAt: c.CreatedAt}
+}
+
 func loadWebAuthnCredentials(ctx context.Context, creds []auth.PasskeyCredential) []webauthn.Credential {
 	result := make([]webauthn.Credential, 0, len(creds))
 	for i := range creds {
@@ -192,7 +196,7 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store credential")
 		return
 	}
-	writeJSON(r.Context(), w, http.StatusCreated, PasskeyCredentialDTO{ID: stored.ID, Name: stored.Name, AAGUID: stored.AAGUID, CreatedAt: stored.CreatedAt})
+	writeJSON(r.Context(), w, http.StatusCreated, toPasskeyCredentialDTO(*stored))
 }
 
 // BeginAuthentication starts the passkey login ceremony.
@@ -281,7 +285,7 @@ func (h *PasskeyHandler) ListCredentials(w http.ResponseWriter, r *http.Request)
 	}
 	dtos := make([]PasskeyCredentialDTO, len(creds))
 	for i := range creds {
-		dtos[i] = PasskeyCredentialDTO{ID: creds[i].ID, Name: creds[i].Name, AAGUID: creds[i].AAGUID, CreatedAt: creds[i].CreatedAt}
+		dtos[i] = toPasskeyCredentialDTO(creds[i])
 	}
 	writeJSON(r.Context(), w, http.StatusOK, dtos)
 }
