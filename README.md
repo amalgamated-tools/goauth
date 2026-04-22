@@ -544,11 +544,11 @@ All `AuthHandler` endpoints return `{"error": "<message>"}` JSON on failure.
 | `Signup` | `400 Bad Request` | Invalid JSON body, any of `name`, `email`, or `password` is missing, or password is outside 8–72 bytes |
 | `Signup` | `403 Forbidden` | `DisableSignup` is `true` |
 | `Signup` | `409 Conflict` | Email address already registered (`auth.ErrEmailExists`) |
-| `Signup` | `500 Internal Server Error` | bcrypt failure or store error creating user |
+| `Signup` | `500 Internal Server Error` | bcrypt failure, store error creating user, or token/session issuance failure (refresh-token generation, session creation, or JWT creation) |
 | `Login` | `400 Bad Request` | Invalid JSON body, or `email` or `password` is empty |
 | `Login` | `401 Unauthorized` | Email not found, wrong password, or account is OIDC-only (no password hash) |
 | `Login` | `403 Forbidden` | `RequireVerification` is `true` and the account's `EmailVerified` is `false` |
-| `Login` | `500 Internal Server Error` | Store error looking up user |
+| `Login` | `500 Internal Server Error` | Store error looking up user, or token/session issuance failure (session creation or JWT creation) |
 | `Logout` | 200 always | Clears the cookie; session revocation errors are silently ignored |
 | `RefreshToken` | `400 Bad Request` | Refresh token not present in cookie or request body |
 | `RefreshToken` | `401 Unauthorized` | Token not found in store, token is expired, or associated user not found |
@@ -581,7 +581,7 @@ All endpoints return `{"error": "<message>"}` JSON on failure.
 | `Signup` | `400 Bad Request` | `name`, `email`, or `password` is missing; password is not 8–72 bytes |
 | `Signup` | `403 Forbidden` | `DisableSignup` is `true` |
 | `Signup` | `409 Conflict` | Email is already registered |
-| `Signup` | `500 Internal Server Error` | Password hashing or user creation failed |
+| `Signup` | `500 Internal Server Error` | Password hashing, user creation, or token/session issuance failed (refresh-token generation, session creation, or JWT creation) |
 | `Login` | `400 Bad Request` | `email` or `password` is missing |
 | `Login` | `401 Unauthorized` | Email not found or password mismatch |
 | `Login` | `403 Forbidden` | `RequireVerification` is `true` and the account email is not verified |
@@ -940,8 +940,8 @@ All `MagicLinkHandler` endpoints return `{"error": "<message>"}` JSON on failure
 | Endpoint | Status | Condition |
 |---|---|---|
 | `RequestMagicLink` | `400 Bad Request` | Invalid JSON body or `email` is empty |
-| `RequestMagicLink` | `503 Service Unavailable` | `Sender` is `nil` (magic link sending not configured) |
 | `RequestMagicLink` | `500 Internal Server Error` | Token generation or store error |
+| `RequestMagicLink` | `503 Service Unavailable` | `Sender` is `nil` (magic link sending not configured); the token has already been persisted in the store at this point |
 | `VerifyMagicLink` | `400 Bad Request` | `token` query parameter is missing |
 | `VerifyMagicLink` | `401 Unauthorized` | Token not found in store or token is expired |
 | `VerifyMagicLink` | `500 Internal Server Error` | User lookup/creation or JWT creation failure |
