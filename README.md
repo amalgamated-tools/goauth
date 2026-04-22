@@ -528,6 +528,8 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 
 `Callback` does **not** return JSON. On success it sets the JWT in an `HttpOnly` session cookie and redirects the browser to `/?oidc_login=1` (HTTP 302) so that single-page applications can detect a completed OIDC login via the query parameter. The redirect destination is currently fixed; frontends that need a custom post-login URL should rely on the `oidc_login=1` query parameter (or another explicit non-`HttpOnly` signal) to trigger navigation, rather than attempting to read the session cookie from browser JavaScript.
 
+`CreateLinkNonce` returns HTTP 200 with `{"nonce": "<nonce>"}`. Pass the nonce as the `nonce` query parameter to the `Link` route within 5 minutes to start the account-linking flow.
+
 > **No session tracking or refresh tokens.** `OIDCHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. If you need server-side session revocation and refresh-token rotation for OIDC logins, do not use the built-in `Callback` as-is; implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
 
 ### APIKeyHandler
@@ -549,7 +551,11 @@ Keys are 160-bit random values prefixed with the configured string. Only the SHA
 
 #### Response types
 
-`List` returns a JSON array of key metadata objects. `Create` returns the same shape plus a `key` field containing the full raw key (returned exactly once):
+| Route | HTTP status | Response body |
+|---|---|---|
+| `List` | 200 | `[]apiKeyDTO` — array of key metadata |
+| `Create` | 201 | `apiKeyDTO` + `key` field — `Cache-Control: no-store` |
+| `Delete` | 204 | *(no body)* |
 
 ```go
 // Illustrative response shapes (actual types are unexported in the handler package)
@@ -569,6 +575,9 @@ type apiKeyCreateResponse struct {
     Key string `json:"key"` // full raw API key; present in Create response only
 }
 ```
+
+The `Create` response embeds `apiKeyDTO` and adds a top-level `key` field containing the full plaintext key. `key_prefix` is the configured `Prefix` followed by the first 12 hex characters of the key — safe to display for user-facing identification.
+
 
 ### SessionHandler – session listing and revocation
 
@@ -630,6 +639,16 @@ DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential
 Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client. Discoverable login is used so users do not need to enter an identifier before presenting a passkey.
 
 #### Response types
+
+| Route | HTTP status | Response body |
+|---|---|---|
+| `Enabled` | 200 | `{"enabled": <bool>}` |
+| `BeginRegistration` | 200 | `{"session_id": "...", "options": {...}}` — WebAuthn `PublicKeyCredentialCreationOptions` |
+| `FinishRegistration` | 201 | `PasskeyCredentialDTO` |
+| `BeginAuthentication` | 200 | `{"session_id": "...", "options": {...}}` — WebAuthn `PublicKeyCredentialRequestOptions` |
+| `FinishAuthentication` | 200 | `AuthResponse` (`token` + `user`) — also sets `HttpOnly` session cookie |
+| `ListCredentials` | 200 | `[]PasskeyCredentialDTO` |
+| `DeleteCredential` | 204 | *(no body)* |
 
 `FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token` + `user`) **and** sets the JWT in an `HttpOnly` session cookie (same cookie name as `CookieName`). There is no `refresh_token` field — `PasskeyHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. To enable server-side sessions and refresh-token rotation for passkey logins, create a session and re-issue the JWT manually after `FinishAuthentication` succeeds.
 
@@ -745,6 +764,13 @@ GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks 
 
 When `SendEmail` is `nil`, verification tokens are still created and stored but no email is delivered. This is useful in testing environments where email delivery is not required.
 
+#### Response types
+
+| Route | HTTP status | Response body |
+|---|---|---|
+| `SendVerification` | 200 | `{"message": "if that address is registered, a verification email has been sent"}` |
+| `VerifyEmail` | 200 | `{"message": "email verified"}` |
+
 ### PasswordResetHandler – email-based password reset
 
 ```go
@@ -761,6 +787,13 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 ```
 
 Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use.
+
+#### Response types
+
+| Route | HTTP status | Response body |
+|---|---|---|
+| `RequestReset` | 200 | `{"message": "if that email is registered, a reset link has been sent"}` |
+| `ResetPassword` | 200 | `{"message": "password reset successfully"}` |
 
 ### Cookie helpers
 
