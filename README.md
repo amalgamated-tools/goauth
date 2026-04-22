@@ -199,6 +199,8 @@ ok, err = cached.HasPermission(ctx, userID, auth.PermWriteContent)
 adminChecker := auth.NewAdminCheckerFromRoleChecker(cached)
 ```
 
+`NewCachingRoleChecker` holds up to **4,096** role-check results and **4,096** permission-check results per process. When either cache is full, the oldest-inserted entry is evicted (FIFO). During cache writes, expired entries are purged at most once per minute. Passing `ttl <= 0` uses the default middleware TTL of 5 seconds.
+
 See [`RBACUserStore`](#rbacuserstore) in the Store interfaces section below.
 
 ### RateLimiter
@@ -315,6 +317,8 @@ type APIKeyStore interface {
 ```
 
 `ValidateAPIKey` is given the SHA-256 hex hash of the raw key. Store only the hash — never the plaintext key.
+
+The middleware calls `TouchAPIKeyLastUsed` at most once every **5 minutes** per key ID per process to reduce write pressure on the store. In single-process deployments, implementations do not need to debounce it themselves; in multi-process deployments each instance throttles independently.
 
 #### SessionStore
 
@@ -774,11 +778,28 @@ DELETE /totp            → h.Disable    // remove enrolled secret (204 No Conte
 
 Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI for the QR code, then `Enroll` verifies the first code from the authenticator app and persists the secret. `UsedCodes` provides process-local replay protection within the ~90-second TOTP validity window.
 
+#### Request bodies
+
+`Enroll` and `Verify` read a JSON body from the request:
+
+```go
+// POST /totp/enroll
+type totpEnrollRequest struct {
+    Secret string `json:"secret"` // base32-encoded secret returned by Generate
+    Code   string `json:"code"`   // current 6-digit code from the authenticator app
+}
+
+// POST /totp/verify
+type totpVerifyRequest struct {
+    Code string `json:"code"` // current 6-digit code from the authenticator app
+}
+```
+
 #### Response types
 
 | Route | HTTP status | Response body |
 |---|---|---|
-| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store` |
+| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — with headers `Cache-Control: no-store` and `Pragma: no-cache` |
 | `Enroll` | 200 | `{"enrolled": true}` |
 | `Verify` | 200 | `{"valid": true}` |
 | `Status` | 200 | `{"enrolled": <bool>}` |
@@ -786,19 +807,21 @@ Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI 
 
 #### Error responses
 
+All TOTP endpoints return `{"error": "<message>"}` JSON on failure. The table below lists the non-200 status codes each endpoint can produce.
+
 | Endpoint | Status | Condition |
 |---|---|---|
-| `Status` | `500 Internal Server Error` | Store error while fetching TOTP status |
-| `Generate` | `500 Internal Server Error` | Secret generation or user lookup failed |
-| `Enroll` | `400 Bad Request` | `secret` or `code` is missing; `secret` is not valid base32 or is shorter than 20 bytes |
-| `Enroll` | `401 Unauthorized` | Code is a replay or TOTP validation fails |
-| `Enroll` | `500 Internal Server Error` | Store error while saving secret |
-| `Verify` | `400 Bad Request` | `code` is missing |
-| `Verify` | `401 Unauthorized` | Code is a replay or invalid |
-| `Verify` | `404 Not Found` | TOTP not enrolled for this user |
+| `Generate` | `500 Internal Server Error` | Crypto failure generating the secret, or user lookup failed |
+| `Enroll` | `400 Bad Request` | Invalid JSON body, `secret` or `code` field missing, `secret` is not a valid unpadded base32 value that decodes to at least 20 bytes, or `secret` fails TOTP validation |
+| `Enroll` | `401 Unauthorized` | Code failed TOTP validation, or code was already used within the replay window |
+| `Enroll` | `500 Internal Server Error` | Failed to persist the TOTP secret |
+| `Verify` | `400 Bad Request` | Invalid JSON body or `code` field missing |
+| `Verify` | `401 Unauthorized` | Code failed TOTP validation, or code was already used within the replay window |
+| `Verify` | `404 Not Found` | No TOTP secret enrolled for the authenticated user |
 | `Verify` | `500 Internal Server Error` | Store or validation error |
-| `Disable` | `404 Not Found` | TOTP not enrolled for this user |
-| `Disable` | `500 Internal Server Error` | Store error while deleting secret |
+| `Status` | `500 Internal Server Error` | Store error |
+| `Disable` | `404 Not Found` | No TOTP secret enrolled for the authenticated user |
+| `Disable` | `500 Internal Server Error` | Store error |
 
 ### MagicLinkHandler – passwordless login
 
