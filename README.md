@@ -508,6 +508,33 @@ When `Sessions` is set on `AuthHandler`:
 - Setting `RefreshCookieName` causes the refresh token to also be delivered and expected via an HttpOnly cookie, in addition to the response body.
 - Pass `auth.Config{Sessions: sessionStore}` to `Middleware` so that revoked sessions are rejected on every request.
 
+#### Error responses
+
+All endpoints return `{"error": "<message>"}` JSON on failure.
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Signup` | `400 Bad Request` | `name`, `email`, or `password` is missing; password is not 8–72 bytes |
+| `Signup` | `403 Forbidden` | `DisableSignup` is `true` |
+| `Signup` | `409 Conflict` | Email is already registered |
+| `Signup` | `500 Internal Server Error` | Password hashing or user creation failed |
+| `Login` | `400 Bad Request` | `email` or `password` is missing |
+| `Login` | `401 Unauthorized` | Email not found or password mismatch |
+| `Login` | `403 Forbidden` | `RequireVerification` is `true` and the account email is not verified |
+| `Login` | `500 Internal Server Error` | User lookup/store, token, or session creation failed |
+| `Logout` | *(none)* | Always returns `200 OK`; session revocation errors are logged but do not affect the response |
+| `RefreshToken` | `400 Bad Request` | Refresh token not provided (neither in body nor cookie) |
+| `RefreshToken` | `401 Unauthorized` | Token invalid, expired, session not found, or user not found |
+| `RefreshToken` | `404 Not Found` | `Sessions` is `nil` (refresh tokens not enabled) |
+| `RefreshToken` | `500 Internal Server Error` | Session or token creation failed |
+| `Me` | `404 Not Found` | Authenticated user not found in store |
+| `Me` | `500 Internal Server Error` | Store error while fetching user |
+| `UpdateProfile` | `400 Bad Request` | `name` is empty |
+| `UpdateProfile` | `500 Internal Server Error` | Store error while updating name |
+| `ChangePassword` | `400 Bad Request` | `currentPassword` or `newPassword` missing; new password not 8–72 bytes; account is OIDC-only (no password hash) |
+| `ChangePassword` | `401 Unauthorized` | `currentPassword` does not match stored hash |
+| `ChangePassword` | `500 Internal Server Error` | Store or hashing error |
+
 ### OIDCHandler – SSO / OpenID Connect
 
 ```go
@@ -596,6 +623,17 @@ type apiKeyCreateResponse struct {
 
 The `Create` response embeds `apiKeyDTO` and adds a top-level `key` field containing the full plaintext key. `key_prefix` is the configured `Prefix` followed by the first 12 hex characters of the key — safe to display for user-facing identification.
 
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `List` | `500 Internal Server Error` | Store error while listing keys |
+| `Create` | `400 Bad Request` | `name` is empty or exceeds 100 characters |
+| `Create` | `500 Internal Server Error` | Key generation or store error |
+| `Delete` | `400 Bad Request` | API key ID missing from URL |
+| `Delete` | `404 Not Found` | API key not found or does not belong to the authenticated user |
+| `Delete` | `500 Internal Server Error` | Store error while deleting key |
+
 
 ### SessionHandler – session listing and revocation
 
@@ -622,6 +660,16 @@ type SessionDTO struct {
     CreatedAt  time.Time `json:"created_at"`
 }
 ```
+
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `List` | `500 Internal Server Error` | Store error while listing sessions |
+| `Revoke` | `400 Bad Request` | Session ID missing from URL |
+| `Revoke` | `404 Not Found` | Session not found or does not belong to the authenticated user |
+| `Revoke` | `500 Internal Server Error` | Store error while revoking session |
+| `RevokeAll` | `500 Internal Server Error` | Store error while revoking all sessions |
 
 ### PasskeyHandler – WebAuthn
 
@@ -808,6 +856,17 @@ Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account 
 
 Session tracking and refresh token rotation work identically to `AuthHandler` — set `Sessions`, `RefreshTokenTTL`, and `RefreshCookieName` to enable them.
 
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `RequestMagicLink` | `400 Bad Request` | `email` is missing |
+| `RequestMagicLink` | `500 Internal Server Error` | Token generation or store error |
+| `RequestMagicLink` | `503 Service Unavailable` | `Sender` is `nil` (email delivery not configured) |
+| `VerifyMagicLink` | `400 Bad Request` | `token` query parameter is missing |
+| `VerifyMagicLink` | `401 Unauthorized` | Token not found, invalid, or expired |
+| `VerifyMagicLink` | `500 Internal Server Error` | User resolution or token creation failed |
+
 ### EmailVerificationHandler – email address verification
 
 ```go
@@ -832,6 +891,14 @@ When `SendEmail` is `nil`, verification tokens are still created and stored but 
 |---|---|---|
 | `SendVerification` | 200 | `{"message": "if that address is registered, a verification email has been sent"}` |
 | `VerifyEmail` | 200 | `{"message": "email verified"}` |
+
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `SendVerification` | `400 Bad Request` | `email` is missing |
+| `VerifyEmail` | `400 Bad Request` | `token` query parameter is missing; token invalid or expired |
+| `VerifyEmail` | `500 Internal Server Error` | Store error while marking email as verified |
 
 ### PasswordResetHandler – email-based password reset
 
@@ -858,6 +925,16 @@ Only accounts with a password hash (not OIDC-only accounts) can use the reset fl
 |---|---|---|
 | `RequestReset` | 200 | `{"message": "if that email is registered, a reset link has been sent"}` |
 | `ResetPassword` | 200 | `{"message": "password reset successfully"}` |
+
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `RequestReset` | `400 Bad Request` | `email` is missing |
+| `RequestReset` | `429 Too Many Requests` | `RateLimiter` is set and the rate limit is exceeded |
+| `RequestReset` | `500 Internal Server Error` | Token creation or store error |
+| `ResetPassword` | `400 Bad Request` | `token` missing; token invalid or expired; new password not 8–72 bytes |
+| `ResetPassword` | `500 Internal Server Error` | Store or hashing error |
 
 ### Cookie helpers
 
