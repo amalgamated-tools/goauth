@@ -249,12 +249,15 @@ passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), auth.BcryptCo
 
 #### SecretEncrypter (AES-256-GCM)
 
+`SecretEncrypter` is safe for concurrent use. The AES block cipher is initialised once at construction time; `Encrypt` and `Decrypt` each create their own `cipher.AEAD` instance so there is no shared mutable GCM state between goroutines. The raw derived key is zeroed immediately after the cipher is created.
+
 ```go
 enc, err := jwtMgr.NewSecretEncrypter()
 
 ciphertext, err := enc.Encrypt("sensitive value")
 plaintext, err  := enc.Decrypt(ciphertext)
 // Decrypt is a no-op if the value doesn't start with the "enc:v1:" prefix.
+// Encrypt and Decrypt return an error if called on a zero-value SecretEncrypter.
 ```
 
 ### Store interfaces
@@ -280,6 +283,23 @@ type UserStore interface {
 
 Return `auth.ErrNotFound` (or wrap it) when a record is not found — handlers check for this sentinel to produce correct HTTP status codes.  
 Return `auth.ErrEmailExists` from `CreateUser` when a duplicate email is detected.
+
+The `User` struct returned by store methods has the following fields:
+
+```go
+type User struct {
+    ID            string
+    Name          string
+    Email         string
+    PasswordHash  string  // empty for OIDC-only accounts (no password set)
+    OIDCSubject   *string // nil when no OIDC identity is linked
+    IsAdmin       bool
+    EmailVerified bool
+    CreatedAt     time.Time
+}
+```
+
+Accounts with an empty `PasswordHash` cannot authenticate or reset passwords through password-based flows; they are treated as OIDC-only.
 
 #### APIKeyStore
 
@@ -538,16 +558,26 @@ Keys are 160-bit random values prefixed with the configured string. Only the SHA
 | `Delete` | 204 | *(no body)* |
 
 ```go
+// Illustrative response shapes (actual types are unexported in the handler package)
+
+// Returned by List (and by Create, which also includes Key)
 type apiKeyDTO struct {
     ID         string     `json:"id"`
     Name       string     `json:"name"`
-    KeyPrefix  string     `json:"key_prefix"`
-    LastUsedAt *time.Time `json:"last_used_at"`
+    KeyPrefix  string     `json:"key_prefix"` // configured prefix + first 12 hex chars of the random portion
+    LastUsedAt *time.Time `json:"last_used_at"` // null until first use
     CreatedAt  time.Time  `json:"created_at"`
+}
+
+// Returned by Create only
+type apiKeyCreateResponse struct {
+    apiKeyDTO
+    Key string `json:"key"` // full raw API key; present in Create response only
 }
 ```
 
 The `Create` response embeds `apiKeyDTO` and adds a top-level `key` field containing the full plaintext key. `key_prefix` is the configured `Prefix` followed by the first 12 hex characters of the key — safe to display for user-facing identification.
+
 
 ### SessionHandler – session listing and revocation
 
@@ -635,6 +665,27 @@ type PasskeyCredentialDTO struct {
 
 The `id` field can be passed to `DeleteCredential` to remove a specific passkey.
 
+#### Error responses
+
+All passkey endpoints return `{"error": "<message>"}` JSON on failure. The table below lists the non-200 status codes each endpoint can produce.
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `BeginRegistration`, `FinishRegistration`, `BeginAuthentication`, `FinishAuthentication` | `503 Service Unavailable` | `WebAuthn` field is `nil` (passkeys not configured) |
+| `BeginRegistration` | `400 Bad Request` | Invalid JSON request body, `name` is empty, or `name` exceeds 100 characters |
+| `BeginRegistration` | `500 Internal Server Error` | User lookup failed, WebAuthn ceremony error, or challenge storage error |
+| `FinishRegistration` | `400 Bad Request` | `session_id` query parameter missing, session not found, session expired, or session belongs to a different user |
+| `FinishRegistration` | `400 Bad Request` | WebAuthn attestation verification failed |
+| `FinishRegistration` | `500 Internal Server Error` | User lookup failed (transient store error) or credential storage failed |
+| `BeginAuthentication` | `500 Internal Server Error` | WebAuthn ceremony error or challenge storage error |
+| `FinishAuthentication` | `400 Bad Request` | `session_id` query parameter missing |
+| `FinishAuthentication` | `401 Unauthorized` | Session not found, session expired, credential not found, user lookup failed, or WebAuthn assertion verification failed |
+| `FinishAuthentication` | `500 Internal Server Error` | JWT creation failed |
+| `ListCredentials` | `500 Internal Server Error` | Store error while listing credentials |
+| `DeleteCredential` | `400 Bad Request` | Credential ID missing from URL |
+| `DeleteCredential` | `404 Not Found` | Credential not found or does not belong to the authenticated user |
+| `DeleteCredential` | `500 Internal Server Error` | Store error while deleting credential |
+
 
 ### TOTPHandler – TOTP / MFA
 
@@ -710,6 +761,8 @@ GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks 
 ```
 
 `SendVerification` silently skips already-verified addresses and returns the same success response whether or not the address is registered, preventing enumeration. Set `RequireVerification: true` on `AuthHandler` to gate login on email verification.
+
+When `SendEmail` is `nil`, verification tokens are still created and stored but no email is delivered. This is useful in testing environments where email delivery is not required.
 
 #### Response types
 
@@ -806,6 +859,7 @@ if cfg.Enabled() {
 ## Security notes
 
 - **Secrets** – Pass a secret of at least `auth.MinSecretLength` (32) bytes to `NewJWTManager`. A shorter secret is accepted but not recommended.
+- **Key material zeroisation** – `SecretEncrypter` zeros the HKDF-derived AES key immediately after the block cipher is initialised, reducing the window during which raw key bytes are live in memory.
 - **API keys** – Only the SHA-256 hash of each key is stored. The plaintext key cannot be recovered after the creation response.
 - **Timing attacks** – `AuthHandler.Login` always runs a bcrypt comparison even when the user is not found, preventing username enumeration via timing.
 - **OIDC PKCE** – The OIDC flow uses S256 PKCE and validates the state parameter on every callback.
