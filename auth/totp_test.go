@@ -175,13 +175,17 @@ func TestTotpModuloMatchesDigits(t *testing.T) {
 }
 
 func TestHOTPCode_outputLengthMatchesDigits(t *testing.T) {
-	// hotpCode uses a hardcoded format string "%06d"; this test catches drift if
-	// totpDigits is ever changed without updating the format string width.
 	key := []byte("12345678901234567890")
-	for counter := uint64(0); counter < 10; counter++ {
+	foundLeftPadded := false
+	for counter := uint64(0); counter < 1000; counter++ {
 		code := hotpCode(key, counter)
 		require.Lenf(t, code, totpDigits,
-			"hotpCode output length must equal totpDigits (%d); update format string in hotpCode if totpDigits changes",
-			totpDigits)
+			"hotpCode output length must equal totpDigits (%d); update format string in hotpCode if totpDigits changes (counter=%d, code=%q)",
+			totpDigits, counter, code)
+		if strings.HasPrefix(code, "0") {
+			foundLeftPadded = true
+		}
 	}
+	require.True(t, foundLeftPadded,
+		"test must include at least one HOTP value requiring left-padding to catch format-width drift")
 }
