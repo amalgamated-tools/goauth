@@ -720,15 +720,50 @@ DELETE /totp            → h.Disable    // remove enrolled secret (204 No Conte
 
 Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI for the QR code, then `Enroll` verifies the first code from the authenticator app and persists the secret. `UsedCodes` provides process-local replay protection within the ~90-second TOTP validity window.
 
+#### Request bodies
+
+`Enroll` and `Verify` read a JSON body from the request:
+
+```go
+// POST /totp/enroll
+type totpEnrollRequest struct {
+    Secret string `json:"secret"` // base32-encoded secret returned by Generate
+    Code   string `json:"code"`   // current 6-digit code from the authenticator app
+}
+
+// POST /totp/verify
+type totpVerifyRequest struct {
+    Code string `json:"code"` // current 6-digit code from the authenticator app
+}
+```
+
 #### Response types
 
 | Route | HTTP status | Response body |
 |---|---|---|
-| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store` |
+| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — with headers `Cache-Control: no-store` and `Pragma: no-cache` |
 | `Enroll` | 200 | `{"enrolled": true}` |
 | `Verify` | 200 | `{"valid": true}` |
 | `Status` | 200 | `{"enrolled": <bool>}` |
 | `Disable` | 204 | *(no body)* |
+
+#### Error responses
+
+All TOTP endpoints return `{"error": "<message>"}` JSON on failure. The table below lists the non-200 status codes each endpoint can produce.
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Generate` | `500 Internal Server Error` | Crypto failure generating the secret, or user lookup failed |
+| `Enroll` | `400 Bad Request` | Invalid JSON body, `secret` or `code` field missing, `secret` is not a valid unpadded base32 value that decodes to at least 20 bytes, or `secret` fails TOTP validation |
+| `Enroll` | `401 Unauthorized` | Code failed TOTP validation, or code was already used within the replay window |
+| `Enroll` | `500 Internal Server Error` | Failed to persist the TOTP secret |
+| `Verify` | `400 Bad Request` | Invalid JSON body or `code` field missing |
+| `Verify` | `401 Unauthorized` | Code failed TOTP validation, or code was already used within the replay window |
+| `Verify` | `404 Not Found` | No TOTP secret enrolled for the authenticated user |
+| `Verify` | `500 Internal Server Error` | Store or validation error |
+| `Status` | `500 Internal Server Error` | Store error |
+| `Disable` | `404 Not Found` | No TOTP secret enrolled for the authenticated user |
+| `Disable` | `500 Internal Server Error` | Store error |
 
 ### MagicLinkHandler – passwordless login
 
