@@ -544,6 +544,8 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 | SSO identity taken by another account | `/?oidc_link_error=SSO+identity+linked+to+another+account` |
 | Store failure | `/?oidc_link_error=Failed+to+link` |
 
+> **Note:** The table above covers only the outcomes handled inside `handleLinkCallback`. Errors that occur earlier in the OIDC exchange — such as the provider returning an `error` query parameter (e.g. the user cancels on the consent screen), a missing `code`, a failed token exchange, or an invalid `id_token` — are surfaced as JSON error responses (HTTP 401) rather than redirects. Clients must handle both redirect and JSON error outcomes.
+
 > **No session tracking or refresh tokens.** `OIDCHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. If you need server-side session revocation and refresh-token rotation for OIDC logins, do not use the built-in `Callback` as-is; implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
 
 ### APIKeyHandler
@@ -846,7 +848,7 @@ POST /password-reset/request   → h.RequestReset    // send reset email (200 wh
 POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
 ```
 
-Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use. If `SendResetEmail` returns an error, the orphaned token is proactively deleted so stale tokens do not accumulate in the store.
+Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use. If `SendResetEmail` returns an error, the handler attempts to delete the orphaned token as a best-effort cleanup; deletion failures are only logged/ignored, so the token may remain in the store.
 
 `RequestReset` expects `{"email": "<address>"}`. `ResetPassword` expects `{"token": "<raw token from email>", "newPassword": "<new password>"}` (same 8–72 byte password constraint as `AuthHandler`).
 
