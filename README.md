@@ -709,7 +709,7 @@ type totpVerifyRequest struct {
 
 | Route | HTTP status | Response body |
 |---|---|---|
-| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store, Pragma: no-cache` |
+| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — with headers `Cache-Control: no-store` and `Pragma: no-cache` |
 | `Enroll` | 200 | `{"enrolled": true}` |
 | `Verify` | 200 | `{"valid": true}` |
 | `Status` | 200 | `{"enrolled": <bool>}` |
@@ -722,7 +722,7 @@ All TOTP endpoints return `{"error": "<message>"}` JSON on failure. The table be
 | Endpoint | Status | Condition |
 |---|---|---|
 | `Generate` | `500 Internal Server Error` | Crypto failure generating the secret, or user lookup failed |
-| `Enroll` | `400 Bad Request` | Invalid JSON body, `secret` or `code` field missing, or `secret` is not a valid base32-encoded 20-byte value |
+| `Enroll` | `400 Bad Request` | Invalid JSON body, `secret` or `code` field missing, `secret` is not a valid unpadded base32 value that decodes to at least 20 bytes, or `secret` fails TOTP validation |
 | `Enroll` | `401 Unauthorized` | Code failed TOTP validation, or code was already used within the replay window |
 | `Enroll` | `500 Internal Server Error` | Failed to persist the TOTP secret |
 | `Verify` | `400 Bad Request` | Invalid JSON body or `code` field missing |
