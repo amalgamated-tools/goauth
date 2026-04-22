@@ -636,7 +636,7 @@ Registration and authentication use server-side challenge storage (via `PasskeyS
 ```json
 {
   "session_id": "<opaque-id>",
-  "options": { /* WebAuthn PublicKeyCredentialCreationOptions or RequestOptions */ }
+  "options": { /* WebAuthn PublicKeyCredentialCreationOptions or PublicKeyCredentialRequestOptions */ }
 }
 ```
 
