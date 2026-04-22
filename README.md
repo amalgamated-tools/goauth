@@ -463,13 +463,13 @@ h := &handler.AuthHandler{
 }
 
 // Routes
-POST   /auth/signup          → h.Signup         // creates account, returns token + user (+ refresh_token when Sessions set)
-POST   /auth/login           → h.Login          // returns token + user (+ refresh_token when Sessions set)
-POST   /auth/logout          → h.Logout         // clears cookie; revokes session when Sessions set
-POST   /auth/refresh         → h.RefreshToken   // rotate refresh token → new access + refresh token (requires Sessions)
+POST   /auth/signup          → h.Signup         // 201 Created; token + user (+ refresh_token when Sessions set)
+POST   /auth/login           → h.Login          // token + user (+ refresh_token when Sessions set)
+POST   /auth/logout          → h.Logout         // clears cookie; revokes session when Sessions set → {"message":"logged out"}
+POST   /auth/refresh         → h.RefreshToken   // rotate refresh token → new access + refresh token (requires Sessions; 404 when Sessions is nil)
 GET    /auth/me              → h.Me             // current user profile (requires auth)
 PUT    /auth/me              → h.UpdateProfile  // update display name (requires auth)
-POST   /auth/password        → h.ChangePassword // change password (requires auth)
+POST   /auth/password        → h.ChangePassword // change password (requires auth) → {"message":"password updated"}
 ```
 
 Password constraints: 8–72 bytes. Bcrypt cost 12.
@@ -541,8 +541,8 @@ h := &handler.APIKeyHandler{
 
 // Routes (all require auth middleware)
 GET    /api-keys        → h.List    // list keys (prefix + metadata only, never the raw key)
-POST   /api-keys        → h.Create  // create key; raw key returned once, never again
-DELETE /api-keys/{id}   → h.Delete
+POST   /api-keys        → h.Create  // 201 Created; raw key returned once, never again
+DELETE /api-keys/{id}   → h.Delete  // 204 No Content
 ```
 
 Keys are 160-bit random values prefixed with the configured string. Only the SHA-256 hash is persisted. The raw key is returned in the `key` field of the creation response only.
@@ -616,20 +616,29 @@ h := &handler.PasskeyHandler{
 }
 
 // Public routes
-GET  /auth/passkey/enabled                → h.Enabled
-POST /auth/passkey/login/begin            → h.BeginAuthentication
-POST /auth/passkey/login/finish           → h.FinishAuthentication   // ?session_id=<id>
+GET  /auth/passkey/enabled                → h.Enabled              // {"enabled": true|false}
+POST /auth/passkey/login/begin            → h.BeginAuthentication  // {"session_id":"…","options":{…}}
+POST /auth/passkey/login/finish           → h.FinishAuthentication // ?session_id=<id>
 
 // Authenticated routes
-POST /auth/passkey/register/begin         → h.BeginRegistration
-POST /auth/passkey/register/finish        → h.FinishRegistration      // ?session_id=<id>
+POST /auth/passkey/register/begin         → h.BeginRegistration    // {"session_id":"…","options":{…}}
+POST /auth/passkey/register/finish        → h.FinishRegistration   // ?session_id=<id>
 GET  /auth/passkey/credentials            → h.ListCredentials
-DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential
+DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential     // 204 No Content
 ```
 
 Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client. Discoverable login is used so users do not need to enter an identifier before presenting a passkey.
 
 #### Response types
+
+`BeginRegistration` and `BeginAuthentication` both return HTTP 200 with a begin-ceremony response. Pass `session_id` as the `session_id` query parameter to the corresponding finish endpoint, and pass `options` to the browser's WebAuthn API (`navigator.credentials.create` for registration, `navigator.credentials.get` for authentication):
+
+```json
+{
+  "session_id": "<opaque-id>",
+  "options": { /* WebAuthn PublicKeyCredentialCreationOptions or RequestOptions */ }
+}
+```
 
 `FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token` + `user`) **and** sets the JWT in an `HttpOnly` session cookie (same cookie name as `CookieName`). There is no `refresh_token` field — `PasskeyHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. To enable server-side sessions and refresh-token rotation for passkey logins, create a session and re-issue the JWT manually after `FinishAuthentication` succeeds.
 
