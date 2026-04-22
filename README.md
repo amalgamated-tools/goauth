@@ -561,15 +561,17 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 
 `CreateLinkNonce` returns HTTP 200 with `{"nonce": "<nonce>"}`. Pass the nonce as the `nonce` query parameter to the `Link` route within 5 minutes to start the account-linking flow.
 
-`Link` responds with `400 Bad Request` if the `nonce` query parameter is missing, `401 Unauthorized` if the nonce is invalid or expired, or `409 Conflict` if the user does not exist or already has an OIDC identity linked. On success it redirects the browser to the OIDC provider (HTTP 302). After the provider redirects back, the browser lands on one of these query parameters:
+`Link` redirects the browser to the OIDC provider (HTTP 302) using PKCE, just like `Login`. When the provider redirects back to `Callback`, the handler detects the link-in-progress state and redirects to:
 
-| Query parameter | Meaning |
+| Outcome | Redirect |
 |---|---|
-| `oidc_linked=true` | Account linked successfully |
-| `oidc_link_error=Already+linked` | OIDC subject is already linked to this account (benign) |
-| `oidc_link_error=SSO+identity+linked+to+another+account` | OIDC subject belongs to a different account |
-| `oidc_link_error=User+not+found` | Authenticated user no longer exists in the store |
-| `oidc_link_error=Failed+to+link` | Store error during linking |
+| Success | `/?oidc_linked=true` |
+| User not found | `/?oidc_link_error=User+not+found` |
+| Account already linked | `/?oidc_link_error=Already+linked` |
+| SSO identity taken by another account | `/?oidc_link_error=SSO+identity+linked+to+another+account` |
+| Store failure | `/?oidc_link_error=Failed+to+link` |
+
+> **Note:** The table above covers only the outcomes handled inside `handleLinkCallback`. Errors that occur earlier in the OIDC exchange — such as the provider returning an `error` query parameter (e.g. the user cancels on the consent screen), a missing `code`, a failed token exchange, or an invalid `id_token` — are surfaced as JSON error responses (HTTP 401) rather than redirects. Clients must handle both redirect and JSON error outcomes.
 
 > **No session tracking or refresh tokens.** `OIDCHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. If you need server-side session revocation and refresh-token rotation for OIDC logins, do not use the built-in `Callback` as-is; implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
 
@@ -589,6 +591,8 @@ DELETE /api-keys/{id}   → h.Delete  // 204 No Content
 ```
 
 Keys are 160-bit random values prefixed with the configured string. Only the SHA-256 hash is persisted. The raw key is returned in the `key` field of the creation response only.
+
+`Create` expects `{"name": "<display name>"}`. The name must be 1–100 characters (non-empty after trimming).
 
 #### Response types
 
@@ -785,7 +789,7 @@ Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI 
 ```go
 // POST /totp/enroll
 type totpEnrollRequest struct {
-    Secret string `json:"secret"` // base32-encoded secret returned by Generate
+    Secret string `json:"secret"` // base32-encoded secret returned by Generate; must be a valid unpadded base32 string of at least 20 bytes (160 bits)
     Code   string `json:"code"`   // current 6-digit code from the authenticator app
 }
 
@@ -911,7 +915,9 @@ POST /password-reset/request   → h.RequestReset    // send reset email (200 wh
 POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
 ```
 
-Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use.
+Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use. If `SendResetEmail` returns an error, the handler attempts to delete the orphaned token as a best-effort cleanup; deletion failures are only logged/ignored, so the token may remain in the store.
+
+`RequestReset` expects `{"email": "<address>"}`. `ResetPassword` expects `{"token": "<raw token from email>", "newPassword": "<new password>"}` (same 8–72 byte password constraint as `AuthHandler`).
 
 #### Response types
 
