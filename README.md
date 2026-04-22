@@ -521,7 +521,7 @@ All endpoints return `{"error": "<message>"}` JSON on failure.
 | `Login` | `400 Bad Request` | `email` or `password` is missing |
 | `Login` | `401 Unauthorized` | Email not found or password mismatch |
 | `Login` | `403 Forbidden` | `RequireVerification` is `true` and the account email is not verified |
-| `Login` | `500 Internal Server Error` | Token or session creation failed |
+| `Login` | `500 Internal Server Error` | User lookup/store, token, or session creation failed |
 | `Logout` | *(none)* | Always returns `200 OK`; session revocation errors are logged but do not affect the response |
 | `RefreshToken` | `400 Bad Request` | Refresh token not provided (neither in body nor cookie) |
 | `RefreshToken` | `401 Unauthorized` | Token invalid, expired, session not found, or user not found |
@@ -893,7 +893,6 @@ When `SendEmail` is `nil`, verification tokens are still created and stored but 
 | Endpoint | Status | Condition |
 |---|---|---|
 | `SendVerification` | `400 Bad Request` | `email` is missing |
-| `SendVerification` | `500 Internal Server Error` | Token creation or email delivery failed |
 | `VerifyEmail` | `400 Bad Request` | `token` query parameter is missing; token invalid or expired |
 | `VerifyEmail` | `500 Internal Server Error` | Store error while marking email as verified |
 
