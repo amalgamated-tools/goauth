@@ -572,6 +572,33 @@ When `Sessions` is set on `AuthHandler`:
 - Setting `RefreshCookieName` causes the refresh token to also be delivered and expected via an HttpOnly cookie, in addition to the response body.
 - Pass `auth.Config{Sessions: sessionStore}` to `Middleware` so that revoked sessions are rejected on every request.
 
+#### Error responses
+
+All endpoints return `{"error": "<message>"}` JSON on failure.
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Signup` | `400 Bad Request` | `name`, `email`, or `password` is missing; password is not 8–72 bytes |
+| `Signup` | `403 Forbidden` | `DisableSignup` is `true` |
+| `Signup` | `409 Conflict` | Email is already registered |
+| `Signup` | `500 Internal Server Error` | Password hashing or user creation failed |
+| `Login` | `400 Bad Request` | `email` or `password` is missing |
+| `Login` | `401 Unauthorized` | Email not found or password mismatch |
+| `Login` | `403 Forbidden` | `RequireVerification` is `true` and the account email is not verified |
+| `Login` | `500 Internal Server Error` | User lookup/store, token, or session creation failed |
+| `Logout` | *(none)* | Always returns `200 OK`; session revocation errors are logged but do not affect the response |
+| `RefreshToken` | `400 Bad Request` | Refresh token not provided (neither in body nor cookie) |
+| `RefreshToken` | `401 Unauthorized` | Token invalid, expired, session not found, or user not found |
+| `RefreshToken` | `404 Not Found` | `Sessions` is `nil` (refresh tokens not enabled) |
+| `RefreshToken` | `500 Internal Server Error` | Session or token creation failed |
+| `Me` | `404 Not Found` | Authenticated user not found in store |
+| `Me` | `500 Internal Server Error` | Store error while fetching user |
+| `UpdateProfile` | `400 Bad Request` | `name` is empty |
+| `UpdateProfile` | `500 Internal Server Error` | Store error while updating name |
+| `ChangePassword` | `400 Bad Request` | `currentPassword` or `newPassword` missing; new password not 8–72 bytes; account is OIDC-only (no password hash) |
+| `ChangePassword` | `401 Unauthorized` | `currentPassword` does not match stored hash |
+| `ChangePassword` | `500 Internal Server Error` | Store or hashing error |
+
 ### OIDCHandler – SSO / OpenID Connect
 
 ```go
@@ -598,6 +625,18 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 
 `CreateLinkNonce` returns HTTP 200 with `{"nonce": "<nonce>"}`. Pass the nonce as the `nonce` query parameter to the `Link` route within 5 minutes to start the account-linking flow.
 
+`Link` redirects the browser to the OIDC provider (HTTP 302) using PKCE, just like `Login`. When the provider redirects back to `Callback`, the handler detects the link-in-progress state and redirects to:
+
+| Outcome | Redirect |
+|---|---|
+| Success | `/?oidc_linked=true` |
+| User not found | `/?oidc_link_error=User+not+found` |
+| Account already linked | `/?oidc_link_error=Already+linked` |
+| SSO identity taken by another account | `/?oidc_link_error=SSO+identity+linked+to+another+account` |
+| Store failure | `/?oidc_link_error=Failed+to+link` |
+
+> **Note:** The table above covers only the outcomes handled inside `handleLinkCallback`. Errors that occur earlier in the OIDC exchange — such as the provider returning an `error` query parameter (e.g. the user cancels on the consent screen), a missing `code`, a failed token exchange, or an invalid `id_token` — are surfaced as JSON error responses (HTTP 401) rather than redirects. Clients must handle both redirect and JSON error outcomes.
+
 > **No session tracking or refresh tokens.** `OIDCHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. If you need server-side session revocation and refresh-token rotation for OIDC logins, do not use the built-in `Callback` as-is; implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
 
 ### APIKeyHandler
@@ -616,6 +655,8 @@ DELETE /api-keys/{id}   → h.Delete  // 204 No Content
 ```
 
 Keys are 160-bit random values prefixed with the configured string. Only the SHA-256 hash is persisted. The raw key is returned in the `key` field of the creation response only.
+
+`Create` expects `{"name": "<display name>"}`. The name must be 1–100 characters (non-empty after trimming).
 
 #### Response types
 
@@ -646,6 +687,17 @@ type apiKeyCreateResponse struct {
 
 The `Create` response embeds `apiKeyDTO` and adds a top-level `key` field containing the full plaintext key. `key_prefix` is the configured `Prefix` followed by the first 12 hex characters of the key — safe to display for user-facing identification.
 
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `List` | `500 Internal Server Error` | Store error while listing keys |
+| `Create` | `400 Bad Request` | `name` is empty or exceeds 100 characters |
+| `Create` | `500 Internal Server Error` | Key generation or store error |
+| `Delete` | `400 Bad Request` | API key ID missing from URL |
+| `Delete` | `404 Not Found` | API key not found or does not belong to the authenticated user |
+| `Delete` | `500 Internal Server Error` | Store error while deleting key |
+
 
 ### SessionHandler – session listing and revocation
 
@@ -672,6 +724,16 @@ type SessionDTO struct {
     CreatedAt  time.Time `json:"created_at"`
 }
 ```
+
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `List` | `500 Internal Server Error` | Store error while listing sessions |
+| `Revoke` | `400 Bad Request` | Session ID missing from URL |
+| `Revoke` | `404 Not Found` | Session not found or does not belong to the authenticated user |
+| `Revoke` | `500 Internal Server Error` | Store error while revoking session |
+| `RevokeAll` | `500 Internal Server Error` | Store error while revoking all sessions |
 
 ### PasskeyHandler – WebAuthn
 
@@ -791,7 +853,7 @@ Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI 
 ```go
 // POST /totp/enroll
 type totpEnrollRequest struct {
-    Secret string `json:"secret"` // base32-encoded secret returned by Generate
+    Secret string `json:"secret"` // base32-encoded secret returned by Generate; must be a valid unpadded base32 string of at least 20 bytes (160 bits)
     Code   string `json:"code"`   // current 6-digit code from the authenticator app
 }
 
@@ -945,7 +1007,9 @@ POST /password-reset/request   → h.RequestReset    // send reset email (200 wh
 POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
 ```
 
-Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use.
+Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use. If `SendResetEmail` returns an error, the handler attempts to delete the orphaned token as a best-effort cleanup; deletion failures are only logged/ignored, so the token may remain in the store.
+
+`RequestReset` expects `{"email": "<address>"}`. `ResetPassword` expects `{"token": "<raw token from email>", "newPassword": "<new password>"}` (same 8–72 byte password constraint as `AuthHandler`).
 
 #### Response types
 
