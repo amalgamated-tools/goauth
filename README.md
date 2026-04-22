@@ -199,6 +199,8 @@ ok, err = cached.HasPermission(ctx, userID, auth.PermWriteContent)
 adminChecker := auth.NewAdminCheckerFromRoleChecker(cached)
 ```
 
+`NewCachingRoleChecker` holds up to **4,096** role-check results and **4,096** permission-check results per process. When either cache is full, the oldest-inserted entry is evicted (FIFO). During cache writes, expired entries are purged at most once per minute. Passing `ttl <= 0` uses the default middleware TTL of 5 seconds.
+
 See [`RBACUserStore`](#rbacuserstore) in the Store interfaces section below.
 
 ### RateLimiter
@@ -315,6 +317,8 @@ type APIKeyStore interface {
 ```
 
 `ValidateAPIKey` is given the SHA-256 hex hash of the raw key. Store only the hash — never the plaintext key.
+
+The middleware calls `TouchAPIKeyLastUsed` at most once every **5 minutes** per key ID per process to reduce write pressure on the store. In single-process deployments, implementations do not need to debounce it themselves; in multi-process deployments each instance throttles independently.
 
 #### SessionStore
 
@@ -463,13 +467,13 @@ h := &handler.AuthHandler{
 }
 
 // Routes
-POST   /auth/signup          → h.Signup         // creates account, returns token + user (+ refresh_token when Sessions set)
-POST   /auth/login           → h.Login          // returns token + user (+ refresh_token when Sessions set)
-POST   /auth/logout          → h.Logout         // clears cookie; revokes session when Sessions set
-POST   /auth/refresh         → h.RefreshToken   // rotate refresh token → new access + refresh token (requires Sessions)
+POST   /auth/signup          → h.Signup         // 201 Created; token + user (+ refresh_token when Sessions set)
+POST   /auth/login           → h.Login          // token + user (+ refresh_token when Sessions set)
+POST   /auth/logout          → h.Logout         // clears cookie; revokes session when Sessions set → {"message":"logged out"}
+POST   /auth/refresh         → h.RefreshToken   // rotate refresh token → new access + refresh token (requires Sessions; 404 when Sessions is nil)
 GET    /auth/me              → h.Me             // current user profile (requires auth)
 PUT    /auth/me              → h.UpdateProfile  // update display name (requires auth)
-POST   /auth/password        → h.ChangePassword // change password (requires auth)
+POST   /auth/password        → h.ChangePassword // change password (requires auth) → {"message":"password updated"}
 ```
 
 Password constraints: 8–72 bytes. Bcrypt cost 12.
@@ -553,8 +557,8 @@ h := &handler.APIKeyHandler{
 
 // Routes (all require auth middleware)
 GET    /api-keys        → h.List    // list keys (prefix + metadata only, never the raw key)
-POST   /api-keys        → h.Create  // create key; raw key returned once, never again
-DELETE /api-keys/{id}   → h.Delete
+POST   /api-keys        → h.Create  // 201 Created; raw key returned once, never again
+DELETE /api-keys/{id}   → h.Delete  // 204 No Content
 ```
 
 Keys are 160-bit random values prefixed with the configured string. Only the SHA-256 hash is persisted. The raw key is returned in the `key` field of the creation response only.
@@ -637,20 +641,29 @@ h := &handler.PasskeyHandler{
 }
 
 // Public routes
-GET  /auth/passkey/enabled                → h.Enabled
-POST /auth/passkey/login/begin            → h.BeginAuthentication
-POST /auth/passkey/login/finish           → h.FinishAuthentication   // ?session_id=<id>
+GET  /auth/passkey/enabled                → h.Enabled              // {"enabled": true|false}
+POST /auth/passkey/login/begin            → h.BeginAuthentication  // {"session_id":"…","options":{…}}
+POST /auth/passkey/login/finish           → h.FinishAuthentication // ?session_id=<id>
 
 // Authenticated routes
-POST /auth/passkey/register/begin         → h.BeginRegistration
-POST /auth/passkey/register/finish        → h.FinishRegistration      // ?session_id=<id>
+POST /auth/passkey/register/begin         → h.BeginRegistration    // {"session_id":"…","options":{…}}
+POST /auth/passkey/register/finish        → h.FinishRegistration   // ?session_id=<id>
 GET  /auth/passkey/credentials            → h.ListCredentials
-DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential
+DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential     // 204 No Content
 ```
 
 Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client. Discoverable login is used so users do not need to enter an identifier before presenting a passkey.
 
 #### Response types
+
+`BeginRegistration` and `BeginAuthentication` both return HTTP 200 with a begin-ceremony response. Pass `session_id` as the `session_id` query parameter to the corresponding finish endpoint, and pass `options` to the browser's WebAuthn API (`navigator.credentials.create` for registration, `navigator.credentials.get` for authentication):
+
+```json
+{
+  "session_id": "<opaque-id>",
+  "options": { /* WebAuthn PublicKeyCredentialCreationOptions or PublicKeyCredentialRequestOptions */ }
+}
+```
 
 | Route | HTTP status | Response body |
 |---|---|---|
@@ -719,17 +732,50 @@ DELETE /totp            → h.Disable    // remove enrolled secret (204 No Conte
 
 Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI for the QR code, then `Enroll` verifies the first code from the authenticator app and persists the secret. `UsedCodes` provides process-local replay protection within the ~90-second TOTP validity window.
 
-`Enroll` expects `{"secret": "<base32 secret from Generate>", "code": "<6-digit code>"}`. The secret must be a valid unpadded base32 string of at least 20 bytes (160 bits). `Verify` expects `{"code": "<6-digit code>"}`.
+#### Request bodies
+
+`Enroll` and `Verify` read a JSON body from the request:
+
+```go
+// POST /totp/enroll
+type totpEnrollRequest struct {
+    Secret string `json:"secret"` // base32-encoded secret returned by Generate; must be a valid unpadded base32 string of at least 20 bytes (160 bits)
+    Code   string `json:"code"`   // current 6-digit code from the authenticator app
+}
+
+// POST /totp/verify
+type totpVerifyRequest struct {
+    Code string `json:"code"` // current 6-digit code from the authenticator app
+}
+```
 
 #### Response types
 
 | Route | HTTP status | Response body |
 |---|---|---|
-| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store` |
+| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — with headers `Cache-Control: no-store` and `Pragma: no-cache` |
 | `Enroll` | 200 | `{"enrolled": true}` |
 | `Verify` | 200 | `{"valid": true}` |
 | `Status` | 200 | `{"enrolled": <bool>}` |
 | `Disable` | 204 | *(no body)* |
+
+#### Error responses
+
+All TOTP endpoints return `{"error": "<message>"}` JSON on failure. The table below lists the non-200 status codes each endpoint can produce.
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Generate` | `500 Internal Server Error` | Crypto failure generating the secret, or user lookup failed |
+| `Enroll` | `400 Bad Request` | Invalid JSON body, `secret` or `code` field missing, `secret` is not a valid unpadded base32 value that decodes to at least 20 bytes, or `secret` fails TOTP validation |
+| `Enroll` | `401 Unauthorized` | Code failed TOTP validation, or code was already used within the replay window |
+| `Enroll` | `500 Internal Server Error` | Failed to persist the TOTP secret |
+| `Verify` | `400 Bad Request` | Invalid JSON body or `code` field missing |
+| `Verify` | `401 Unauthorized` | Code failed TOTP validation, or code was already used within the replay window |
+| `Verify` | `404 Not Found` | No TOTP secret enrolled for the authenticated user |
+| `Verify` | `500 Internal Server Error` | Store or validation error |
+| `Status` | `500 Internal Server Error` | Store error |
+| `Disable` | `404 Not Found` | No TOTP secret enrolled for the authenticated user |
+| `Disable` | `500 Internal Server Error` | Store error |
 
 ### MagicLinkHandler – passwordless login
 
