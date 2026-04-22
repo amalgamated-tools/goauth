@@ -498,6 +498,33 @@ dto := handler.ToUserDTO(user)
 
 `Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when Sessions is set), and `user` (a `UserDTO`).
 
+#### Error responses
+
+All `AuthHandler` endpoints return `{"error": "<message>"}` JSON on failure.
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Signup` | `400 Bad Request` | `name`, `email`, or `password` missing, or password is not 8–72 bytes |
+| `Signup` | `403 Forbidden` | `DisableSignup` is `true` |
+| `Signup` | `409 Conflict` | Email address is already registered |
+| `Signup` | `500 Internal Server Error` | Password hashing or user creation failed |
+| `Login` | `400 Bad Request` | `email` or `password` missing |
+| `Login` | `401 Unauthorized` | Wrong email or password, or OIDC-only account |
+| `Login` | `403 Forbidden` | `RequireVerification` is `true` and email is not verified |
+| `Login` | `500 Internal Server Error` | Store error |
+| `Logout` | *(no error body)* | Always succeeds; returns `{"message":"logged out"}` |
+| `RefreshToken` | `400 Bad Request` | Refresh token missing from request |
+| `RefreshToken` | `401 Unauthorized` | Invalid or expired refresh token, or session not found |
+| `RefreshToken` | `404 Not Found` | `Sessions` is `nil` (refresh tokens not enabled) |
+| `RefreshToken` | `500 Internal Server Error` | Store or JWT error |
+| `Me` | `404 Not Found` | User not found (e.g. deleted after token issuance) |
+| `Me` | `500 Internal Server Error` | Store error |
+| `UpdateProfile` | `400 Bad Request` | `name` is empty |
+| `UpdateProfile` | `500 Internal Server Error` | Store error |
+| `ChangePassword` | `400 Bad Request` | `current_password` or `new_password` missing, or OIDC-only account |
+| `ChangePassword` | `401 Unauthorized` | Current password is incorrect |
+| `ChangePassword` | `500 Internal Server Error` | Store or bcrypt error |
+
 #### Session tracking and refresh token rotation
 
 When `Sessions` is set on `AuthHandler`:
@@ -535,6 +562,23 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 `CreateLinkNonce` returns HTTP 200 with `{"nonce": "<nonce>"}`. Pass the nonce as the `nonce` query parameter to the `Link` route within 5 minutes to start the account-linking flow.
 
 > **No session tracking or refresh tokens.** `OIDCHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. If you need server-side session revocation and refresh-token rotation for OIDC logins, do not use the built-in `Callback` as-is; implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
+
+#### Error responses
+
+`Login` and `Callback` may return JSON errors or redirect-based errors depending on the phase of the flow. The `Link` endpoint returns JSON errors.
+
+| Endpoint | Status / Redirect | Condition |
+|---|---|---|
+| `Login` | `500 Internal Server Error` | Failed to generate OAuth state or PKCE verifier |
+| `Callback` | `400 Bad Request` (JSON) | Missing state cookie, invalid state parameter, missing PKCE verifier, or missing `authorization_code` |
+| `Callback` | `401 Unauthorized` (JSON) | Token exchange failed, missing or invalid `id_token`, or OIDC provider did not verify the email |
+| `Callback` | `500 Internal Server Error` (JSON) | Failed to parse claims or create user, or session creation failed |
+| `Callback` (link flow) | Redirect `/?oidc_link_error=…` | User not found, subject already linked to this account, subject already linked to another account, or link store error |
+| `Callback` (link flow) | Redirect `/?oidc_linked=true` | Account linking succeeded |
+| `CreateLinkNonce` | `500 Internal Server Error` | Nonce generation failed |
+| `Link` | `400 Bad Request` | `nonce` query parameter is missing |
+| `Link` | `401 Unauthorized` | Nonce is invalid or expired |
+| `Link` | `409 Conflict` | Cannot link account (subject already linked to another account) |
 
 ### APIKeyHandler
 
@@ -582,6 +626,17 @@ type apiKeyCreateResponse struct {
 
 The `Create` response embeds `apiKeyDTO` and adds a top-level `key` field containing the full plaintext key. `key_prefix` is the configured `Prefix` followed by the first 12 hex characters of the key — safe to display for user-facing identification.
 
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `List` | `500 Internal Server Error` | Store error while listing keys |
+| `Create` | `400 Bad Request` | `name` is missing or exceeds 100 characters |
+| `Create` | `500 Internal Server Error` | Key generation or store error |
+| `Delete` | `400 Bad Request` | API key ID missing from URL |
+| `Delete` | `404 Not Found` | Key not found or does not belong to the authenticated user |
+| `Delete` | `500 Internal Server Error` | Store error while deleting key |
+
 
 ### SessionHandler – session listing and revocation
 
@@ -608,6 +663,16 @@ type SessionDTO struct {
     CreatedAt  time.Time `json:"created_at"`
 }
 ```
+
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `List` | `500 Internal Server Error` | Store error while listing sessions |
+| `Revoke` | `400 Bad Request` | Session ID missing from URL |
+| `Revoke` | `404 Not Found` | Session not found or does not belong to the authenticated user |
+| `Revoke` | `500 Internal Server Error` | Store error while revoking session |
+| `RevokeAll` | `500 Internal Server Error` | Store error while revoking sessions |
 
 ### PasskeyHandler – WebAuthn
 
@@ -730,6 +795,22 @@ Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI 
 | `Status` | 200 | `{"enrolled": <bool>}` |
 | `Disable` | 204 | *(no body)* |
 
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Status` | `500 Internal Server Error` | Store error while fetching TOTP status |
+| `Generate` | `500 Internal Server Error` | Secret generation failed or user lookup failed |
+| `Enroll` | `400 Bad Request` | `secret` or `code` missing, or invalid base32 secret |
+| `Enroll` | `401 Unauthorized` | First-use code verification failed (bad code or replay) |
+| `Enroll` | `500 Internal Server Error` | Store error while saving secret |
+| `Verify` | `400 Bad Request` | `code` missing |
+| `Verify` | `401 Unauthorized` | Code is invalid, already used, or TOTP not enrolled |
+| `Verify` | `404 Not Found` | TOTP not configured for the user |
+| `Verify` | `500 Internal Server Error` | Store or validation error |
+| `Disable` | `404 Not Found` | TOTP not configured for the user |
+| `Disable` | `500 Internal Server Error` | Store error while removing secret |
+
 ### MagicLinkHandler – passwordless login
 
 ```go
@@ -759,6 +840,17 @@ Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account 
 
 Session tracking and refresh token rotation work identically to `AuthHandler` — set `Sessions`, `RefreshTokenTTL`, and `RefreshCookieName` to enable them.
 
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `RequestMagicLink` | `400 Bad Request` | `email` is missing |
+| `RequestMagicLink` | `503 Service Unavailable` | `Sender` is `nil` and the user's email is found (no sender configured) |
+| `RequestMagicLink` | `500 Internal Server Error` | Token generation or store error |
+| `VerifyMagicLink` | `400 Bad Request` | `token` query parameter is missing |
+| `VerifyMagicLink` | `401 Unauthorized` | Token is invalid or expired |
+| `VerifyMagicLink` | `500 Internal Server Error` | User resolution or JWT creation error |
+
 ### EmailVerificationHandler – email address verification
 
 ```go
@@ -784,6 +876,15 @@ When `SendEmail` is `nil`, verification tokens are still created and stored but 
 | `SendVerification` | 200 | `{"message": "if that address is registered, a verification email has been sent"}` |
 | `VerifyEmail` | 200 | `{"message": "email verified"}` |
 
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `SendVerification` | `400 Bad Request` | `email` is missing |
+| `SendVerification` | `500 Internal Server Error` | Store error while creating or storing the token |
+| `VerifyEmail` | `400 Bad Request` | `token` query parameter is missing, or token is invalid or expired |
+| `VerifyEmail` | `500 Internal Server Error` | Store error while marking email as verified |
+
 ### PasswordResetHandler – email-based password reset
 
 ```go
@@ -807,6 +908,16 @@ Only accounts with a password hash (not OIDC-only accounts) can use the reset fl
 |---|---|---|
 | `RequestReset` | 200 | `{"message": "if that email is registered, a reset link has been sent"}` |
 | `ResetPassword` | 200 | `{"message": "password reset successfully"}` |
+
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `RequestReset` | `400 Bad Request` | `email` is missing |
+| `RequestReset` | `429 Too Many Requests` | Rate limiter rejected the request (`RateLimiter` is set) |
+| `RequestReset` | `500 Internal Server Error` | User lookup, token generation, or store error |
+| `ResetPassword` | `400 Bad Request` | `token` or `new_password` missing, token is invalid or expired, or OIDC-only account |
+| `ResetPassword` | `500 Internal Server Error` | Store or bcrypt error |
 
 ### Cookie helpers
 
