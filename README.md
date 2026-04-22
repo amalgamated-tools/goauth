@@ -486,7 +486,7 @@ Password constraints: 8–72 bytes. Bcrypt cost 12.
 | `Login` | `{"email": "...", "password": "..."}` |
 | `UpdateProfile` | `{"name": "..."}` |
 | `ChangePassword` | `{"currentPassword": "...", "newPassword": "..."}` |
-| `RefreshToken` | `{"refresh_token": "..."}` — only when `RefreshCookieName` is not set; the refresh cookie is preferred when configured |
+| `RefreshToken` | `{"refresh_token": "..."}` — used when the refresh cookie (`RefreshCookieName`) is absent or empty; the cookie is preferred when it is present |
 
 #### Response types
 
@@ -668,9 +668,9 @@ Registration and authentication use server-side challenge storage (via `PasskeyS
 
 #### Request bodies
 
-`BeginRegistration` expects `{"name": "<passkey name>"}`. The name is required and must be 1–100 characters (non-empty after trimming). No request body is required for `BeginAuthentication`.
+`BeginRegistration` expects `{"name": "<passkey name>"}`. The name is required and must be 1–100 bytes (non-empty after trimming). No request body is required for `BeginAuthentication`.
 
-`FinishRegistration` and `FinishAuthentication` do not use a JSON request body — they receive the WebAuthn authenticator response as the raw HTTP request body (passed directly to the WebAuthn library) and accept the `session_id` as a query parameter.
+`FinishRegistration` and `FinishAuthentication` do not define their own JSON schema — the request body is passed directly to the WebAuthn library (`go-webauthn`), which expects a JSON-encoded `PublicKeyCredential` as produced by the browser's WebAuthn API. The `session_id` is accepted as a query parameter.
 
 #### Response types
 
