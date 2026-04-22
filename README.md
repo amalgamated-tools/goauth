@@ -617,7 +617,7 @@ All passkey endpoints return `{"error": "<message>"}` JSON on failure. The table
 | `FinishRegistration` | `500 Internal Server Error` | User lookup failed (transient store error) or credential storage failed |
 | `BeginAuthentication` | `500 Internal Server Error` | WebAuthn ceremony error or challenge storage error |
 | `FinishAuthentication` | `400 Bad Request` | `session_id` query parameter missing |
-| `FinishAuthentication` | `401 Unauthorized` | Session not found, session expired, or WebAuthn assertion verification failed |
+| `FinishAuthentication` | `401 Unauthorized` | Session not found, session expired, credential not found, user lookup failed, or WebAuthn assertion verification failed |
 | `FinishAuthentication` | `500 Internal Server Error` | JWT creation failed |
 | `ListCredentials` | `500 Internal Server Error` | Store error while listing credentials |
 | `DeleteCredential` | `400 Bad Request` | Credential ID missing from URL |
