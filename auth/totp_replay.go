@@ -10,6 +10,15 @@ import (
 // could accept is covered.
 const totpReplayWindow = (2*totpSkew + 1) * totpPeriod * time.Second
 
+// totpCacheKey is the composite key used in TOTPUsedCodeCache.entries.
+// Using a struct instead of a concatenated string avoids allocating a new
+// backing array (~43 bytes for a UUID userID + separator + 6-digit code)
+// on every WasUsed and MarkUsed call.
+type totpCacheKey struct {
+	userID string
+	code   string
+}
+
 // TOTPUsedCodeCache is a short-lived in-process cache that records TOTP codes
 // that have already been validated, preventing replay attacks within the
 // validity window. Expired entries are swept lazily on each WasUsed call,
@@ -18,7 +27,7 @@ const totpReplayWindow = (2*totpSkew + 1) * totpPeriod * time.Second
 // The zero value is ready to use.
 type TOTPUsedCodeCache struct {
 	mu        sync.Mutex
-	entries   sync.Map  // key: "userID\x00code", value: time.Time (expiry)
+	entries   sync.Map  // key: totpCacheKey, value: time.Time (expiry)
 	lastSweep time.Time // guarded by mu
 }
 
@@ -46,7 +55,7 @@ func (c *TOTPUsedCodeCache) maybeSweep() {
 // replay window.
 func (c *TOTPUsedCodeCache) WasUsed(userID, code string) bool {
 	c.maybeSweep()
-	v, ok := c.entries.Load(userID + "\x00" + code)
+	v, ok := c.entries.Load(totpCacheKey{userID, code})
 	if !ok {
 		return false
 	}
@@ -58,5 +67,5 @@ func (c *TOTPUsedCodeCache) WasUsed(userID, code string) bool {
 // cleanup on WasUsed is sufficient for the expected read-heavy verification
 // workload (each login verifies once, rarely enrolls).
 func (c *TOTPUsedCodeCache) MarkUsed(userID, code string) {
-	c.entries.Store(userID+"\x00"+code, time.Now().Add(totpReplayWindow))
+	c.entries.Store(totpCacheKey{userID, code}, time.Now().Add(totpReplayWindow))
 }
