@@ -639,6 +639,7 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 | `Link` | `400 Bad Request` | `nonce` query parameter is missing |
 | `Link` | `401 Unauthorized` | Nonce is invalid or expired |
 | `Link` | `409 Conflict` | Cannot link account (current user not found or already has an `OIDCSubject`) |
+| `Link` | `500 Internal Server Error` | Failed to generate OAuth state |
 
 ### APIKeyHandler
 
