@@ -608,9 +608,24 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 | SSO identity taken by another account | `/?oidc_link_error=SSO+identity+linked+to+another+account` |
 | Store failure | `/?oidc_link_error=Failed+to+link` |
 
-> **Note:** The table above covers only the outcomes handled inside `handleLinkCallback`. Errors that occur earlier in the OIDC exchange — such as the provider returning an `error` query parameter (e.g. the user cancels on the consent screen), a missing `code`, a failed token exchange, or an invalid `id_token` — are surfaced as JSON error responses (HTTP 401) rather than redirects. Clients must handle both redirect and JSON error outcomes.
+> **Note:** The table above covers only the outcomes handled inside `handleLinkCallback`. Errors that occur earlier in the OIDC exchange — such as the provider returning an `error` query parameter (e.g. the user cancels on the consent screen), a missing `code`, a failed token exchange, or an invalid `id_token` — are surfaced as JSON error responses (HTTP 400, 401, or 500 as appropriate) rather than redirects. Clients must handle both redirect and JSON error outcomes.
 
 > **No session tracking or refresh tokens.** `OIDCHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. If you need server-side session revocation and refresh-token rotation for OIDC logins, do not use the built-in `Callback` as-is; implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
+
+#### Error responses
+
+All `OIDCHandler` JSON error endpoints return `{"error": "<message>"}` on failure. Redirect-path outcomes (`Callback` when a link flow is active, and all `Link`-initiated redirects) are covered by the tables above, not here.
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Login` | `500 Internal Server Error` | State generation failed |
+| `Callback` | `400 Bad Request` | State cookie missing; state parameter mismatch; PKCE verifier cookie missing; `code` parameter absent; `sub` or `email` claim absent in the ID token |
+| `Callback` | `401 Unauthorized` | Provider returned an `error` parameter; code exchange failed; `id_token` missing or invalid; email not verified |
+| `Callback` | `500 Internal Server Error` | Claims parsing failed; user lookup or creation failed; JWT creation failed |
+| `CreateLinkNonce` | `200 OK` | Always succeeds — no error response |
+| `Link` | `400 Bad Request` | `nonce` query parameter missing |
+| `Link` | `401 Unauthorized` | Nonce not found, already consumed, or expired |
+| `Link` | `409 Conflict` | User not found or account is already OIDC-linked |
 
 ### APIKeyHandler
 
