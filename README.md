@@ -572,33 +572,6 @@ When `Sessions` is set on `AuthHandler`:
 - Setting `RefreshCookieName` causes the refresh token to also be delivered and expected via an HttpOnly cookie, in addition to the response body.
 - Pass `auth.Config{Sessions: sessionStore}` to `Middleware` so that revoked sessions are rejected on every request.
 
-#### Error responses
-
-All endpoints return `{"error": "<message>"}` JSON on failure.
-
-| Endpoint | Status | Condition |
-|---|---|---|
-| `Signup` | `400 Bad Request` | `name`, `email`, or `password` is missing; password is not 8–72 bytes |
-| `Signup` | `403 Forbidden` | `DisableSignup` is `true` |
-| `Signup` | `409 Conflict` | Email is already registered |
-| `Signup` | `500 Internal Server Error` | Password hashing, user creation, or token/session issuance failed (refresh-token generation, session creation, or JWT creation) |
-| `Login` | `400 Bad Request` | `email` or `password` is missing |
-| `Login` | `401 Unauthorized` | Email not found or password mismatch |
-| `Login` | `403 Forbidden` | `RequireVerification` is `true` and the account email is not verified |
-| `Login` | `500 Internal Server Error` | User lookup/store, token, or session creation failed |
-| `Logout` | *(none)* | Always returns `200 OK`; session revocation errors are logged but do not affect the response |
-| `RefreshToken` | `400 Bad Request` | Refresh token not provided (neither in body nor cookie) |
-| `RefreshToken` | `401 Unauthorized` | Token invalid, expired, session not found, or user not found |
-| `RefreshToken` | `404 Not Found` | `Sessions` is `nil` (refresh tokens not enabled) |
-| `RefreshToken` | `500 Internal Server Error` | Session or token creation failed |
-| `Me` | `404 Not Found` | Authenticated user not found in store |
-| `Me` | `500 Internal Server Error` | Store error while fetching user |
-| `UpdateProfile` | `400 Bad Request` | `name` is empty |
-| `UpdateProfile` | `500 Internal Server Error` | Store error while updating name |
-| `ChangePassword` | `400 Bad Request` | `currentPassword` or `newPassword` missing; new password not 8–72 bytes; account is OIDC-only (no password hash) |
-| `ChangePassword` | `401 Unauthorized` | `currentPassword` does not match stored hash |
-| `ChangePassword` | `500 Internal Server Error` | Store or hashing error |
-
 ### OIDCHandler – SSO / OpenID Connect
 
 ```go
