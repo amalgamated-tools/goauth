@@ -496,7 +496,7 @@ type UserDTO struct {
 dto := handler.ToUserDTO(user)
 ```
 
-`Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when Sessions is set), and `user` (a `UserDTO`).
+`Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when Sessions is set), and `user` (a `UserDTO`). All three endpoints set `Cache-Control: no-store` and `Pragma: no-cache` on success responses to prevent caching of authentication tokens.
 
 #### Request bodies
 
@@ -628,7 +628,7 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 | `CreateLinkNonce` | `500 Internal Server Error` | Nonce generation failed |
 | `Link` | `400 Bad Request` | `nonce` query parameter is missing |
 | `Link` | `401 Unauthorized` | Nonce is invalid or expired |
-| `Link` | `409 Conflict` | Cannot link account (current user not found or already has an `OIDCSubject`) |
+| `Link` | `409 Conflict` | User lookup failed or user not found; account already has an OIDC subject linked |
 | `Link` | `500 Internal Server Error` | Failed to generate OAuth state |
 
 ### APIKeyHandler
@@ -914,7 +914,7 @@ Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account 
 
 #### Response types
 
-`VerifyMagicLink` returns HTTP 200 with the same `AuthResponse` wrapper as `AuthHandler.Login` — `token`, `refresh_token` (when `Sessions` is set), and `user` (`UserDTO`). It also sets an `HttpOnly` session cookie and, when `Sessions` is set and `RefreshCookieName` is non-empty, an `HttpOnly` refresh token cookie.
+`VerifyMagicLink` returns HTTP 200 with the same `AuthResponse` wrapper as `AuthHandler.Login` — `token`, `refresh_token` (when `Sessions` is set), and `user` (`UserDTO`). It also sets an `HttpOnly` session cookie and, when `Sessions` is set and `RefreshCookieName` is non-empty, an `HttpOnly` refresh token cookie. The response also sets `Cache-Control: no-store` and `Pragma: no-cache` to prevent caching of authentication tokens.
 
 `RequestMagicLink` returns HTTP 200 with `{"message": "if that email is valid, a login link has been sent"}`.
 
