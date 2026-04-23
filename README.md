@@ -535,6 +535,7 @@ type refreshRequest struct {
 
 `Signup`, `Login`, and `RefreshToken` set `Cache-Control: no-store` and `Pragma: no-cache` on success.
 
+
 #### Error responses
 
 All `AuthHandler` endpoints return `{"error": "<message>"}` JSON on failure.
@@ -594,7 +595,7 @@ GET  /auth/oidc/link?nonce=<nonce>     → h.Link               // start link fl
 The callback performs PKCE verification and handles three cases automatically: existing OIDC subject → log in; existing email → link subject and log in; new user → create account.  
 Account linking uses a short-lived (5-minute) HMAC-signed state token so the user's browser never sees the user ID in plaintext.
 
-`Callback` does **not** return JSON. On success it sets the JWT in an `HttpOnly` session cookie and redirects the browser to `/?oidc_login=1` (HTTP 302) so that single-page applications can detect a completed OIDC login via the query parameter. The redirect destination is currently fixed; frontends that need a custom post-login URL should rely on the `oidc_login=1` query parameter (or another explicit non-`HttpOnly` signal) to trigger navigation, rather than attempting to read the session cookie from browser JavaScript.
+`Callback` does **not** return JSON on success — it sets the JWT in an `HttpOnly` session cookie and redirects the browser to `/?oidc_login=1` (HTTP 302) so that single-page applications can detect a completed OIDC login via the query parameter. On failure, `Callback` returns a JSON error body. The redirect destination is currently fixed; frontends that need a custom post-login URL should rely on the `oidc_login=1` query parameter (or another explicit non-`HttpOnly` signal) to trigger navigation, rather than attempting to read the session cookie from browser JavaScript.
 
 `CreateLinkNonce` returns HTTP 200 with `{"nonce": "<nonce>"}`. Pass the nonce as the `nonce` query parameter to the `Link` route within 5 minutes to start the account-linking flow.
 
@@ -611,6 +612,24 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 > **Note:** The table above covers only the outcomes handled inside `handleLinkCallback`. Errors that occur earlier in the OIDC exchange — such as the provider returning an `error` query parameter (e.g. the user cancels on the consent screen), a missing `code`, a failed token exchange, or an invalid `id_token` — are surfaced as JSON error responses (HTTP 401) rather than redirects. Clients must handle both redirect and JSON error outcomes.
 
 > **No session tracking or refresh tokens.** `OIDCHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. If you need server-side session revocation and refresh-token rotation for OIDC logins, do not use the built-in `Callback` as-is; implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
+
+#### Error responses
+
+`Login` and `Callback` may return JSON errors or redirect-based errors depending on the phase of the flow. The `Link` endpoint returns JSON errors.
+
+| Endpoint | Status / Redirect | Condition |
+|---|---|---|
+| `Login` | `500 Internal Server Error` | Failed to generate OAuth state |
+| `Callback` | `400 Bad Request` (JSON) | Missing state cookie, invalid state parameter, missing PKCE verifier, missing `authorization_code`, or missing required `sub`/`email` claims |
+| `Callback` | `401 Unauthorized` (JSON) | OIDC provider returned an error (e.g. user denied consent), token exchange failed, missing or invalid `id_token`, or OIDC provider did not verify the email |
+| `Callback` | `500 Internal Server Error` (JSON) | Failed to parse claims or create user, or token/JWT creation failed |
+| `Callback` (link flow) | Redirect `/?oidc_link_error=…` | User not found, subject already linked to this account, subject already linked to another account, or link store error |
+| `Callback` (link flow) | Redirect `/?oidc_linked=true` | Account linking succeeded |
+| `CreateLinkNonce` | `500 Internal Server Error` | Nonce generation failed |
+| `Link` | `400 Bad Request` | `nonce` query parameter is missing |
+| `Link` | `401 Unauthorized` | Nonce is invalid or expired |
+| `Link` | `409 Conflict` | Cannot link account (current user not found or already has an `OIDCSubject`) |
+| `Link` | `500 Internal Server Error` | Failed to generate OAuth state |
 
 ### APIKeyHandler
 
