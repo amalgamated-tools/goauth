@@ -655,7 +655,7 @@ Keys are 160-bit random values prefixed with the configured string. Only the SHA
 | Route | HTTP status | Response body |
 |---|---|---|
 | `List` | 200 | `[]apiKeyDTO` — array of key metadata |
-| `Create` | 201 | `apiKeyDTO` + `key` field — `Cache-Control: no-store` |
+| `Create` | 201 | `apiKeyDTO` + `key` field — `Cache-Control: no-store` and `Pragma: no-cache` |
 | `Delete` | 204 | *(no body)* |
 
 ```go
@@ -946,6 +946,8 @@ All `MagicLinkHandler` endpoints return `{"error": "<message>"}` JSON on failure
 | `VerifyMagicLink` | `401 Unauthorized` | Token not found in store or token is expired |
 | `VerifyMagicLink` | `500 Internal Server Error` | User lookup/creation or JWT creation failure |
 
+> **Note:** When `Sender` is non-nil but returns an error, `RequestMagicLink` logs the failure and still returns HTTP 200. Email delivery failures do not surface as non-200 responses.
+
 ### EmailVerificationHandler – email address verification
 
 ```go
@@ -994,6 +996,8 @@ All `EmailVerificationHandler` endpoints return `{"error": "<message>"}` JSON on
 | `VerifyEmail` | `400 Bad Request` | `token` query parameter is missing, or token is invalid or expired |
 | `VerifyEmail` | `500 Internal Server Error` | Store error consuming or applying the verification |
 
+> **Note:** Beyond the `400` cases, `SendVerification` always returns HTTP 200 — including when the user is not found, when token generation fails, when the store errors, and when email delivery fails. These failures are logged internally. This blanket 200 behaviour intentionally prevents leaking account existence.
+
 ### PasswordResetHandler – email-based password reset
 
 ```go
@@ -1009,7 +1013,7 @@ POST /password-reset/request   → h.RequestReset    // send reset email (200 wh
 POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
 ```
 
-Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use. If `SendResetEmail` returns an error, the handler attempts to delete the orphaned token as a best-effort cleanup; deletion failures are only logged/ignored, so the token may remain in the store.
+Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use. If `SendResetEmail` returns an error, the handler attempts to delete the orphaned token as a best-effort cleanup and still returns HTTP 200; deletion failures are only logged/ignored, so the token may remain in the store.
 
 `RequestReset` expects `{"email": "<address>"}`. `ResetPassword` expects `{"token": "<raw token from email>", "newPassword": "<new password>"}` (same 8–72 byte password constraint as `AuthHandler`).
 
