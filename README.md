@@ -478,6 +478,16 @@ POST   /auth/password        → h.ChangePassword // change password (requires a
 
 Password constraints: 8–72 bytes. Bcrypt cost 12.
 
+#### Request bodies
+
+| Route | Request body |
+|---|---|
+| `Signup` | `{"name": "...", "email": "...", "password": "..."}` |
+| `Login` | `{"email": "...", "password": "..."}` |
+| `UpdateProfile` | `{"name": "..."}` |
+| `ChangePassword` | `{"currentPassword": "...", "newPassword": "..."}` |
+| `RefreshToken` | `{"refresh_token": "..."}` — used when the refresh cookie (`RefreshCookieName`) is absent or empty; the cookie is preferred when it is present |
+
 #### Response types
 
 `Signup`, `Login`, and `RefreshToken` return an auth response wrapper that includes `user: handler.UserDTO`, while `Me` and `UpdateProfile` return a bare `handler.UserDTO`:
@@ -704,6 +714,12 @@ DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential     // 204 No C
 
 Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client. Discoverable login is used so users do not need to enter an identifier before presenting a passkey.
 
+#### Request bodies
+
+`BeginRegistration` expects `{"name": "<passkey name>"}`. The name is required and must be 1–100 bytes (non-empty after trimming). No request body is required for `BeginAuthentication`.
+
+`FinishRegistration` and `FinishAuthentication` do not define their own JSON schema — the request body is passed directly to the WebAuthn library (`go-webauthn`), which expects a JSON-encoded `PublicKeyCredential` as produced by the browser's WebAuthn API. The `session_id` is accepted as a query parameter.
+
 #### Response types
 
 `BeginRegistration` and `BeginAuthentication` both return HTTP 200 with a begin-ceremony response. Pass `session_id` as the `session_id` query parameter to the corresponding finish endpoint, and pass `options` to the browser's WebAuthn API (`navigator.credentials.create` for registration, `navigator.credentials.get` for authentication):
@@ -846,6 +862,8 @@ POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login 
 GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → AuthResponse (HTTP 200)
 ```
 
+`RequestMagicLink` expects `{"email": "<address>"}` as its JSON request body. `VerifyMagicLink` accepts a `token` query parameter instead of a request body.
+
 Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account when no user exists for the email address. `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration; validation and operational errors still surface as non-200 responses.
 
 #### Response types
@@ -880,6 +898,8 @@ h := &handler.EmailVerificationHandler{
 POST /verify-email/send   → h.SendVerification   // send verification email (200 whether or not email is registered)
 GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks email verified
 ```
+
+`SendVerification` expects `{"email": "<address>"}` as its JSON request body. `VerifyEmail` accepts a `token` query parameter instead of a request body.
 
 `SendVerification` silently skips already-verified addresses and returns the same success response whether or not the address is registered, preventing enumeration. Set `RequireVerification: true` on `AuthHandler` to gate login on email verification.
 
