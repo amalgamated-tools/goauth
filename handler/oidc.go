@@ -246,7 +246,11 @@ func (h *OIDCHandler) findOrCreateUser(ctx context.Context, subject, email, name
 // CreateLinkNonce issues a nonce for OIDC account linking.
 func (h *OIDCHandler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
-	nonce, _ := generateOIDCState()
+	nonce, err := generateOIDCState()
+	if err != nil {
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate nonce")
+		return
+	}
 
 	h.linkNoncesMu.Lock()
 	now := time.Now()
