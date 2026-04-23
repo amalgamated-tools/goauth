@@ -87,8 +87,8 @@ func GenerateTOTPCode(secret string, t time.Time) (string, error) {
 
 // hotpCode computes a single HOTP value per RFC 4226 §5.3.
 func hotpCode(key []byte, counter uint64) string {
-	// Use a fixed-size array so the compiler can keep msg on the stack rather
-	// than heap-allocating a slice backing array on every call.
+	// Use a fixed-size array to avoid potential heap allocation from make([]byte, 8)
+	// depending on escape analysis outcomes.
 	var msg [8]byte
 	binary.BigEndian.PutUint64(msg[:], counter)
 
