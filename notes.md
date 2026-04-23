@@ -23,21 +23,23 @@
 | HIGH | Code-Level | hotpCode: replace math.Pow10(totpDigits) with constant 1_000_000 | Remove float64 op + math import on hot auth path | MERGED PR #39 |
 | MEDIUM | Code-Level | SecretEncrypter: cache cipher.Block to avoid AES key expansion per call | Saves ~60-100ns on every Encrypt/Decrypt | MERGED PR #44 |
 | MEDIUM | Code-Level | hotpCode: fmt.Sprintf("%0*d",...) -> precomputed totpFormat var | Minor format-parse savings, 3× per TOTP validation | MERGED PR #55 |
-| MEDIUM | Code-Level | hotpCode: make([]byte,8) -> var msg [8]byte for stack allocation | One fewer heap alloc per hotpCode call (3x/login) | PR SUBMITTED (branch: efficiency/hotp-stack-array) |
-| MEDIUM | Code-Level | TOTPUsedCodeCache: string concat key -> struct key to save alloc | Save ~43-byte backing array alloc per WasUsed/MarkUsed | Candidate |
+| MEDIUM | Code-Level | hotpCode: make([]byte,8) -> var msg [8]byte for stack allocation | One fewer heap alloc per hotpCode call (3x/login) | MERGED (in main) |
+| MEDIUM | Code-Level | TOTPUsedCodeCache: string concat key -> totpCacheKey struct to save alloc | Save ~43-byte backing array alloc per WasUsed/MarkUsed | PR SUBMITTED (branch: efficiency/totp-cache-struct-key) |
 | LOW | Data | No benchmarks for any code paths — measurement infrastructure gap | Enables future evidence-based optimisation |
 
 ## Work In Progress
-- PR submitted (branch: efficiency/hotp-stack-array): [8]byte array instead of make([]byte,8) in hotpCode
+- PR submitted (branch: efficiency/totp-cache-struct-key): totpCacheKey struct instead of string concat in sync.Map
 
 ## Completed Work
 - PR #39: MERGED 2026-04-20 — replace math.Pow10 with totpModulo=1_000_000 integer constant
 - PR #44: MERGED ~2026-04-21 — cache cipher.Block in SecretEncrypter
-- PR #55: MERGED 2026-04-22 — precomputed totpFormat package-level var (was tracked as PR #54 in memory; actual number was #55)
+- PR #55: MERGED 2026-04-22 — precomputed totpFormat package-level var
+- [8]byte in hotpCode: MERGED (confirmed in main 2026-04-23, no PR number tracked)
 
 ## Backlog Cursor
 - Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete)
 - Last tasks run: Task 3 (implement), Task 7 (monthly summary update)
+- Last run: 2026-04-23
 
 ## Last Run
-- 2026-04-22: PR #55 merged. Created PR (branch: efficiency/hotp-stack-array) for [8]byte optimization. Updated monthly issue #40.
+- 2026-04-23: [8]byte optimization confirmed in main. Created PR (branch: efficiency/totp-cache-struct-key) for struct key optimization. Updated monthly issue #40.
