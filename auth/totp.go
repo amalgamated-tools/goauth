@@ -87,11 +87,13 @@ func GenerateTOTPCode(secret string, t time.Time) (string, error) {
 
 // hotpCode computes a single HOTP value per RFC 4226 §5.3.
 func hotpCode(key []byte, counter uint64) string {
-	msg := make([]byte, 8)
-	binary.BigEndian.PutUint64(msg, counter)
+	// Use a fixed-size array to avoid potential heap allocation from make([]byte, 8)
+	// depending on escape analysis outcomes.
+	var msg [8]byte
+	binary.BigEndian.PutUint64(msg[:], counter)
 
 	mac := hmac.New(sha1.New, key) //nolint:gosec // required by RFC 6238
-	_, _ = mac.Write(msg)
+	_, _ = mac.Write(msg[:])
 	h := mac.Sum(nil)
 
 	offset := h[len(h)-1] & 0x0f
