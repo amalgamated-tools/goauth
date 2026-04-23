@@ -595,6 +595,8 @@ GET  /auth/oidc/link?nonce=<nonce>     → h.Link               // start link fl
 The callback performs PKCE verification and handles three cases automatically: existing OIDC subject → log in; existing email → link subject and log in; new user → create account.  
 Account linking uses a short-lived (5-minute) HMAC-signed state token so the user's browser never sees the user ID in plaintext.
 
+`NewOIDCHandler` always requests the `openid`, `email`, and `profile` scopes. The provider must expose an email claim; the `profile` scope is requested so the provider may return a display name for new account creation.
+
 `Callback` does **not** return JSON on success — it sets the JWT in an `HttpOnly` session cookie and redirects the browser to `/?oidc_login=1` (HTTP 302) so that single-page applications can detect a completed OIDC login via the query parameter. On failure, `Callback` returns a JSON error body. The redirect destination is currently fixed; frontends that need a custom post-login URL should rely on the `oidc_login=1` query parameter (or another explicit non-`HttpOnly` signal) to trigger navigation, rather than attempting to read the session cookie from browser JavaScript.
 
 `CreateLinkNonce` returns HTTP 200 with `{"nonce": "<nonce>"}`. Pass the nonce as the `nonce` query parameter to the `Link` route within 5 minutes to start the account-linking flow.
@@ -910,6 +912,8 @@ GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → A
 
 `RequestMagicLink` expects `{"email": "<address>"}` as its JSON request body. `VerifyMagicLink` accepts a `token` query parameter instead of a request body.
 
+The `Sender` field has the named type `handler.MagicLinkSender` (`func(ctx context.Context, email, token string) error`). Assign any function with that signature to deliver the one-time token to the user via email or another channel.
+
 Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account when no user exists for the email address. `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration; validation and operational errors still surface as non-200 responses.
 
 #### Response types
@@ -1011,6 +1015,8 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 
 Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use. If `SendResetEmail` returns an error, the handler attempts to delete the orphaned token as a best-effort cleanup; deletion failures are only logged/ignored, so the token may remain in the store.
 
+When `SendResetEmail` is `nil`, reset tokens are still created and stored but no email is delivered. This is useful in testing environments where email delivery is not required.
+
 `RequestReset` expects `{"email": "<address>"}`. `ResetPassword` expects `{"token": "<raw token from email>", "newPassword": "<new password>"}` (same 8–72 byte password constraint as `AuthHandler`).
 
 #### Response types
@@ -1105,6 +1111,8 @@ if cfg.Enabled() {
 | `SMTP_TLS` | `starttls` | TLS mode: `none`, `starttls`, or `tls` |
 
 `smtp.Send` accepts a raw RFC 2822/MIME message as `[]byte`. Composing message bodies and templates is left to the consuming application.
+
+`smtp.Send` uses a **10-second dial timeout** for the initial TCP connection. Once connected, an SMTP session deadline of **30 seconds** is set; context deadlines shorter than 30 seconds are honored. TLS connections (`tls` and `starttls` modes) require **TLS 1.2 or later**. Authentication uses PLAIN auth when both `SMTP_USERNAME` and `SMTP_PASSWORD` are non-empty; unauthenticated relay is used otherwise.
 
 ---
 
