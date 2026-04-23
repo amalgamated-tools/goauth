@@ -478,16 +478,6 @@ POST   /auth/password        → h.ChangePassword // change password (requires a
 
 Password constraints: 8–72 bytes. Bcrypt cost 12.
 
-#### Request bodies
-
-| Route | Request body |
-|---|---|
-| `Signup` | `{"name": "...", "email": "...", "password": "..."}` |
-| `Login` | `{"email": "...", "password": "..."}` |
-| `UpdateProfile` | `{"name": "..."}` |
-| `ChangePassword` | `{"currentPassword": "...", "newPassword": "..."}` |
-| `RefreshToken` | `{"refresh_token": "..."}` — used when the refresh cookie (`RefreshCookieName`) is absent or empty; the cookie is preferred when it is present |
-
 #### Response types
 
 `Signup`, `Login`, and `RefreshToken` return an auth response wrapper that includes `user: handler.UserDTO`, while `Me` and `UpdateProfile` return a bare `handler.UserDTO`:
