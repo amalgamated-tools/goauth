@@ -631,7 +631,7 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 |---|---|---|
 | `Login` | `500 Internal Server Error` | Failed to generate OAuth state |
 | `Callback` | `400 Bad Request` (JSON) | Missing state cookie, invalid state parameter, missing PKCE verifier, missing `authorization_code`, or missing required `sub`/`email` claims |
-| `Callback` | `401 Unauthorized` (JSON) | Token exchange failed, missing or invalid `id_token`, or OIDC provider did not verify the email |
+| `Callback` | `401 Unauthorized` (JSON) | OIDC provider returned an error (e.g. user denied consent), token exchange failed, missing or invalid `id_token`, or OIDC provider did not verify the email |
 | `Callback` | `500 Internal Server Error` (JSON) | Failed to parse claims or create user, or token/JWT creation failed |
 | `Callback` (link flow) | Redirect `/?oidc_link_error=…` | User not found, subject already linked to this account, subject already linked to another account, or link store error |
 | `Callback` (link flow) | Redirect `/?oidc_linked=true` | Account linking succeeded |

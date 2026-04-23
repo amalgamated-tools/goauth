@@ -282,7 +282,11 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state, _ := generateOIDCState()
+	state, err := generateOIDCState()
+	if err != nil {
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate link")
+		return
+	}
 	verifier := oauth2.GenerateVerifier()
 	signedState := h.signLinkState(state, userID)
 
