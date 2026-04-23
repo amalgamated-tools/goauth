@@ -506,7 +506,7 @@ type UserDTO struct {
 dto := handler.ToUserDTO(user)
 ```
 
-`Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when Sessions is set), and `user` (a `UserDTO`).
+`Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when Sessions is set), and `user` (a `UserDTO`). All three endpoints set `Cache-Control: no-store` and `Pragma: no-cache` on success responses to prevent caching of authentication tokens.
 
 #### Session tracking and refresh token rotation
 
@@ -584,6 +584,21 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 > **Note:** The table above covers only the outcomes handled inside `handleLinkCallback`. Errors that occur earlier in the OIDC exchange — such as the provider returning an `error` query parameter (e.g. the user cancels on the consent screen), a missing `code`, a failed token exchange, or an invalid `id_token` — are surfaced as JSON error responses (HTTP 401) rather than redirects. Clients must handle both redirect and JSON error outcomes.
 
 > **No session tracking or refresh tokens.** `OIDCHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. If you need server-side session revocation and refresh-token rotation for OIDC logins, do not use the built-in `Callback` as-is; implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
+
+#### Error responses
+
+All OIDC endpoints return `{"error": "<message>"}` JSON on failure unless noted otherwise.
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Login` | `500 Internal Server Error` | Failed to generate random PKCE state |
+| `Callback` | `400 Bad Request` | State or PKCE verifier cookie missing or mismatched; `code` parameter absent; `sub` or `email` claim absent in the ID token |
+| `Callback` | `401 Unauthorized` | Provider returned an `error` query parameter; code exchange failed; `id_token` missing or invalid signature; OIDC email is not verified |
+| `Callback` | `500 Internal Server Error` | ID token claims parsing failed; user lookup or creation failed; JWT creation failed |
+| `CreateLinkNonce` | *(none)* | Always returns `200 OK` |
+| `Link` | `400 Bad Request` | `nonce` query parameter missing |
+| `Link` | `401 Unauthorized` | Nonce is invalid or expired (older than 5 minutes) |
+| `Link` | `409 Conflict` | User not found in store, or account already has an OIDC subject linked |
 
 ### APIKeyHandler
 
@@ -868,7 +883,7 @@ Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account 
 
 #### Response types
 
-`VerifyMagicLink` returns HTTP 200 with the same `AuthResponse` wrapper as `AuthHandler.Login` — `token`, `refresh_token` (when `Sessions` is set), and `user` (`UserDTO`). It also sets an `HttpOnly` session cookie and, when `Sessions` is set and `RefreshCookieName` is non-empty, an `HttpOnly` refresh token cookie.
+`VerifyMagicLink` returns HTTP 200 with the same `AuthResponse` wrapper as `AuthHandler.Login` — `token`, `refresh_token` (when `Sessions` is set), and `user` (`UserDTO`). It also sets an `HttpOnly` session cookie and, when `Sessions` is set and `RefreshCookieName` is non-empty, an `HttpOnly` refresh token cookie. The response also sets `Cache-Control: no-store` and `Pragma: no-cache` to prevent caching of authentication tokens.
 
 `RequestMagicLink` returns HTTP 200 with `{"message": "if that email is valid, a login link has been sent"}`.
 
