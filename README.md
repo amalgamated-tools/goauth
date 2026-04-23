@@ -478,6 +478,16 @@ POST   /auth/password        → h.ChangePassword // change password (requires a
 
 Password constraints: 8–72 bytes. Bcrypt cost 12.
 
+#### Request bodies
+
+| Route | Request body |
+|---|---|
+| `Signup` | `{"name": "...", "email": "...", "password": "..."}` |
+| `Login` | `{"email": "...", "password": "..."}` |
+| `UpdateProfile` | `{"name": "..."}` |
+| `ChangePassword` | `{"currentPassword": "...", "newPassword": "..."}` |
+| `RefreshToken` | `{"refresh_token": "..."}` — used when the refresh cookie (`RefreshCookieName`) is absent or empty; the cookie is preferred when it is present |
+
 #### Response types
 
 `Signup`, `Login`, and `RefreshToken` return an auth response wrapper that includes `user: handler.UserDTO`, while `Me` and `UpdateProfile` return a bare `handler.UserDTO`:
@@ -498,31 +508,69 @@ dto := handler.ToUserDTO(user)
 
 `Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when Sessions is set), and `user` (a `UserDTO`).
 
+#### Request bodies
+
+`Signup`, `Login`, `UpdateProfile`, `ChangePassword`, and `RefreshToken` read a JSON body. When `RefreshCookieName` is set, `RefreshToken` prefers the cookie and falls back to the body only when the cookie is absent:
+
+```go
+// POST /auth/signup
+type signupRequest struct {
+    Name     string `json:"name"`
+    Email    string `json:"email"`
+    Password string `json:"password"`
+}
+
+// POST /auth/login
+type loginRequest struct {
+    Email    string `json:"email"`
+    Password string `json:"password"`
+}
+
+// PUT /auth/me (requires auth)
+type updateProfileRequest struct {
+    Name string `json:"name"`
+}
+
+// POST /auth/password (requires auth)
+type changePasswordRequest struct {
+    CurrentPassword string `json:"currentPassword"`
+    NewPassword     string `json:"newPassword"`
+}
+
+// POST /auth/refresh — body used when RefreshCookieName is not set or cookie is absent
+type refreshRequest struct {
+    RefreshToken string `json:"refresh_token"`
+}
+```
+
+`Signup`, `Login`, and `RefreshToken` set `Cache-Control: no-store` and `Pragma: no-cache` on success.
+
+
 #### Error responses
 
 All `AuthHandler` endpoints return `{"error": "<message>"}` JSON on failure.
 
 | Endpoint | Status | Condition |
 |---|---|---|
-| `Signup` | `400 Bad Request` | `name`, `email`, or `password` missing, or password is not 8–72 bytes |
+| `Signup` | `400 Bad Request` | Invalid JSON body, any of `name`, `email`, or `password` is missing, or password is outside 8–72 bytes |
 | `Signup` | `403 Forbidden` | `DisableSignup` is `true` |
-| `Signup` | `409 Conflict` | Email address is already registered |
-| `Signup` | `500 Internal Server Error` | Password hashing or user creation failed |
-| `Login` | `400 Bad Request` | `email` or `password` missing |
-| `Login` | `401 Unauthorized` | Wrong email or password, or OIDC-only account |
-| `Login` | `403 Forbidden` | `RequireVerification` is `true` and email is not verified |
-| `Login` | `500 Internal Server Error` | Store error |
-| `Logout` | *(no error body)* | Always succeeds; returns `{"message":"logged out"}` |
-| `RefreshToken` | `400 Bad Request` | Refresh token missing from request |
-| `RefreshToken` | `401 Unauthorized` | Invalid or expired refresh token, or session not found |
+| `Signup` | `409 Conflict` | Email address already registered (`auth.ErrEmailExists`) |
+| `Signup` | `500 Internal Server Error` | bcrypt failure, store error creating user, or token/session issuance failure (refresh-token generation, session creation, or JWT creation) |
+| `Login` | `400 Bad Request` | Invalid JSON body, or `email` or `password` is empty |
+| `Login` | `401 Unauthorized` | Email not found, wrong password, or account is OIDC-only (no password hash) |
+| `Login` | `403 Forbidden` | `RequireVerification` is `true` and the account's `EmailVerified` is `false` |
+| `Login` | `500 Internal Server Error` | Store error looking up user, or token/session issuance failure (session creation or JWT creation) |
+| `Logout` | 200 always | Clears the cookie; session revocation errors are silently ignored |
+| `RefreshToken` | `400 Bad Request` | Refresh token not present in cookie or request body |
+| `RefreshToken` | `401 Unauthorized` | Token not found in store, token is expired, or associated user not found |
 | `RefreshToken` | `404 Not Found` | `Sessions` is `nil` (refresh tokens not enabled) |
-| `RefreshToken` | `500 Internal Server Error` | Store or JWT error |
-| `Me` | `404 Not Found` | User not found (e.g. deleted after token issuance) |
+| `RefreshToken` | `500 Internal Server Error` | Store error or JWT creation failure |
+| `Me` | `404 Not Found` | User not found (e.g. deleted since the token was issued) |
 | `Me` | `500 Internal Server Error` | Store error |
-| `UpdateProfile` | `400 Bad Request` | `name` is empty |
-| `UpdateProfile` | `500 Internal Server Error` | Store error |
-| `ChangePassword` | `400 Bad Request` | `current_password` or `new_password` missing, or OIDC-only account |
-| `ChangePassword` | `401 Unauthorized` | Current password is incorrect |
+| `UpdateProfile` | `400 Bad Request` | Invalid JSON body or `name` is empty |
+| `UpdateProfile` | `500 Internal Server Error` | Store error updating name |
+| `ChangePassword` | `400 Bad Request` | Invalid JSON body, `currentPassword` or `newPassword` missing, password outside 8–72 bytes, or account has no password hash (OIDC-only) |
+| `ChangePassword` | `401 Unauthorized` | `currentPassword` does not match the stored hash |
 | `ChangePassword` | `500 Internal Server Error` | Store or bcrypt error |
 
 #### Session tracking and refresh token rotation
@@ -561,6 +609,18 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 
 `CreateLinkNonce` returns HTTP 200 with `{"nonce": "<nonce>"}`. Pass the nonce as the `nonce` query parameter to the `Link` route within 5 minutes to start the account-linking flow.
 
+`Link` redirects the browser to the OIDC provider (HTTP 302) using PKCE, just like `Login`. When the provider redirects back to `Callback`, the handler detects the link-in-progress state and redirects to:
+
+| Outcome | Redirect |
+|---|---|
+| Success | `/?oidc_linked=true` |
+| User not found | `/?oidc_link_error=User+not+found` |
+| Account already linked | `/?oidc_link_error=Already+linked` |
+| SSO identity taken by another account | `/?oidc_link_error=SSO+identity+linked+to+another+account` |
+| Store failure | `/?oidc_link_error=Failed+to+link` |
+
+> **Note:** The table above covers only the outcomes handled inside `handleLinkCallback`. Errors that occur earlier in the OIDC exchange — such as the provider returning an `error` query parameter (e.g. the user cancels on the consent screen), a missing `code`, a failed token exchange, or an invalid `id_token` — are surfaced as JSON error responses (HTTP 401) rather than redirects. Clients must handle both redirect and JSON error outcomes.
+
 > **No session tracking or refresh tokens.** `OIDCHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. If you need server-side session revocation and refresh-token rotation for OIDC logins, do not use the built-in `Callback` as-is; implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
 
 #### Error responses
@@ -597,6 +657,8 @@ DELETE /api-keys/{id}   → h.Delete  // 204 No Content
 
 Keys are 160-bit random values prefixed with the configured string. Only the SHA-256 hash is persisted. The raw key is returned in the `key` field of the creation response only.
 
+`Create` expects `{"name": "<display name>"}`. The name must be 1–100 characters (non-empty after trimming).
+
 #### Response types
 
 | Route | HTTP status | Response body |
@@ -631,10 +693,10 @@ The `Create` response embeds `apiKeyDTO` and adds a top-level `key` field contai
 | Endpoint | Status | Condition |
 |---|---|---|
 | `List` | `500 Internal Server Error` | Store error while listing keys |
-| `Create` | `400 Bad Request` | `name` is missing or exceeds 100 characters |
+| `Create` | `400 Bad Request` | `name` is empty or exceeds 100 characters |
 | `Create` | `500 Internal Server Error` | Key generation or store error |
 | `Delete` | `400 Bad Request` | API key ID missing from URL |
-| `Delete` | `404 Not Found` | Key not found or does not belong to the authenticated user |
+| `Delete` | `404 Not Found` | API key not found or does not belong to the authenticated user |
 | `Delete` | `500 Internal Server Error` | Store error while deleting key |
 
 
@@ -672,7 +734,7 @@ type SessionDTO struct {
 | `Revoke` | `400 Bad Request` | Session ID missing from URL |
 | `Revoke` | `404 Not Found` | Session not found or does not belong to the authenticated user |
 | `Revoke` | `500 Internal Server Error` | Store error while revoking session |
-| `RevokeAll` | `500 Internal Server Error` | Store error while revoking sessions |
+| `RevokeAll` | `500 Internal Server Error` | Store error while revoking all sessions |
 
 ### PasskeyHandler – WebAuthn
 
@@ -706,6 +768,12 @@ DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential     // 204 No C
 ```
 
 Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client. Discoverable login is used so users do not need to enter an identifier before presenting a passkey.
+
+#### Request bodies
+
+`BeginRegistration` expects `{"name": "<passkey name>"}`. The name is required and must be 1–100 bytes (non-empty after trimming). No request body is required for `BeginAuthentication`.
+
+`FinishRegistration` and `FinishAuthentication` do not define their own JSON schema — the request body is passed directly to the WebAuthn library (`go-webauthn`), which expects a JSON-encoded `PublicKeyCredential` as produced by the browser's WebAuthn API. The `session_id` is accepted as a query parameter.
 
 #### Response types
 
@@ -785,11 +853,28 @@ DELETE /totp            → h.Disable    // remove enrolled secret (204 No Conte
 
 Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI for the QR code, then `Enroll` verifies the first code from the authenticator app and persists the secret. `UsedCodes` provides process-local replay protection within the ~90-second TOTP validity window.
 
+#### Request bodies
+
+`Enroll` and `Verify` read a JSON body from the request:
+
+```go
+// POST /totp/enroll
+type totpEnrollRequest struct {
+    Secret string `json:"secret"` // base32-encoded secret returned by Generate; must be a valid unpadded base32 string of at least 20 bytes (160 bits)
+    Code   string `json:"code"`   // current 6-digit code from the authenticator app
+}
+
+// POST /totp/verify
+type totpVerifyRequest struct {
+    Code string `json:"code"` // current 6-digit code from the authenticator app
+}
+```
+
 #### Response types
 
 | Route | HTTP status | Response body |
 |---|---|---|
-| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store` |
+| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — with headers `Cache-Control: no-store` and `Pragma: no-cache` |
 | `Enroll` | 200 | `{"enrolled": true}` |
 | `Verify` | 200 | `{"valid": true}` |
 | `Status` | 200 | `{"enrolled": <bool>}` |
@@ -797,19 +882,21 @@ Enrollment is a two-step flow: `Generate` returns a secret and `otpauth://` URI 
 
 #### Error responses
 
+All TOTP endpoints return `{"error": "<message>"}` JSON on failure. The table below lists the non-200 status codes each endpoint can produce.
+
 | Endpoint | Status | Condition |
 |---|---|---|
-| `Status` | `500 Internal Server Error` | Store error while fetching TOTP status |
-| `Generate` | `500 Internal Server Error` | Secret generation failed or user lookup failed |
-| `Enroll` | `400 Bad Request` | `secret` or `code` missing, or invalid base32 secret |
-| `Enroll` | `401 Unauthorized` | First-use code verification failed (bad code or replay) |
-| `Enroll` | `500 Internal Server Error` | Store error while saving secret |
-| `Verify` | `400 Bad Request` | `code` missing |
-| `Verify` | `401 Unauthorized` | Code is invalid, already used, or TOTP not enrolled |
-| `Verify` | `404 Not Found` | TOTP not configured for the user |
+| `Generate` | `500 Internal Server Error` | Crypto failure generating the secret, or user lookup failed |
+| `Enroll` | `400 Bad Request` | Invalid JSON body, `secret` or `code` field missing, `secret` is not a valid unpadded base32 value that decodes to at least 20 bytes, or `secret` fails TOTP validation |
+| `Enroll` | `401 Unauthorized` | Code failed TOTP validation, or code was already used within the replay window |
+| `Enroll` | `500 Internal Server Error` | Failed to persist the TOTP secret |
+| `Verify` | `400 Bad Request` | Invalid JSON body or `code` field missing |
+| `Verify` | `401 Unauthorized` | Code failed TOTP validation, or code was already used within the replay window |
+| `Verify` | `404 Not Found` | No TOTP secret enrolled for the authenticated user |
 | `Verify` | `500 Internal Server Error` | Store or validation error |
-| `Disable` | `404 Not Found` | TOTP not configured for the user |
-| `Disable` | `500 Internal Server Error` | Store error while removing secret |
+| `Status` | `500 Internal Server Error` | Store error |
+| `Disable` | `404 Not Found` | No TOTP secret enrolled for the authenticated user |
+| `Disable` | `500 Internal Server Error` | Store error |
 
 ### MagicLinkHandler – passwordless login
 
@@ -830,6 +917,8 @@ POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login 
 GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → AuthResponse (HTTP 200)
 ```
 
+`RequestMagicLink` expects `{"email": "<address>"}` as its JSON request body. `VerifyMagicLink` accepts a `token` query parameter instead of a request body.
+
 Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account when no user exists for the email address. `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration; validation and operational errors still surface as non-200 responses.
 
 #### Response types
@@ -838,18 +927,33 @@ Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account 
 
 `RequestMagicLink` returns HTTP 200 with `{"message": "if that email is valid, a login link has been sent"}`.
 
+`VerifyMagicLink` sets `Cache-Control: no-store` and `Pragma: no-cache` on success.
+
 Session tracking and refresh token rotation work identically to `AuthHandler` — set `Sessions`, `RefreshTokenTTL`, and `RefreshCookieName` to enable them.
+
+#### Request bodies
+
+`RequestMagicLink` reads a JSON body. `VerifyMagicLink` reads its token from the `token` query parameter — no request body:
+
+```go
+// POST /auth/magic-link/request
+type magicLinkRequestBody struct {
+    Email string `json:"email"`
+}
+```
 
 #### Error responses
 
+All `MagicLinkHandler` endpoints return `{"error": "<message>"}` JSON on failure.
+
 | Endpoint | Status | Condition |
 |---|---|---|
-| `RequestMagicLink` | `400 Bad Request` | `email` is missing |
-| `RequestMagicLink` | `503 Service Unavailable` | `Sender` is `nil` and the user's email is found (no sender configured) |
+| `RequestMagicLink` | `400 Bad Request` | Invalid JSON body or `email` is empty |
 | `RequestMagicLink` | `500 Internal Server Error` | Token generation or store error |
+| `RequestMagicLink` | `503 Service Unavailable` | `Sender` is `nil` (magic link sending not configured); the token has already been persisted in the store at this point |
 | `VerifyMagicLink` | `400 Bad Request` | `token` query parameter is missing |
-| `VerifyMagicLink` | `401 Unauthorized` | Token is invalid or expired |
-| `VerifyMagicLink` | `500 Internal Server Error` | User resolution or JWT creation error |
+| `VerifyMagicLink` | `401 Unauthorized` | Token not found in store or token is expired |
+| `VerifyMagicLink` | `500 Internal Server Error` | User lookup/creation or JWT creation failure |
 
 ### EmailVerificationHandler – email address verification
 
@@ -865,6 +969,8 @@ POST /verify-email/send   → h.SendVerification   // send verification email (2
 GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks email verified
 ```
 
+`SendVerification` expects `{"email": "<address>"}` as its JSON request body. `VerifyEmail` accepts a `token` query parameter instead of a request body.
+
 `SendVerification` silently skips already-verified addresses and returns the same success response whether or not the address is registered, preventing enumeration. Set `RequireVerification: true` on `AuthHandler` to gate login on email verification.
 
 When `SendEmail` is `nil`, verification tokens are still created and stored but no email is delivered. This is useful in testing environments where email delivery is not required.
@@ -876,14 +982,26 @@ When `SendEmail` is `nil`, verification tokens are still created and stored but 
 | `SendVerification` | 200 | `{"message": "if that address is registered, a verification email has been sent"}` |
 | `VerifyEmail` | 200 | `{"message": "email verified"}` |
 
+#### Request bodies
+
+`SendVerification` reads a JSON body. `VerifyEmail` reads its token from the `token` query parameter — no request body:
+
+```go
+// POST /verify-email/send
+type sendVerificationRequest struct {
+    Email string `json:"email"`
+}
+```
+
 #### Error responses
+
+All `EmailVerificationHandler` endpoints return `{"error": "<message>"}` JSON on failure.
 
 | Endpoint | Status | Condition |
 |---|---|---|
-| `SendVerification` | `400 Bad Request` | `email` is missing |
-| `SendVerification` | `500 Internal Server Error` | Store error while creating or storing the token |
+| `SendVerification` | `400 Bad Request` | Invalid JSON body or `email` is empty |
 | `VerifyEmail` | `400 Bad Request` | `token` query parameter is missing, or token is invalid or expired |
-| `VerifyEmail` | `500 Internal Server Error` | Store error while marking email as verified |
+| `VerifyEmail` | `500 Internal Server Error` | Store error consuming or applying the verification |
 
 ### PasswordResetHandler – email-based password reset
 
@@ -900,7 +1018,9 @@ POST /password-reset/request   → h.RequestReset    // send reset email (200 wh
 POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
 ```
 
-Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use.
+Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use. If `SendResetEmail` returns an error, the handler attempts to delete the orphaned token as a best-effort cleanup; deletion failures are only logged/ignored, so the token may remain in the store.
+
+`RequestReset` expects `{"email": "<address>"}`. `ResetPassword` expects `{"token": "<raw token from email>", "newPassword": "<new password>"}` (same 8–72 byte password constraint as `AuthHandler`).
 
 #### Response types
 
@@ -909,15 +1029,32 @@ Only accounts with a password hash (not OIDC-only accounts) can use the reset fl
 | `RequestReset` | 200 | `{"message": "if that email is registered, a reset link has been sent"}` |
 | `ResetPassword` | 200 | `{"message": "password reset successfully"}` |
 
+#### Request bodies
+
+```go
+// POST /password-reset/request
+type requestResetRequest struct {
+    Email string `json:"email"`
+}
+
+// POST /password-reset/confirm
+type resetPasswordRequest struct {
+    Token       string `json:"token"`
+    NewPassword string `json:"newPassword"`
+}
+```
+
 #### Error responses
+
+All `PasswordResetHandler` endpoints return `{"error": "<message>"}` JSON on failure.
 
 | Endpoint | Status | Condition |
 |---|---|---|
-| `RequestReset` | `400 Bad Request` | `email` is missing |
-| `RequestReset` | `429 Too Many Requests` | Rate limiter rejected the request (`RateLimiter` is set) |
-| `RequestReset` | `500 Internal Server Error` | User lookup, token generation, or store error |
-| `ResetPassword` | `400 Bad Request` | `token` or `new_password` missing, token is invalid or expired, or OIDC-only account |
-| `ResetPassword` | `500 Internal Server Error` | Store or bcrypt error |
+| `RequestReset` | `400 Bad Request` | Invalid JSON body or `email` is empty |
+| `RequestReset` | `429 Too Many Requests` | Rate limiter triggered (when `RateLimiter` is set) |
+| `RequestReset` | `500 Internal Server Error` | Store error looking up user, generating token, or persisting token |
+| `ResetPassword` | `400 Bad Request` | Invalid JSON body, `token` missing, password outside 8–72 bytes, token invalid or expired, or account is OIDC-only (no password hash) |
+| `ResetPassword` | `500 Internal Server Error` | User lookup, bcrypt, or store error |
 
 ### Cookie helpers
 
