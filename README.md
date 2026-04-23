@@ -592,13 +592,13 @@ All OIDC endpoints return `{"error": "<message>"}` JSON on failure unless noted 
 | Endpoint | Status | Condition |
 |---|---|---|
 | `Login` | `500 Internal Server Error` | Failed to generate random PKCE state |
-| `Callback` | `400 Bad Request` | State or PKCE verifier cookie missing or mismatched; `code` parameter absent; `sub` or `email` claim absent in the ID token |
+| `Callback` | `400 Bad Request` | State cookie missing or state mismatch; PKCE verifier cookie missing; `code` parameter absent; `sub` or `email` claim absent in the ID token |
 | `Callback` | `401 Unauthorized` | Provider returned an `error` query parameter; code exchange failed; `id_token` missing or invalid signature; OIDC email is not verified |
 | `Callback` | `500 Internal Server Error` | ID token claims parsing failed; user lookup or creation failed; JWT creation failed |
-| `CreateLinkNonce` | *(none)* | Always returns `200 OK` |
+| `CreateLinkNonce` | `200 OK` | Always succeeds |
 | `Link` | `400 Bad Request` | `nonce` query parameter missing |
 | `Link` | `401 Unauthorized` | Nonce is invalid or expired (older than 5 minutes) |
-| `Link` | `409 Conflict` | User not found in store, or account already has an OIDC subject linked |
+| `Link` | `409 Conflict` | User lookup failed or user not found; account already has an OIDC subject linked |
 
 ### APIKeyHandler
 
