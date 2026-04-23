@@ -557,7 +557,7 @@ GET  /auth/oidc/link?nonce=<nonce>     → h.Link               // start link fl
 The callback performs PKCE verification and handles three cases automatically: existing OIDC subject → log in; existing email → link subject and log in; new user → create account.  
 Account linking uses a short-lived (5-minute) HMAC-signed state token so the user's browser never sees the user ID in plaintext.
 
-`Callback` does **not** return JSON. On success it sets the JWT in an `HttpOnly` session cookie and redirects the browser to `/?oidc_login=1` (HTTP 302) so that single-page applications can detect a completed OIDC login via the query parameter. The redirect destination is currently fixed; frontends that need a custom post-login URL should rely on the `oidc_login=1` query parameter (or another explicit non-`HttpOnly` signal) to trigger navigation, rather than attempting to read the session cookie from browser JavaScript.
+`Callback` does **not** return JSON on success. It sets the JWT in an `HttpOnly` session cookie and redirects the browser to `/?oidc_login=1` (HTTP 302) so that single-page applications can detect a completed OIDC login via the query parameter. The redirect destination is currently fixed; frontends that need a custom post-login URL should rely on the `oidc_login=1` query parameter (or another explicit non-`HttpOnly` signal) to trigger navigation, rather than attempting to read the session cookie from browser JavaScript.
 
 `CreateLinkNonce` returns HTTP 200 with `{"nonce": "<nonce>"}`. Pass the nonce as the `nonce` query parameter to the `Link` route within 5 minutes to start the account-linking flow.
 
@@ -577,11 +577,11 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 
 #### Error responses
 
-All OIDC endpoints return `{"error": "<message>"}` JSON on failure. `Callback` and `Link` are primarily redirect-based flows; the table below documents the JSON error paths for each endpoint.
+OIDC endpoints use `{"error": "<message>"}` JSON for non-redirect failure responses. `Login` returns JSON on failure, while `Callback` and `Link` are primarily redirect-based flows on success and for certain handled outcomes; however, they still return JSON when an error occurs before a redirect outcome can be produced. The table below documents those JSON error paths for each endpoint.
 
 | Endpoint | Status | Condition |
 |---|---|---|
-| `Login` | `500 Internal Server Error` | State generation or PKCE verifier generation failed |
+| `Login` | `500 Internal Server Error` | State generation failed |
 | `Callback` | `400 Bad Request` | Missing or invalid state or PKCE verifier cookie; missing authorization code; or `sub`/`email` claims absent from the id_token |
 | `Callback` | `401 Unauthorized` | Provider returned an `error` parameter; code exchange failed; id_token missing or signature invalid; or OIDC email address is not verified |
 | `Callback` | `500 Internal Server Error` | Failed to parse id_token claims; user lookup or creation failed; or JWT creation failed |
