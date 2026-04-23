@@ -480,9 +480,15 @@ Password constraints: 8–72 bytes. Bcrypt cost 12.
 
 #### Response types
 
-`Signup`, `Login`, and `RefreshToken` return an auth response wrapper that includes `user: handler.UserDTO`, while `Me` and `UpdateProfile` return a bare `handler.UserDTO`:
+`Signup`, `Login`, and `RefreshToken` return an `AuthResponse` wrapper, while `Me` and `UpdateProfile` return a bare `handler.UserDTO`:
 
 ```go
+type AuthResponse struct {
+    Token        string  `json:"token"`
+    RefreshToken string  `json:"refresh_token,omitempty"` // present only when Sessions is set
+    User         UserDTO `json:"user"`
+}
+
 type UserDTO struct {
     ID            string `json:"id"`
     Name          string `json:"name"`
@@ -907,6 +913,8 @@ h := &handler.MagicLinkHandler{
 POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login link (200 whether or not email is registered)
 GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → AuthResponse (HTTP 200)
 ```
+
+The `Sender` field is of type `handler.MagicLinkSender` (`func(ctx context.Context, email, token string) error`). It must be set; a `nil` Sender causes `RequestMagicLink` to return `503 Service Unavailable` after the token has already been persisted.
 
 `RequestMagicLink` expects `{"email": "<address>"}` as its JSON request body. `VerifyMagicLink` accepts a `token` query parameter instead of a request body.
 
