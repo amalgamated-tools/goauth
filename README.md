@@ -463,7 +463,6 @@ h := &handler.AuthHandler{
     RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // defaults to 7 days when Sessions is set
     RefreshCookieName: "refresh",  // optional; stores refresh token in an HttpOnly cookie
     RequireVerification: true,     // optional; rejects login for unverified email addresses
-    Verifications:     verificationStore, // required when EmailVerificationHandler is mounted
 }
 
 // Routes
