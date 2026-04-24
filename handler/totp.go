@@ -42,17 +42,6 @@ type totpVerifyRequest struct {
 	Code string `json:"code"`
 }
 
-// isReplay returns true when code has already been used for userID within the
-// replay window.
-func (h *TOTPHandler) isReplay(userID, code string) bool {
-	return h.UsedCodes.WasUsed(userID, code)
-}
-
-// recordUsed marks code as used for userID to prevent future replays.
-func (h *TOTPHandler) recordUsed(userID, code string) {
-	h.UsedCodes.MarkUsed(userID, code)
-}
-
 // Status reports whether TOTP is enrolled for the authenticated user.
 func (h *TOTPHandler) Status(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
@@ -113,7 +102,7 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.UserIDFromContext(r.Context())
-	if h.isReplay(userID, req.Code) {
+	if h.UsedCodes.WasUsed(userID, req.Code) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid TOTP code")
 		return
 	}
@@ -133,7 +122,7 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to save TOTP secret")
 		return
 	}
-	h.recordUsed(userID, req.Code)
+	h.UsedCodes.MarkUsed(userID, req.Code)
 
 	writeJSON(r.Context(), w, http.StatusOK, map[string]bool{"enrolled": true})
 }
@@ -150,7 +139,7 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.UserIDFromContext(r.Context())
-	if h.isReplay(userID, req.Code) {
+	if h.UsedCodes.WasUsed(userID, req.Code) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid TOTP code")
 		return
 	}
@@ -174,7 +163,7 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid TOTP code")
 		return
 	}
-	h.recordUsed(userID, req.Code)
+	h.UsedCodes.MarkUsed(userID, req.Code)
 
 	writeJSON(r.Context(), w, http.StatusOK, map[string]bool{"valid": true})
 }
