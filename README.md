@@ -914,7 +914,7 @@ POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login 
 GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → AuthResponse (HTTP 200)
 ```
 
-The `Sender` field is of type `handler.MagicLinkSender` (`func(ctx context.Context, email, token string) error`). It must be set; a `nil` Sender causes `RequestMagicLink` to return `503 Service Unavailable` after the token has already been persisted.
+The `Sender` field is of type `handler.MagicLinkSender` (`func(ctx context.Context, email, token string) error`). It must be set; a `nil` Sender causes `RequestMagicLink` to return `503 Service Unavailable` after the token has already been persisted to `MagicLinks`. This means every call with a nil Sender accumulates an unconsumed token in the store. In tests, use a no-op Sender (e.g., `func(ctx context.Context, email, token string) error { return nil }`) rather than leaving the field nil.
 
 `RequestMagicLink` expects `{"email": "<address>"}` as its JSON request body. `VerifyMagicLink` accepts a `token` query parameter instead of a request body.
 
