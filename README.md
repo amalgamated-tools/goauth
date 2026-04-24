@@ -996,7 +996,7 @@ All `EmailVerificationHandler` endpoints return `{"error": "<message>"}` JSON on
 | `VerifyEmail` | `400 Bad Request` | `token` query parameter is missing, or token is invalid or expired |
 | `VerifyEmail` | `500 Internal Server Error` | Store error consuming or applying the verification |
 
-> **Note:** Beyond the `400` cases, `SendVerification` always returns HTTP 200 — including when the user is not found, when token generation fails, when the store errors, and when email delivery fails. These failures are logged internally. This blanket 200 behaviour intentionally prevents leaking account existence.
+> **Note:** Beyond the `400` cases, `SendVerification` always returns HTTP 200 — including when the user is not found, when the email is already verified, when token generation fails, when the store errors, and when email delivery fails. These failures are logged internally. This blanket 200 behaviour intentionally prevents leaking account existence.
 
 ### PasswordResetHandler – email-based password reset
 
