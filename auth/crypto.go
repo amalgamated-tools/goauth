@@ -54,11 +54,12 @@ func MustGenerateDummyBcryptHash(secret string) []byte {
 }
 
 // SecretEncrypter encrypts and decrypts sensitive values using AES-256-GCM.
-// The AES block cipher is created once at construction time and reused across
-// Encrypt/Decrypt calls; cipher.Block is safe for concurrent use because its
-// key schedule is read-only after construction.
+// Both the AES block cipher and the GCM wrapper (which precomputes a 16-entry
+// GF(2^128) product table) are created once at construction time and reused
+// across Encrypt/Decrypt calls. cipher.AEAD.Seal and cipher.AEAD.Open do not
+// mutate the gcm struct after initialisation, so concurrent use is safe.
 type SecretEncrypter struct {
-	block cipher.Block
+	gcm cipher.AEAD
 }
 
 const secretEncryptPrefix = "enc:v1:"
@@ -74,32 +75,32 @@ func newSecretEncrypter(secret []byte) (*SecretEncrypter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create AES cipher: %w", err)
 	}
-	return &SecretEncrypter{block: block}, nil
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("create GCM: %w", err)
+	}
+	return &SecretEncrypter{gcm: gcm}, nil
 }
 
 // Encrypt encrypts plaintext using AES-256-GCM.
 func (e *SecretEncrypter) Encrypt(plaintext string) (string, error) {
-	if e.block == nil {
+	if e.gcm == nil {
 		return "", errors.New("encrypter not initialized")
 	}
 	if plaintext == "" {
 		return "", nil
 	}
-	gcm, err := cipher.NewGCM(e.block)
-	if err != nil {
-		return "", fmt.Errorf("create GCM: %w", err)
-	}
-	nonce := make([]byte, gcm.NonceSize())
+	nonce := make([]byte, e.gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return "", fmt.Errorf("generate nonce: %w", err)
 	}
-	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+	ciphertext := e.gcm.Seal(nonce, nonce, []byte(plaintext), nil)
 	return secretEncryptPrefix + base64.RawURLEncoding.EncodeToString(ciphertext), nil
 }
 
 // Decrypt decrypts a value previously encrypted by Encrypt.
 func (e *SecretEncrypter) Decrypt(value string) (string, error) {
-	if e.block == nil {
+	if e.gcm == nil {
 		return "", errors.New("encrypter not initialized")
 	}
 	if !strings.HasPrefix(value, secretEncryptPrefix) {
@@ -109,16 +110,12 @@ func (e *SecretEncrypter) Decrypt(value string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("base64 decode: %w", err)
 	}
-	gcm, err := cipher.NewGCM(e.block)
-	if err != nil {
-		return "", fmt.Errorf("create GCM: %w", err)
-	}
-	nonceSize := gcm.NonceSize()
+	nonceSize := e.gcm.NonceSize()
 	if len(data) < nonceSize {
 		return "", errors.New("encrypted value too short")
 	}
 	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	plaintext, err := e.gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		return "", fmt.Errorf("decrypt: %w", err)
 	}
