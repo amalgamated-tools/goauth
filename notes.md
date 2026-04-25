@@ -17,6 +17,8 @@
 - TOTPUsedCodeCache: uses sync.Map for entries (concurrent-safe, lazy GC sweep).
 - cipher.Block (aes.NewCipher) is safe for concurrent reads after construction (key schedule is read-only).
 - cipher.AEAD (cipher.NewGCM) is safe for concurrent use: Seal/Open do not mutate gcm struct after init.
+- base32.Encoding.WithPadding returns *Encoding (heap alloc, ~290 bytes); safe to cache as package-level var (immutable after construction).
+- HMACSign creates new hmac.Hash per call — HMAC is stateful; sync.Pool could help but complexity vs gain not worth it (OIDC path only, not hot).
 
 ## Optimisation Backlog
 | Priority | Focus Area | Opportunity | Estimated Impact | Status |
@@ -26,12 +28,14 @@
 | MEDIUM | Code-Level | hotpCode: fmt.Sprintf("%0*d",...) -> precomputed totpFormat var | Minor format-parse savings, 3× per TOTP validation | MERGED PR #55 |
 | MEDIUM | Code-Level | hotpCode: make([]byte,8) -> var msg [8]byte for stack allocation | One fewer heap alloc per hotpCode call (3x/login) | MERGED (in main) |
 | MEDIUM | Code-Level | TOTPUsedCodeCache: string concat key -> totpCacheKey struct to save alloc | Save ~43-byte backing array alloc per WasUsed/MarkUsed | PR #76 (OPEN) |
-| MEDIUM | Code-Level | SecretEncrypter: cache cipher.AEAD (GCM wrapper) to avoid per-call product table recomputation | Save ~200-500ns + 1 alloc per Encrypt/Decrypt | PR SUBMITTED (branch: efficiency/cache-gcm-in-secret-encrypter) |
+| MEDIUM | Code-Level | SecretEncrypter: cache cipher.AEAD (GCM wrapper) to avoid per-call product table recomputation | Save ~200-500ns + 1 alloc per Encrypt/Decrypt | PR #80 (OPEN) |
+| MEDIUM | Code-Level | ValidateTOTP: base32.StdEncoding.WithPadding(base32.NoPadding) per call -> package-level var | Save ~290-byte heap alloc per ValidateTOTP call | PR submitted (branch: efficiency/totp-precompute-base32-encoding) |
 | LOW | Data | No benchmarks for any code paths — measurement infrastructure gap | Enables future evidence-based optimisation |
 
 ## Work In Progress
 - PR #76 (open): totpCacheKey struct instead of string concat in sync.Map
-- PR submitted (branch: efficiency/cache-gcm-in-secret-encrypter): cache cipher.AEAD in SecretEncrypter
+- PR #80 (open): cache cipher.AEAD in SecretEncrypter
+- PR submitted (branch: efficiency/totp-precompute-base32-encoding): precompute base32 encoding as package-level var in auth/totp.go
 
 ## Completed Work
 - PR #39: MERGED 2026-04-20 — replace math.Pow10 with totpModulo=1_000_000 integer constant
@@ -41,8 +45,10 @@
 
 ## Backlog Cursor
 - Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete)
-- Last tasks run: Task 3 (implement new PR), Task 7 (monthly summary update)
-- Last run: 2026-04-24
+- New items found this run: base32 encoding precomputation (now submitted as PR)
+- Remaining unexplored: handler/totp.go has one occurrence of base32.StdEncoding.WithPadding in Enroll (low priority — enrollment is rare)
+- Last tasks run: Task 3 (implement new PR), Task 4 (check CI on existing PRs), Task 7 (monthly summary update)
+- Last run: 2026-04-25
 
 ## Last Run
-- 2026-04-24: Identified cipher.NewGCM called on every Encrypt/Decrypt. Created PR (branch: efficiency/cache-gcm-in-secret-encrypter) to cache cipher.AEAD at construction time. Updated monthly issue #40.
+- 2026-04-25: Confirmed PRs #76 and #80 CI passing. Identified base32.StdEncoding.WithPadding(base32.NoPadding) called per-invocation in ValidateTOTP hot path — same precomputation pattern as totpFormat/totpModulo. Created PR (branch: efficiency/totp-precompute-base32-encoding) to precompute as package-level var. Updated monthly issue #40.
