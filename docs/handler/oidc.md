@@ -49,6 +49,23 @@ The callback performs PKCE verification and handles three cases automatically:
 
 Account linking uses a short-lived (5-minute) HMAC-signed state token to protect the integrity of the linking flow. The state value is signed, not encrypted, so any embedded user identifier should be treated as visible to the browser and other parties that can inspect the redirect URL or related cookies.
 
+### Linking flow error redirects
+
+`handleLinkCallback` redirects to `/?oidc_link_error=<value>` on every failure. The redirect applies `url.QueryEscape` to the value, so the raw URL contains `+`/`%XX` encoding; normal query parsing returns the decoded string. The possible values are:
+
+| `oidc_link_error` value | Cause |
+|-------------------------|-------|
+| `User not found` | `FindByID` returned an error for the `linkUserID` encoded in the state (user not found **or** any store error such as a DB timeout). |
+| `Already linked` | The account already has an OIDC subject attached. |
+| `SSO identity linked to another account` | The incoming OIDC subject is already associated with a different account. |
+| `Link verification failed` | The user store returned an unexpected error (e.g. a database timeout) while checking for an existing subject association. The link is **not** performed. |
+| `Failed to link` | `LinkOIDCSubject` returned an error after the duplicate-link check passed. |
+
+!!! warning "DB errors never bypass the duplicate-link guard"
+    A transient database error from `FindByOIDCSubject` redirects with `Link verification failed` and returns before `LinkOIDCSubject` is called. This prevents a single OIDC identity from being silently linked to multiple accounts under database pressure. The error is also logged server-side via `slog.ErrorContext`.
+
+On success the browser is redirected to `/?oidc_linked=true`.
+
 ## Session tracking and refresh tokens
 
 When `Sessions` is set on `OIDCHandler`:
