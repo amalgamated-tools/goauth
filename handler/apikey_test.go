@@ -37,7 +37,7 @@ func TestAPIKey_list_empty(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var result []any
-	_ = json.NewDecoder(w.Body).Decode(&result)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&result))
 	require.Len(t, result, 0)
 }
 
@@ -58,7 +58,7 @@ func TestAPIKey_list_returnsKeys(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var result []map[string]any
-	_ = json.NewDecoder(w.Body).Decode(&result)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&result))
 	require.Len(t, result, 1)
 	require.Equal(t, "k1", result[0]["id"])
 }
@@ -92,7 +92,7 @@ func TestAPIKey_create_success(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code)
 	// Full key should be returned only on creation.
 	var resp map[string]any
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	key, ok := resp["key"].(string)
 	require.True(t, ok)
 	require.True(t, strings.HasPrefix(key, "app_"))

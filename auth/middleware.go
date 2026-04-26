@@ -154,43 +154,10 @@ func resolveUser(ctx context.Context, token string, source tokenSource, jwtMgr *
 func Middleware(jwtMgr *JWTManager, cfg Config, apiKeys APIKeyStore) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token, source, reason := extractToken(r, cfg.CookieName)
-			if token == "" {
-				if reason != "" {
-					slog.InfoContext(r.Context(), "authentication required", slog.String("reason", reason))
-				}
-				jsonError(w, http.StatusUnauthorized, "authentication required")
+			userID, ok := authenticate(w, r, jwtMgr, apiKeys, cfg)
+			if !ok {
 				return
 			}
-
-			userID, sessionID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
-			if err != nil {
-				if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
-					jsonError(w, http.StatusUnauthorized, "invalid or expired token")
-				} else {
-					slog.ErrorContext(r.Context(), "failed to resolve user", slog.Any("error", err))
-					jsonError(w, http.StatusInternalServerError, "internal server error")
-				}
-				return
-			}
-
-			if cfg.Sessions != nil && sessionID != "" {
-				sess, serr := cfg.Sessions.FindSessionByID(r.Context(), sessionID)
-				if serr != nil {
-					if errors.Is(serr, ErrNotFound) {
-						jsonError(w, http.StatusUnauthorized, "session expired or revoked")
-					} else {
-						slog.ErrorContext(r.Context(), "failed to look up session", slog.Any("error", serr))
-						jsonError(w, http.StatusInternalServerError, "internal server error")
-					}
-					return
-				}
-				if sess == nil || sess.UserID != userID || time.Now().After(sess.ExpiresAt) {
-					jsonError(w, http.StatusUnauthorized, "session expired or revoked")
-					return
-				}
-			}
-
 			ctx := ContextWithUserID(r.Context(), userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -291,8 +258,11 @@ func (c *cachingAdminChecker) IsAdmin(ctx context.Context, userID string) (bool,
 // session validation when cfg.Sessions is set. On failure it writes an
 // appropriate error response to w and returns ("", false).
 func authenticate(w http.ResponseWriter, r *http.Request, jwtMgr *JWTManager, apiKeys APIKeyStore, cfg Config) (string, bool) {
-	token, source, _ := extractToken(r, cfg.CookieName)
+	token, source, reason := extractToken(r, cfg.CookieName)
 	if token == "" {
+		if reason != "" {
+			slog.InfoContext(r.Context(), "authentication required", slog.String("reason", reason))
+		}
 		jsonError(w, http.StatusUnauthorized, "authentication required")
 		return "", false
 	}
@@ -301,6 +271,7 @@ func authenticate(w http.ResponseWriter, r *http.Request, jwtMgr *JWTManager, ap
 		if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
 			jsonError(w, http.StatusUnauthorized, "invalid or expired token")
 		} else {
+			slog.ErrorContext(r.Context(), "failed to resolve user", slog.Any("error", err))
 			jsonError(w, http.StatusInternalServerError, "internal authentication error")
 		}
 		return "", false
