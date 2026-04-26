@@ -238,7 +238,8 @@ func (c *cachingAdminChecker) sweepEntriesLocked(now time.Time) {
 			}
 		}
 	}
-	// Always compact so stale re-insertion entries do not accumulate between sweeps.
+	// Always compact so stale re-insertion entries do not accumulate between sweeps,
+	// and the eviction loop reliably finds live entries.
 	c.order = compactOrderLocked(c.order, func(k string) (uint64, bool) {
 		e, ok := c.entries[k]
 		return e.seq, ok
