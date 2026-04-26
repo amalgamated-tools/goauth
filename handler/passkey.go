@@ -246,6 +246,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 
 	var authedUserID, authedCredentialID string
 	var authedUser *auth.User
+	var listCredsErr error
 
 	handler := webauthn.DiscoverableUserHandler(func(rawID, userHandle []byte) (webauthn.User, error) {
 		credID := base64.RawURLEncoding.EncodeToString(rawID)
@@ -259,7 +260,8 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		}
 		userCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), user.ID)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %w", errListCredentials, err)
+			listCredsErr = err
+			return nil, fmt.Errorf("%w: %v", errListCredentials, err)
 		}
 		authedUserID = user.ID
 		authedCredentialID = credID
@@ -269,7 +271,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 
 	updatedCred, _, err := h.WebAuthn.FinishPasskeyLogin(handler, challengeData.SessionData, r)
 	if err != nil {
-		if errors.Is(err, errListCredentials) {
+		if listCredsErr != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
 		} else {
 			writeError(r.Context(), w, http.StatusUnauthorized, "authentication failed")
