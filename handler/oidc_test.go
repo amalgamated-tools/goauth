@@ -247,7 +247,7 @@ func TestFindOrCreateUser_raceRetryLinkError(t *testing.T) {
 			return existing, nil
 		},
 		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
-			return nil, errors.New("unique constraint violation")
+			return nil, auth.ErrEmailExists
 		},
 		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
 			return linkErr
@@ -277,7 +277,7 @@ func TestFindOrCreateUser_raceRetryAlreadyLinked(t *testing.T) {
 			return existing, nil
 		},
 		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
-			return nil, errors.New("unique constraint violation")
+			return nil, auth.ErrEmailExists
 		},
 		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
 			return auth.ErrOIDCSubjectAlreadyLinked
@@ -309,6 +309,30 @@ func TestFindOrCreateUser_createsNew(t *testing.T) {
 	user, err := h.findOrCreateUser(context.Background(), "sub-new", "new@example.com", "New User")
 	require.NoError(t, err)
 	require.Equal(t, "new-u", user.ID)
+}
+
+func TestFindOrCreateUser_createError(t *testing.T) {
+	// A non-race DB error from CreateOIDCUser must be returned immediately,
+	// not silently swallowed by the race-retry block.
+	dbErr := errors.New("connection reset by peer")
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
+			return nil, dbErr
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	user, err := h.findOrCreateUser(context.Background(), "sub-err", "err@example.com", "Err User")
+	require.Error(t, err)
+	require.ErrorIs(t, err, dbErr)
+	require.Nil(t, user)
 }
 
 // ---------------------------------------------------------------------------
