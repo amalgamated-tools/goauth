@@ -177,7 +177,7 @@ ctx = auth.ContextWithRoles(ctx, []auth.Role{auth.RoleAdmin})
 roles := auth.RolesFromContext(ctx)
 ```
 
-All four middleware variants (`Middleware`, `AdminMiddleware`, `RequireRole`, `RequirePermission`) use the same token extraction and session validation logic. Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header.
+All four middleware variants (`Middleware`, `AdminMiddleware`, `RequireRole`, `RequirePermission`) use the same token extraction and session validation logic. JWTs are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are accepted **only** from the `Authorization: Bearer <token>` header (that is, the API key must be provided as the bearer token, not as a raw `Authorization: <apiKey>` value), and are not read from cookies.
 
 `AdminMiddleware` caches admin status checks (via `AdminChecker.IsAdmin`) for **5 seconds** per user ID (up to **4,096** entries per process; the oldest-inserted entry is evicted when the cache is full; expired entries are purged at most once per minute). `RequireRole` and `RequirePermission` each maintain an internal `CachingRoleChecker` with the same **5-second** TTL.
 
