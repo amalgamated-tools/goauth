@@ -19,6 +19,10 @@ h := &handler.PasskeyHandler{
     CookieName:    "session",
     SecureCookies: true,
     URLParamFunc:  chi.URLParam,
+    // Optional: enable session tracking and refresh-token rotation.
+    Sessions:          sessionStore,
+    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // default 7 days
+    RefreshCookieName: "refresh",
 }
 ```
 
@@ -43,10 +47,19 @@ Registration and authentication use server-side challenge storage (via `PasskeyS
 
 ## Response types
 
-`FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token` + `user`) **and** sets the JWT in an `HttpOnly` session cookie. There is no `refresh_token` field — `PasskeyHandler` issues an access JWT only (no refresh tokens or server-side session tracking by default), and its lifetime is determined by the configured `JWTManager`.
+`FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token`, `refresh_token` when `Sessions` is set, and `user`) **and** sets the JWT in an `HttpOnly` session cookie. When `Sessions` is set and `RefreshCookieName` is non-empty, a refresh token cookie is also set.
 
-!!! info "Adding session tracking"
-    To enable server-side sessions and refresh-token rotation for passkey logins, create a session and re-issue the JWT manually after `FinishAuthentication` succeeds using `JWTManager.CreateTokenWithSession`.
+When `Sessions` is `nil`, `PasskeyHandler` issues an access JWT only. The token lifetime is determined by the configured `JWTManager`.
+
+## Session tracking and refresh tokens
+
+When `Sessions` is set on `PasskeyHandler`:
+
+- `FinishAuthentication` creates a server-side session, embeds the session ID as the JWT `jti` claim, and returns a `refresh_token` alongside the short-lived access token.
+- Setting `RefreshCookieName` causes the refresh token to also be delivered via an `HttpOnly` cookie, in addition to the response body.
+- Pass `auth.Config{CookieName: "session", Sessions: sessionStore}` to `Middleware` so that revoked sessions are rejected on every request.
+
+Session tracking and refresh token rotation work identically to `AuthHandler`. Refresh token rotation (via `AuthHandler.RefreshToken`) requires `AuthHandler` to be mounted — `PasskeyHandler` does not expose a dedicated refresh endpoint.
 
 `FinishRegistration` returns a single `PasskeyCredentialDTO` (HTTP 201); `ListCredentials` returns `[]PasskeyCredentialDTO` (HTTP 200):
 

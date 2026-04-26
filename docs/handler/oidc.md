@@ -13,7 +13,15 @@ h, err := handler.NewOIDCHandler(
     "https://myapp.example.com/auth/oidc/callback",
     "session", true,
 )
+
+// Optional: enable session tracking and refresh-token rotation.
+h.Sessions          = sessionStore
+h.RefreshTokenTTL   = handler.DefaultRefreshTokenTTL // default 7 days
+h.RefreshCookieName = "refresh"
 ```
+
+!!! warning "Sessions requires RefreshCookieName"
+    When `Sessions` is set, `RefreshCookieName` must also be non-empty. Because `Callback` issues tokens via an HTTP redirect (no response body), the refresh token can only be delivered via an `HttpOnly` cookie. `Callback` returns HTTP 500 and logs an error if `Sessions != nil && RefreshCookieName == ""`.
 
 ## Routes
 
@@ -41,6 +49,12 @@ The callback performs PKCE verification and handles three cases automatically:
 
 Account linking uses a short-lived (5-minute) HMAC-signed state token to protect the integrity of the linking flow. The state value is signed, not encrypted, so any embedded user identifier should be treated as visible to the browser and other parties that can inspect the redirect URL or related cookies.
 
-## No refresh tokens
+## Session tracking and refresh tokens
 
-`OIDCHandler` does not have a `Sessions` field and issues an access JWT only (no refresh tokens). The token lifetime is determined by the configured `JWTManager` TTL, not enforced by `OIDCHandler` itself. If you need server-side session revocation and refresh-token rotation for OIDC logins, implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
+When `Sessions` is set on `OIDCHandler`:
+
+- `Callback` creates a server-side session, embeds the session ID as the JWT `jti` claim, and sets a short-lived access token cookie and an `HttpOnly` refresh token cookie (via `RefreshCookieName`, which is required when `Sessions` is non-nil).
+- On subsequent requests, the standard `auth.Middleware` validates the `jti` claim against the session store so that revoked sessions are rejected.
+- Setting `RefreshCookieName` causes the refresh token to be delivered via an `HttpOnly` cookie. Because `Callback` performs a redirect, the refresh token is **only** available via the cookie (not in a response body). `RefreshCookieName` is therefore required when `Sessions` is non-nil.
+
+When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lifetime is determined by the configured `JWTManager` TTL.
