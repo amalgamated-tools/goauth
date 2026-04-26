@@ -201,6 +201,7 @@ func (h *OIDCHandler) handleLinkCallback(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	} else if !errors.Is(err, auth.ErrNotFound) {
+		slog.ErrorContext(r.Context(), "failed to look up OIDC subject during link", slog.Any("error", err))
 		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Link verification failed"), http.StatusFound)
 		return
 	}

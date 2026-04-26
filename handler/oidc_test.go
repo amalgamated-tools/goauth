@@ -353,6 +353,34 @@ func TestHandleLinkCallback_userNotFound(t *testing.T) {
 	require.NotEqual(t, "/?oidc_linked=true", loc)
 }
 
+func TestHandleLinkCallback_dbErrorOnFindByOIDCSubject(t *testing.T) {
+	dbErr := errors.New("connection timeout")
+	linkCalled := false
+	store := &mockUserStore{
+		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
+			return &auth.User{ID: id, OIDCSubject: nil}, nil
+		},
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, dbErr
+		},
+		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
+			linkCalled = true
+			return nil
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	h.handleLinkCallback(w, req, "user-1", "oidc-sub")
+
+	require.Equal(t, http.StatusFound, w.Code)
+	require.Contains(t, w.Header().Get("Location"), "oidc_link_error=")
+	require.Contains(t, w.Header().Get("Location"), "Link+verification+failed")
+	require.False(t, linkCalled, "LinkOIDCSubject must not be called on DB error")
+}
+
 func TestHandleLinkCallback_alreadyLinked(t *testing.T) {
 	sub := "existing-sub"
 	store := &mockUserStore{
