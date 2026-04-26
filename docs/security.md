@@ -54,4 +54,4 @@ Reset tokens are bound to accounts that have a password hash. OIDC-only accounts
 
 ## Email enumeration
 
-`RequestMagicLink`, `RequestReset`, and `SendVerification` return the same success response whether or not the email is registered, preventing enumeration via timing or response differences. Validation and operational errors still surface as non-200 responses.
+`RequestMagicLink`, `RequestReset`, and `SendVerification` return the same success response whether or not the email is registered, preventing enumeration via timing or response differences. `RequestMagicLink` and `RequestReset` may still return non-200 responses for validation or operational failures. `SendVerification` intentionally returns 200 even on lookup, token storage, or email send failures to avoid enumeration, and only request-body validation failures surface as non-200 responses.

@@ -43,7 +43,7 @@ Registration and authentication use server-side challenge storage (via `PasskeyS
 
 ## Response types
 
-`FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token` + `user`) **and** sets the JWT in an `HttpOnly` session cookie. There is no `refresh_token` field — `PasskeyHandler` always issues a plain short-lived JWT.
+`FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token` + `user`) **and** sets the JWT in an `HttpOnly` session cookie. There is no `refresh_token` field — `PasskeyHandler` issues an access JWT only (no refresh tokens or server-side session tracking by default), and its lifetime is determined by the configured `JWTManager`.
 
 !!! info "Adding session tracking"
     To enable server-side sessions and refresh-token rotation for passkey logins, create a session and re-issue the JWT manually after `FinishAuthentication` succeeds using `JWTManager.CreateTokenWithSession`.

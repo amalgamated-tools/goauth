@@ -39,8 +39,8 @@ The callback performs PKCE verification and handles three cases automatically:
 
 ## Account linking
 
-Account linking uses a short-lived (5-minute) HMAC-signed state token so the user's browser never sees the user ID in plaintext.
+Account linking uses a short-lived (5-minute) HMAC-signed state token to protect the integrity of the linking flow. The state value is signed, not encrypted, so any embedded user identifier should be treated as visible to the browser and other parties that can inspect the redirect URL or related cookies.
 
 ## No refresh tokens
 
-`OIDCHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. If you need server-side session revocation and refresh-token rotation for OIDC logins, implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
+`OIDCHandler` does not have a `Sessions` field and issues an access JWT only (no refresh tokens). The token lifetime is determined by the configured `JWTManager` TTL, not enforced by `OIDCHandler` itself. If you need server-side session revocation and refresh-token rotation for OIDC logins, implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
