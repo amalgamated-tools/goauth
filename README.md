@@ -156,6 +156,12 @@ r.Use(auth.Middleware(jwtMgr, cfg, apiKeyStore))
 r.Use(auth.AdminMiddleware(jwtMgr, userStore, cfg, apiKeyStore))
 
 // Require a specific role or permission on a route group (see RBAC below).
+// The second argument is an auth.RoleChecker:
+//   type RoleChecker interface {
+//       HasRole(ctx context.Context, userID string, role auth.Role) (bool, error)
+//       HasPermission(ctx context.Context, userID string, perm auth.Permission) (bool, error)
+//   }
+// Use auth.NewStoreRoleChecker or auth.NewCachingRoleChecker to build one (see RBAC below).
 r.Use(auth.RequireRole(jwtMgr, roleChecker, cfg, apiKeyStore, auth.RoleEditor))
 r.Use(auth.RequirePermission(jwtMgr, roleChecker, cfg, apiKeyStore, auth.PermWriteContent))
 
