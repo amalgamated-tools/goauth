@@ -265,6 +265,7 @@ func authenticate(w http.ResponseWriter, r *http.Request, jwtMgr *JWTManager, ap
 		if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
 			jsonError(w, http.StatusUnauthorized, "invalid or expired token")
 		} else {
+			slog.ErrorContext(r.Context(), "failed to resolve user", slog.Any("error", err))
 			jsonError(w, http.StatusInternalServerError, "internal authentication error")
 		}
 		return "", false
