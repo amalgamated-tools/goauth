@@ -77,7 +77,7 @@ func TestTOTP_status_notEnrolled(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]bool
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.False(t, resp["enrolled"])
 }
 
@@ -95,7 +95,7 @@ func TestTOTP_status_enrolled(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]bool
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.True(t, resp["enrolled"])
 }
 
@@ -132,7 +132,7 @@ func TestTOTP_generate_success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp totpGenerateResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Secret)
 	require.NotEmpty(t, resp.ProvisioningURI)
 	require.Equal(t, "no-store", w.Header().Get("Cache-Control"))
@@ -171,7 +171,7 @@ func TestTOTP_enroll_success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]bool
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.True(t, resp["enrolled"])
 }
 
@@ -289,7 +289,7 @@ func TestTOTP_verify_success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]bool
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.True(t, resp["valid"])
 }
 

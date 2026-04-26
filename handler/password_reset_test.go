@@ -162,7 +162,7 @@ func TestRequestReset_responseMessage(t *testing.T) {
 	w := postJSON(t, h.RequestReset, `{"email":"any@test.com"}`)
 
 	var body map[string]string
-	_ = json.NewDecoder(w.Body).Decode(&body)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.NotEmpty(t, body["message"])
 }
 
@@ -193,7 +193,7 @@ func TestResetPassword_success(t *testing.T) {
 	w := postJSON(t, h.ResetPassword, body)
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]string
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp["message"])
 }
 
