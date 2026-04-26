@@ -16,6 +16,10 @@ Only the SHA-256 hash of each key is stored. The plaintext key cannot be recover
 
 `AuthHandler.Login` always runs a bcrypt comparison even when the user is not found, preventing username enumeration via timing.
 
+## OIDC duplicate-link guard
+
+`handleLinkCallback` enforces that a single OIDC subject cannot be linked to more than one account, even under database pressure. Any error from `FindByOIDCSubject` that is not `ErrNotFound` (for example a DB timeout) causes an immediate redirect with `oidc_link_error` set to `Link verification failed` **before** `LinkOIDCSubject` is called, and the error is logged via `slog.ErrorContext`. The raw redirect URL may contain the URL-escaped form (for example `oidc_link_error=Link+verification+failed`), but normal query parsing returns the decoded string. The guard is never silently bypassed.
+
 ## OIDC PKCE
 
 The OIDC flow uses S256 PKCE and validates the state parameter on every callback.
