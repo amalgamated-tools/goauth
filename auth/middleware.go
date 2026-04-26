@@ -172,13 +172,17 @@ type AdminChecker interface {
 type adminCacheEntry struct {
 	isAdmin   bool
 	expiresAt time.Time
+	seq       uint64 // matches the corresponding orderEntry.seq
 }
 
 type cachingAdminChecker struct {
-	delegate AdminChecker
-	ttl      time.Duration
-	mu       sync.RWMutex
-	entries  map[string]adminCacheEntry
+	delegate      AdminChecker
+	ttl           time.Duration
+	mu            sync.RWMutex
+	entries       map[string]adminCacheEntry
+	order         []orderEntry[string] // insertion-order queue for FIFO eviction
+	seq           uint64
+	lastSweepTime time.Time
 }
 
 func newCachingAdminChecker(delegate AdminChecker, ttl time.Duration) AdminChecker {
@@ -189,6 +193,41 @@ func newCachingAdminChecker(delegate AdminChecker, ttl time.Duration) AdminCheck
 		delegate: delegate,
 		ttl:      ttl,
 		entries:  make(map[string]adminCacheEntry),
+	}
+}
+
+func (c *cachingAdminChecker) sweepEntriesLocked(now time.Time) {
+	if now.Sub(c.lastSweepTime) >= cacheSweepInterval {
+		c.lastSweepTime = now
+		for k, e := range c.entries {
+			if !e.expiresAt.After(now) {
+				delete(c.entries, k)
+			}
+		}
+	}
+	// Always compact so stale re-insertion entries do not accumulate between sweeps,
+	// and the eviction loop reliably finds live entries.
+	c.order = compactOrderLocked(c.order, func(k string) (uint64, bool) {
+		e, ok := c.entries[k]
+		return e.seq, ok
+	})
+	// Evict the oldest-inserted entries first until the cache is under capacity.
+	for len(c.entries) >= defaultAdminCacheMaxEntries {
+		if len(c.order) == 0 {
+			// Compaction removed all stale entries but the map is still at capacity;
+			// evict an arbitrary entry to preserve the size bound.
+			for k := range c.entries {
+				delete(c.entries, k)
+				break
+			}
+			break
+		}
+		oldest := c.order[0]
+		c.order[0] = orderEntry[string]{} // clear before slicing to release GC ref
+		c.order = c.order[1:]
+		if e, ok := c.entries[oldest.key]; ok && e.seq == oldest.seq {
+			delete(c.entries, oldest.key)
+		}
 	}
 }
 
@@ -208,7 +247,10 @@ func (c *cachingAdminChecker) IsAdmin(ctx context.Context, userID string) (bool,
 	}
 
 	c.mu.Lock()
-	c.entries[userID] = adminCacheEntry{isAdmin: isAdmin, expiresAt: now.Add(c.ttl)}
+	c.sweepEntriesLocked(now)
+	c.seq++
+	c.entries[userID] = adminCacheEntry{isAdmin: isAdmin, expiresAt: now.Add(c.ttl), seq: c.seq}
+	c.order = append(c.order, orderEntry[string]{key: userID, seq: c.seq})
 	c.mu.Unlock()
 
 	return isAdmin, nil
