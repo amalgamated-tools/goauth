@@ -1107,7 +1107,8 @@ defer stop() // blocks until the goroutine exits
 ```
 
 - Each cleaner runs once immediately when `StartCleanup` is called, then once per `interval`. Each cleaner is called with the context passed to `StartCleanup`.
-- Panics inside a cleaner are recovered and logged via `slog`; they do not stop other cleaners.
+- Errors returned by a cleaner are logged via `slog` at `ERROR` level with the fields `cleaner_name` (the fully-qualified function name) and `error`. Cleaners that panic are similarly recovered and logged with an additional `stack` field.
+- Log output uses the `slog.Logger` that was the process-wide default **at the time `StartCleanup` was called**, not at the time the cleaner runs. This means you can configure your logger before calling `StartCleanup` and the cleanup goroutine will use that logger for its entire lifetime.
 - `stop()` cancels the goroutine and blocks until it exits — always defer it to avoid goroutine leaks.
 - `interval` must be positive; `StartCleanup` panics otherwise.
 
