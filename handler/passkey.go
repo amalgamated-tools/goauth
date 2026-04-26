@@ -263,7 +263,10 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 
 	if data, err := json.Marshal(updatedCred); err == nil {
 		if err := h.Passkeys.UpdateCredentialData(r.Context(), authedUserID, authedCredentialID, string(data)); err != nil {
-			slog.WarnContext(r.Context(), "failed to update credential counter", slog.Any("error", err))
+			slog.WarnContext(r.Context(), "failed to update credential counter",
+				slog.String("user_id", authedUserID),
+				slog.String("credential_id", authedCredentialID),
+				slog.Any("error", err))
 		}
 	}
 
