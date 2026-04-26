@@ -35,7 +35,7 @@ func TestSignup_success(t *testing.T) {
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
 	require.Equal(t, http.StatusCreated, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 	require.Equal(t, "alice@test.com", resp.User.Email)
 }
@@ -134,7 +134,7 @@ func TestLogin_success(t *testing.T) {
 		`{"email":"alice@test.com","password":"goodpassword123"}`)
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 }
 
@@ -258,7 +258,7 @@ func TestMe_success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var dto UserDTO
-	_ = json.NewDecoder(w.Body).Decode(&dto)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&dto))
 	require.Equal(t, "alice@test.com", dto.Email)
 }
 
@@ -306,7 +306,7 @@ func TestUpdateProfile_success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var dto UserDTO
-	_ = json.NewDecoder(w.Body).Decode(&dto)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&dto))
 	require.Equal(t, "Bob", dto.Name)
 }
 
@@ -479,7 +479,7 @@ func TestLogin_createsSessionAndReturnsRefreshToken(t *testing.T) {
 	w := postJSON(t, h.Login, `{"email":"alice@test.com","password":"goodpassword123"}`)
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 	require.NotEmpty(t, resp.RefreshToken)
 }
@@ -491,7 +491,7 @@ func TestSignup_createsSessionAndReturnsRefreshToken(t *testing.T) {
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
 	require.Equal(t, http.StatusCreated, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 	require.NotEmpty(t, resp.RefreshToken)
 }
@@ -501,7 +501,7 @@ func TestSignup_noRefreshTokenWithoutSessions(t *testing.T) {
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
 	require.Equal(t, http.StatusCreated, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.Empty(t, resp.RefreshToken)
 }
 
@@ -596,7 +596,7 @@ func TestRefreshToken_success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 	require.NotEmpty(t, resp.RefreshToken)
 	require.NotEqual(t, rawRefresh, resp.RefreshToken)
@@ -687,101 +687,101 @@ func TestRefreshToken_storeError(t *testing.T) {
 }
 
 func TestRefreshToken_deleteSessionError(t *testing.T) {
-rawRefresh := "deletetoken0011223344556677889900aabbccddeeff00112233445566778899"
-hash := auth.HashHighEntropyToken(rawRefresh)
-sessions := &mockSessionStore{
-findByRefreshTokenFunc: func(_ context.Context, h string) (*auth.Session, error) {
-if h == hash {
-return &auth.Session{ID: "sess-del", UserID: "u1", ExpiresAt: time.Now().Add(time.Hour)}, nil
-}
-return nil, auth.ErrNotFound
-},
-deleteFunc: func(_ context.Context, _, _ string) error {
-return errors.New("delete error")
-},
-}
-h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
+	rawRefresh := "deletetoken0011223344556677889900aabbccddeeff00112233445566778899"
+	hash := auth.HashHighEntropyToken(rawRefresh)
+	sessions := &mockSessionStore{
+		findByRefreshTokenFunc: func(_ context.Context, h string) (*auth.Session, error) {
+			if h == hash {
+				return &auth.Session{ID: "sess-del", UserID: "u1", ExpiresAt: time.Now().Add(time.Hour)}, nil
+			}
+			return nil, auth.ErrNotFound
+		},
+		deleteFunc: func(_ context.Context, _, _ string) error {
+			return errors.New("delete error")
+		},
+	}
+	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
 
-body := `{"refresh_token":"` + rawRefresh + `"}`
-req := httptest.NewRequest(http.MethodPost, "/refresh", strings.NewReader(body))
-req.Header.Set("Content-Type", "application/json")
-w := httptest.NewRecorder()
-h.RefreshToken(w, req)
+	body := `{"refresh_token":"` + rawRefresh + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/refresh", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.RefreshToken(w, req)
 
-require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestRefreshToken_userNotFound(t *testing.T) {
-rawRefresh := "notfoundtoken011223344556677889900aabbccddeeff00112233445566778899"
-hash := auth.HashHighEntropyToken(rawRefresh)
-sessions := &mockSessionStore{
-findByRefreshTokenFunc: func(_ context.Context, h string) (*auth.Session, error) {
-if h == hash {
-return &auth.Session{ID: "sess-nf", UserID: "missing-u", ExpiresAt: time.Now().Add(time.Hour)}, nil
-}
-return nil, auth.ErrNotFound
-},
-}
-store := &mockUserStore{
-findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return nil, auth.ErrNotFound
-},
-}
-h := newAuthHandlerWithSessions(store, sessions)
+	rawRefresh := "notfoundtoken011223344556677889900aabbccddeeff00112233445566778899"
+	hash := auth.HashHighEntropyToken(rawRefresh)
+	sessions := &mockSessionStore{
+		findByRefreshTokenFunc: func(_ context.Context, h string) (*auth.Session, error) {
+			if h == hash {
+				return &auth.Session{ID: "sess-nf", UserID: "missing-u", ExpiresAt: time.Now().Add(time.Hour)}, nil
+			}
+			return nil, auth.ErrNotFound
+		},
+	}
+	store := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+	}
+	h := newAuthHandlerWithSessions(store, sessions)
 
-body := `{"refresh_token":"` + rawRefresh + `"}`
-req := httptest.NewRequest(http.MethodPost, "/refresh", strings.NewReader(body))
-req.Header.Set("Content-Type", "application/json")
-w := httptest.NewRecorder()
-h.RefreshToken(w, req)
+	body := `{"refresh_token":"` + rawRefresh + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/refresh", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.RefreshToken(w, req)
 
-require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestRefreshToken_userStoreError(t *testing.T) {
-rawRefresh := "storeerrortoken11223344556677889900aabbccddeeff00112233445566778899"
-hash := auth.HashHighEntropyToken(rawRefresh)
-sessions := &mockSessionStore{
-findByRefreshTokenFunc: func(_ context.Context, h string) (*auth.Session, error) {
-if h == hash {
-return &auth.Session{ID: "sess-se", UserID: "u1", ExpiresAt: time.Now().Add(time.Hour)}, nil
-}
-return nil, auth.ErrNotFound
-},
-}
-store := &mockUserStore{
-findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return nil, errors.New("db error")
-},
-}
-h := newAuthHandlerWithSessions(store, sessions)
+	rawRefresh := "storeerrortoken11223344556677889900aabbccddeeff00112233445566778899"
+	hash := auth.HashHighEntropyToken(rawRefresh)
+	sessions := &mockSessionStore{
+		findByRefreshTokenFunc: func(_ context.Context, h string) (*auth.Session, error) {
+			if h == hash {
+				return &auth.Session{ID: "sess-se", UserID: "u1", ExpiresAt: time.Now().Add(time.Hour)}, nil
+			}
+			return nil, auth.ErrNotFound
+		},
+	}
+	store := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	h := newAuthHandlerWithSessions(store, sessions)
 
-body := `{"refresh_token":"` + rawRefresh + `"}`
-req := httptest.NewRequest(http.MethodPost, "/refresh", strings.NewReader(body))
-req.Header.Set("Content-Type", "application/json")
-w := httptest.NewRecorder()
-h.RefreshToken(w, req)
+	body := `{"refresh_token":"` + rawRefresh + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/refresh", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.RefreshToken(w, req)
 
-require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestRefreshToken_invalidJSON(t *testing.T) {
-sessions := &mockSessionStore{}
-h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
-w := postJSON(t, h.RefreshToken, "not-json")
-require.Equal(t, http.StatusBadRequest, w.Code)
+	sessions := &mockSessionStore{}
+	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
+	w := postJSON(t, h.RefreshToken, "not-json")
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestLogin_requireVerification_unverified(t *testing.T) {
-hash := hashPassword(t, "goodpassword123")
-store := &mockUserStore{
-findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
-return &auth.User{ID: "u1", Email: "a@b.com", PasswordHash: hash, EmailVerified: false}, nil
-},
-}
-h := newAuthHandler(store)
-h.RequireVerification = true
+	hash := hashPassword(t, "goodpassword123")
+	store := &mockUserStore{
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return &auth.User{ID: "u1", Email: "a@b.com", PasswordHash: hash, EmailVerified: false}, nil
+		},
+	}
+	h := newAuthHandler(store)
+	h.RequireVerification = true
 
-w := postJSON(t, h.Login, `{"email":"a@b.com","password":"goodpassword123"}`)
-require.Equal(t, http.StatusForbidden, w.Code)
+	w := postJSON(t, h.Login, `{"email":"a@b.com","password":"goodpassword123"}`)
+	require.Equal(t, http.StatusForbidden, w.Code)
 }
