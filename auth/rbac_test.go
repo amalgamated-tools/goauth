@@ -705,8 +705,9 @@ func TestSweepRoleEntries_staleSeqSkipped(t *testing.T) {
 	// without deleting the live entry.
 	crc := newTestCachingRoleChecker(NewStoreRoleChecker(&mockRBACUserStore{}))
 
-	// Fill to capacity so eviction kicks in.
-	for i := range defaultRoleCacheMaxEntries {
+	// Fill to below capacity so the eviction loop never fires, isolating the
+	// stale-seq skip path from the arbitrary-eviction fallback.
+	for i := range defaultRoleCacheMaxEntries - 1 {
 		key := roleCacheKey{userID: fmt.Sprintf("u%d", i), role: RoleAdmin}
 		liveSeq := uint64(i) + 1000 // live entry has a higher seq
 		crc.roleEntries[key] = roleCacheEntry{result: true, expiresAt: time.Now().Add(time.Hour), seq: liveSeq}
@@ -717,11 +718,9 @@ func TestSweepRoleEntries_staleSeqSkipped(t *testing.T) {
 	before := len(crc.roleEntries)
 	crc.sweepRoleEntriesLocked(time.Now())
 
-	// Stale order entries must not have deleted live entries; because all
-	// entries were stale in the order, the map should be unchanged in size
-	// unless the arbitrary-eviction fallback triggered.
-	// We assert only that the function completed without panic.
-	_ = before
+	// All order entries are stale (seq mismatch), so the FIFO eviction path
+	// must not have deleted any live entry.
+	require.Equal(t, before, len(crc.roleEntries), "stale order entries must not delete live entries")
 }
 
 func TestSweepPermEntries_evictsOldest(t *testing.T) {
