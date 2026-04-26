@@ -1173,3 +1173,9 @@ if cfg.Enabled() {
 - **Magic links / reset tokens** – Raw tokens are never stored; only their SHA-256 hash is persisted. Tokens are one-time use and short-lived (15 min for magic links, 1 h for password resets by default).
 - **Password reset** – Reset tokens are bound to accounts that have a password hash. OIDC-only accounts cannot use the password reset flow.
 - **Email enumeration** – `RequestMagicLink`, `RequestReset`, and `SendVerification` return the same success response whether or not the email is registered, preventing enumeration via timing or response differences. Validation and operational errors still surface as non-200 responses.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, test and lint commands, coding conventions, and the pull-request workflow.
