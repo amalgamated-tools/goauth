@@ -57,6 +57,12 @@ roles := auth.RolesFromContext(ctx)
 
 Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header.
 
+`auth.ExtractToken(r, cookieName)` is an exported helper that performs the same extraction (Bearer header first, then cookie fallback). Use it in custom middleware or handlers that need to read the token without invoking the full middleware stack.
+
+```go
+token := auth.ExtractToken(r, "session")
+```
+
 ## Session revocation
 
 When `Sessions` is set, the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. API key requests bypass the session check.

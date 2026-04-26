@@ -36,7 +36,10 @@ GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → A
 ```
 
 !!! info "Email enumeration prevention"
-    `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration. Validation and operational errors still surface as non-200 responses.
+    `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration. Validation errors (malformed body) and a missing `Sender` still surface as non-200 responses.
+
+!!! warning "Sender is required"
+    If `Sender` is `nil`, `RequestMagicLink` returns HTTP 503 (`magic link sending is not configured`) without touching the database. Configure `Sender` before mounting this handler in production.
 
 ## Session tracking
 
