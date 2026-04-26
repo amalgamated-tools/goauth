@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -446,6 +447,40 @@ func TestCachingAdminChecker_expiry(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, c)
 	require.Equal(t, 2, calls)
+}
+
+func TestCachingAdminCheckerEvictsOldest(t *testing.T) {
+	calls := 0
+	delegate := &mockAdminChecker{
+		isAdminFunc: func(_ context.Context, userID string) (bool, error) {
+			calls++
+			return true, nil
+		},
+	}
+	checker := newCachingAdminChecker(delegate, time.Hour).(*cachingAdminChecker)
+
+	ctx := context.Background()
+
+	// Fill the cache to the cap.
+	for i := 0; i < defaultAdminCacheMaxEntries; i++ {
+		uid := fmt.Sprintf("user-%d", i)
+		_, err := checker.IsAdmin(ctx, uid)
+		require.NoError(t, err)
+	}
+	require.Equal(t, defaultAdminCacheMaxEntries, len(checker.entries))
+	require.Equal(t, defaultAdminCacheMaxEntries, calls)
+
+	// Adding one more entry must evict "user-0" (the oldest).
+	_, err := checker.IsAdmin(ctx, "user-extra")
+	require.NoError(t, err)
+	require.Equal(t, defaultAdminCacheMaxEntries, len(checker.entries))
+
+	checker.mu.RLock()
+	_, user0Present := checker.entries["user-0"]
+	_, extraPresent := checker.entries["user-extra"]
+	checker.mu.RUnlock()
+	require.False(t, user0Present, "user-0 should have been evicted")
+	require.True(t, extraPresent, "user-extra should be present")
 }
 
 func TestResolveUser_apiKeyStoreError(t *testing.T) {
