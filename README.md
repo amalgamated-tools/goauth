@@ -84,7 +84,7 @@ r.Group(func(r chi.Router) {
 
 ```go
 jwtMgr, err := auth.NewJWTManager(secret, ttl, issuer)
-// secret  – signing secret (≥ auth.MinSecretLength (32) bytes; empty → random, tokens won't survive restarts)
+// secret  – signing secret (recommended: at least auth.MinSecretLength (32) bytes; empty → random, tokens won't survive restarts)
 // ttl     – token lifetime (e.g. 24 * time.Hour)
 // issuer  – value used for iss/aud claims (defaults to "goauth")
 
@@ -1169,8 +1169,8 @@ Requires Go 1.26 or later.
 
 ```sh
 make test
-# or
-go test ./...
+# or, with verbose output
+go test -v ./...
 ```
 
 ### Linting
