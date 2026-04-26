@@ -91,16 +91,23 @@ jwtMgr, err := auth.NewJWTManager(secret, ttl, issuer)
 token, err := jwtMgr.CreateToken(ctx, userID)
 // CreateTokenWithSession embeds the session ID as the JWT jti claim.
 // Use this (or let AuthHandler do it automatically) when Sessions is enabled.
-token, err := jwtMgr.CreateTokenWithSession(ctx, userID, sessionID)
+token, err = jwtMgr.CreateTokenWithSession(ctx, userID, sessionID)
+
+tokenString := token // signed JWT string returned by CreateToken / CreateTokenWithSession
 
 claims, err := jwtMgr.ValidateToken(ctx, tokenString)
+// claims is of type *auth.Claims:
+//   type Claims struct {
+//       UserID string `json:"sub"` // subject (user ID)
+//       jwt.RegisteredClaims       // embeds ID (jti), ExpiresAt, IssuedAt, Issuer, Audience
+//   }
 // claims.UserID contains the subject; claims.ID contains the session ID (jti)
 
 // ParseTokenClaims validates the signature (and iss/aud) but ignores all
 // time-based claim validation (expiry, not-before, issued-at).
 // Useful for logout or audit flows that need the session ID from a token
 // that may be expired, not yet valid, or otherwise outside time-based checks.
-claims, err := jwtMgr.ParseTokenClaims(tokenString)
+claims, err = jwtMgr.ParseTokenClaims(tokenString)
 
 encrypter, err := jwtMgr.NewSecretEncrypter() // AES-256-GCM, derived from JWT secret
 
@@ -116,13 +123,13 @@ Sentinel errors: `auth.ErrInvalidToken`, `auth.ErrExpiredToken`, `auth.ErrNotFou
 
 ### Sentinel errors reference
 
-| Error | When returned |
+| Error | Description |
 |---|---|
 | `auth.ErrInvalidToken` | Token signature or structure is invalid |
 | `auth.ErrExpiredToken` | Token has passed its `exp` claim |
 | `auth.ErrEmailExists` | `CreateUser` called with an already-registered email |
-| `auth.ErrEmailNotVerified` | A flow requires a verified email but the account's `EmailVerified` is false |
-| `auth.ErrSessionRevoked` | Middleware finds the JWT `jti` in the store but the session is revoked |
+| `auth.ErrEmailNotVerified` | Provided for consuming applications and custom middleware; not returned by built-in handlers (which write HTTP 403 directly) |
+| `auth.ErrSessionRevoked` | Provided for consuming applications and custom middleware; not returned by the built-in `Middleware`, which handles the HTTP response directly |
 | `auth.ErrNotFound` | Store method found no matching record |
 | `auth.ErrTOTPNotFound` | `GetTOTPSecret` called for a user who has not enrolled TOTP |
 | `auth.ErrInvalidTOTPCode` | TOTP code verification failed |
@@ -141,7 +148,11 @@ cfg := auth.Config{
 r.Use(auth.Middleware(jwtMgr, cfg, apiKeyStore))
 
 // Require admin on a route group.
-// The second argument is an auth.AdminChecker; UserStore satisfies this interface.
+// The second argument is an auth.AdminChecker:
+//   type AdminChecker interface {
+//       IsAdmin(ctx context.Context, userID string) (bool, error)
+//   }
+// UserStore satisfies AdminChecker via its IsAdmin method.
 r.Use(auth.AdminMiddleware(jwtMgr, userStore, cfg, apiKeyStore))
 
 // Require a specific role or permission on a route group (see RBAC below).
