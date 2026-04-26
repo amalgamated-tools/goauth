@@ -169,6 +169,11 @@ ctx := auth.ContextWithUserID(r.Context(), userID)
 // Store/retrieve arbitrary roles in context for downstream handlers.
 ctx = auth.ContextWithRoles(ctx, []auth.Role{auth.RoleAdmin})
 roles := auth.RolesFromContext(ctx)
+
+// ExtractToken reads the raw token string from a request without validating it.
+// Checks the Authorization: Bearer header first, then falls back to the named cookie.
+// Useful in custom middleware or logout/revocation handlers that need the raw token.
+tok := auth.ExtractToken(r, "session") // "" if absent
 ```
 
 Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header. Admin status is checked via the `AdminChecker.IsAdmin` method and cached for 5 seconds per user.
