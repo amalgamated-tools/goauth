@@ -145,7 +145,7 @@ cfg := auth.Config{
 }
 
 // Require authenticated user on a route group.
-r.Use(auth.Middleware(jwtMgr, cfg, apiKeyStore))
+router.Use(auth.Middleware(jwtMgr, cfg, apiKeyStore))
 
 // Require admin on a route group.
 // The second argument is an auth.AdminChecker:
@@ -153,18 +153,18 @@ r.Use(auth.Middleware(jwtMgr, cfg, apiKeyStore))
 //       IsAdmin(ctx context.Context, userID string) (bool, error)
 //   }
 // UserStore satisfies AdminChecker via its IsAdmin method.
-r.Use(auth.AdminMiddleware(jwtMgr, userStore, cfg, apiKeyStore))
+router.Use(auth.AdminMiddleware(jwtMgr, userStore, cfg, apiKeyStore))
 
 // Require a specific role or permission on a route group (see RBAC below).
-r.Use(auth.RequireRole(jwtMgr, roleChecker, cfg, apiKeyStore, auth.RoleEditor))
-r.Use(auth.RequirePermission(jwtMgr, roleChecker, cfg, apiKeyStore, auth.PermWriteContent))
+router.Use(auth.RequireRole(jwtMgr, roleChecker, cfg, apiKeyStore, auth.RoleEditor))
+router.Use(auth.RequirePermission(jwtMgr, roleChecker, cfg, apiKeyStore, auth.PermWriteContent))
 
 // Read the resolved user ID anywhere downstream.
-userID := auth.UserIDFromContext(r.Context())
+userID := auth.UserIDFromContext(req.Context())
 
 // ContextWithUserID injects a user ID into a context manually.
 // Useful in tests or custom middleware that bypass the standard auth flow.
-ctx := auth.ContextWithUserID(r.Context(), userID)
+ctx := auth.ContextWithUserID(req.Context(), userID)
 
 // Store/retrieve arbitrary roles in context for downstream handlers.
 ctx = auth.ContextWithRoles(ctx, []auth.Role{auth.RoleAdmin})
@@ -173,7 +173,7 @@ roles := auth.RolesFromContext(ctx)
 // ExtractToken reads the raw token string from a request without validating it.
 // Checks the Authorization: Bearer header first, then falls back to the named cookie.
 // Useful in custom middleware or logout/revocation handlers that need the raw token.
-tok := auth.ExtractToken(r, "session") // "" if absent
+tok := auth.ExtractToken(req, cfg.CookieName) // "" if absent
 ```
 
 Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header. Admin status is checked via the `AdminChecker.IsAdmin` method and cached for 5 seconds per user.
