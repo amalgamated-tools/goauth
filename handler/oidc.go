@@ -195,8 +195,13 @@ func (h *OIDCHandler) handleLinkCallback(w http.ResponseWriter, r *http.Request,
 		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Already linked"), http.StatusFound)
 		return
 	}
-	if existing, err := h.Users.FindByOIDCSubject(r.Context(), subject); err == nil && existing.ID != linkUserID {
-		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("SSO identity linked to another account"), http.StatusFound)
+	if existing, err := h.Users.FindByOIDCSubject(r.Context(), subject); err == nil {
+		if existing.ID != linkUserID {
+			http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("SSO identity linked to another account"), http.StatusFound)
+			return
+		}
+	} else if !errors.Is(err, auth.ErrNotFound) {
+		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Failed to link"), http.StatusFound)
 		return
 	}
 	if err := h.Users.LinkOIDCSubject(r.Context(), linkUserID, subject); err != nil {
