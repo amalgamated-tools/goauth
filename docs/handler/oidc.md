@@ -4,6 +4,8 @@
 
 ## Configuration
 
+`NewOIDCHandler` performs OIDC discovery and returns a handler with defaults:
+
 ```go
 h, err := handler.NewOIDCHandler(
     ctx,
@@ -14,6 +16,17 @@ h, err := handler.NewOIDCHandler(
     "session", true,
 )
 ```
+
+To enable server-side session tracking and refresh-token rotation, set the optional fields after construction:
+
+```go
+h.Sessions          = sessionStore      // enables session tracking and refresh tokens
+h.RefreshCookieName = "refresh"         // required when Sessions is set
+h.RefreshTokenTTL   = 7 * 24 * time.Hour // defaults to DefaultRefreshTokenTTL when Sessions is set
+```
+
+!!! warning "Sessions requires RefreshCookieName"
+    If `Sessions` is set but `RefreshCookieName` is empty, `Callback` returns HTTP 500 `server configuration error`. Always set both together.
 
 ## Routes
 
@@ -41,6 +54,13 @@ The callback performs PKCE verification and handles three cases automatically:
 
 Account linking uses a short-lived (5-minute) HMAC-signed state token to protect the integrity of the linking flow. The state value is signed, not encrypted, so any embedded user identifier should be treated as visible to the browser and other parties that can inspect the redirect URL or related cookies.
 
-## No refresh tokens
+## Session tracking and refresh tokens
 
-`OIDCHandler` does not have a `Sessions` field and issues an access JWT only (no refresh tokens). The token lifetime is determined by the configured `JWTManager` TTL, not enforced by `OIDCHandler` itself. If you need server-side session revocation and refresh-token rotation for OIDC logins, implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
+When `Sessions` is set on `OIDCHandler`:
+
+- `Callback` creates a server-side session, embeds the session ID as the JWT `jti` claim, and sets a refresh-token `HttpOnly` cookie (named by `RefreshCookieName`).
+- The refresh token is also returned in the redirect body for clients that need it.
+- `RefreshTokenTTL` controls refresh-token lifetime; it defaults to `handler.DefaultRefreshTokenTTL` (7 days) when not set.
+- Pass `auth.Config{Sessions: sessionStore}` to `auth.Middleware` so that revoked sessions are rejected on every subsequent request.
+
+When `Sessions` is `nil`, `Callback` issues a short-lived access JWT only — no refresh token is created, and token lifetime is determined solely by the configured `JWTManager` TTL.

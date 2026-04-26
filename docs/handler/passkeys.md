@@ -12,13 +12,16 @@ wa, err := webauthn.New(&webauthn.Config{
 })
 
 h := &handler.PasskeyHandler{
-    Users:         userStore,
-    Passkeys:      passkeyStore,
-    WebAuthn:      wa,         // set to nil to disable passkeys
-    JWT:           jwtMgr,
-    CookieName:    "session",
-    SecureCookies: true,
-    URLParamFunc:  chi.URLParam,
+    Users:             userStore,
+    Passkeys:          passkeyStore,
+    WebAuthn:          wa,          // set to nil to disable passkeys
+    JWT:               jwtMgr,
+    CookieName:        "session",
+    SecureCookies:     true,
+    Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
+    RefreshCookieName: "refresh",    // required when Sessions is set
+    RefreshTokenTTL:   7 * 24 * time.Hour, // defaults to DefaultRefreshTokenTTL when Sessions is set
+    URLParamFunc:      chi.URLParam,
 }
 ```
 
@@ -43,10 +46,10 @@ Registration and authentication use server-side challenge storage (via `PasskeyS
 
 ## Response types
 
-`FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token` + `user`) **and** sets the JWT in an `HttpOnly` session cookie. There is no `refresh_token` field — `PasskeyHandler` issues an access JWT only (no refresh tokens or server-side session tracking by default), and its lifetime is determined by the configured `JWTManager`.
+`FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token`, `user`, and `refresh_token` when `Sessions` is set) **and** sets the JWT in an `HttpOnly` session cookie. When `Sessions` is `nil`, only the short-lived access JWT is issued and the `refresh_token` field is absent.
 
-!!! info "Adding session tracking"
-    To enable server-side sessions and refresh-token rotation for passkey logins, create a session and re-issue the JWT manually after `FinishAuthentication` succeeds using `JWTManager.CreateTokenWithSession`.
+!!! info "Session tracking and refresh tokens"
+    Set `Sessions`, `RefreshCookieName`, and optionally `RefreshTokenTTL` on `PasskeyHandler` to enable server-side session revocation and refresh-token rotation for passkey logins. Pass `auth.Config{Sessions: sessionStore}` to `auth.Middleware` so revoked sessions are rejected on subsequent requests.
 
 `FinishRegistration` returns a single `PasskeyCredentialDTO` (HTTP 201); `ListCredentials` returns `[]PasskeyCredentialDTO` (HTTP 200):
 
