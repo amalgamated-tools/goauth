@@ -36,8 +36,16 @@ type OIDCHandler struct {
 	OAuthConfig   oauth2.Config
 	CookieName    string
 	SecureCookies bool
-	linkNonces    map[string]linkNonce
-	linkNoncesMu  sync.Mutex
+	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
+	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
+	// DefaultRefreshTokenTTL when Sessions is non-nil.
+	RefreshTokenTTL time.Duration
+	// RefreshCookieName is the name of the HttpOnly cookie used to store the
+	// refresh token. When empty the refresh token is only returned in the
+	// response body.
+	RefreshCookieName string
+	linkNonces        map[string]linkNonce
+	linkNoncesMu      sync.Mutex
 }
 
 // NewOIDCHandler creates an OIDCHandler by performing OIDC discovery.
@@ -56,6 +64,11 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 		CookieName: cookieName, SecureCookies: secureCookies,
 		linkNonces: make(map[string]linkNonce),
 	}, nil
+}
+
+// issueTokens delegates to the package-level issueTokens helper.
+func (h *OIDCHandler) issueTokens(w http.ResponseWriter, r *http.Request, userID string) (accessToken, refreshToken string, ok bool) {
+	return issueTokens(w, r, userID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 }
 
 func generateOIDCState() (string, error) {
@@ -175,13 +188,10 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.JWT.CreateToken(r.Context(), user.ID)
-	if err != nil {
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create session")
+	if _, _, issueOK := h.issueTokens(w, r, user.ID); !issueOK {
 		return
 	}
 
-	SetAuthCookie(w, token, h.CookieName, h.SecureCookies)
 	http.Redirect(w, r, "/?oidc_login=1", http.StatusFound)
 }
 
