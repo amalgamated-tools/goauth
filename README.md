@@ -171,7 +171,7 @@ ctx = auth.ContextWithRoles(ctx, []auth.Role{auth.RoleAdmin})
 roles := auth.RolesFromContext(ctx)
 ```
 
-Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header. Admin status is checked via the `AdminChecker.IsAdmin` method and cached for 5 seconds per user.
+Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header. Admin status is checked via the `AdminChecker.IsAdmin` method and cached for 5 seconds per user. The internal admin-status cache holds up to **4,096** entries; when full, the oldest-inserted entry is evicted (FIFO). Expired entries are purged at most once per minute during cache writes.
 
 When `Sessions` is set the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. API key requests bypass the session check.
 
