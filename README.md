@@ -84,7 +84,7 @@ r.Group(func(r chi.Router) {
 
 ```go
 jwtMgr, err := auth.NewJWTManager(secret, ttl, issuer)
-// secret  – signing secret (empty → random, tokens won't survive restarts)
+// secret  – signing secret (recommended: at least auth.MinSecretLength (32) bytes; empty → random, tokens won't survive restarts)
 // ttl     – token lifetime (e.g. 24 * time.Hour)
 // issuer  – value used for iss/aud claims (defaults to "goauth")
 
@@ -490,7 +490,7 @@ h := &handler.AuthHandler{
     SecureCookies:     true,
     DisableSignup:     false,    // set true to prevent self-registration
     Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
-    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // defaults to 7 days when Sessions is set
+    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // 7-day default (handler.DefaultRefreshTokenTTL); only used when Sessions is set
     RefreshCookieName: "refresh",  // optional; stores refresh token in an HttpOnly cookie
     RequireVerification: true,     // optional; rejects login for unverified email addresses
 }
@@ -1173,3 +1173,38 @@ if cfg.Enabled() {
 - **Magic links / reset tokens** – Raw tokens are never stored; only their SHA-256 hash is persisted. Tokens are one-time use and short-lived (15 min for magic links, 1 h for password resets by default).
 - **Password reset** – Reset tokens are bound to accounts that have a password hash. OIDC-only accounts cannot use the password reset flow.
 - **Email enumeration** – `RequestMagicLink`, `RequestReset`, and `SendVerification` return the same success response whether or not the email is registered, preventing enumeration via timing or response differences. Validation and operational errors still surface as non-200 responses.
+
+---
+
+## Development
+
+Requires Go 1.26 or later.
+
+### Running tests
+
+```sh
+make test
+# or, with verbose output
+go test -v ./...
+```
+
+### Linting
+
+The linter uses `golangci-lint` and enforces that test files use `testify/require` (not `assert` or `t.Error`/`t.Fatal`):
+
+```sh
+make lint
+```
+
+### Formatting
+
+```sh
+make fmt           # gofmt
+make hardfmt       # gofumpt (stricter)
+```
+
+### All checks
+
+```sh
+make all  # lint + fmt + test
+```
