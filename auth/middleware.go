@@ -68,6 +68,14 @@ const (
 	tokenSourceCookie
 )
 
+// ExtractToken extracts a bearer or cookie token from the request.
+// It checks the Authorization header for a Bearer token first, then falls back
+// to the named cookie. Returns an empty string if no token is found.
+func ExtractToken(r *http.Request, cookieName string) string {
+	tok, _, _ := extractToken(r, cookieName)
+	return tok
+}
+
 func extractToken(r *http.Request, cookieName string) (string, tokenSource, string) {
 	if header := r.Header.Get("Authorization"); header != "" {
 		header = strings.TrimSpace(header)

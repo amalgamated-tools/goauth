@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
@@ -159,22 +158,4 @@ func ClearRefreshCookie(w http.ResponseWriter, cookieName string, secure bool) {
 		Name: cookieName, Value: "", Path: "/",
 		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: secure,
 	})
-}
-
-// tokenFromRequest extracts a bearer or cookie token from the request.
-func tokenFromRequest(r *http.Request, cookieName string) string {
-	if header := r.Header.Get("Authorization"); header != "" {
-		header = strings.TrimSpace(header)
-		if after, ok := strings.CutPrefix(header, "Bearer "); ok {
-			if tok := strings.TrimSpace(after); tok != "" {
-				return tok
-			}
-		}
-	}
-	if cookieName != "" {
-		if c, err := r.Cookie(cookieName); err == nil && c.Value != "" {
-			return c.Value
-		}
-	}
-	return ""
 }
