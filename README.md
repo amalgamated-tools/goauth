@@ -175,6 +175,21 @@ Tokens are accepted from the `Authorization: Bearer <token>` header or from the 
 
 When `Sessions` is set the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. API key requests bypass the session check.
 
+#### Observability
+
+The middleware uses structured log events via the standard library's `log/slog` package, propagating the request context for trace correlation. Some events are emitted only by specific middleware paths.
+
+| Event | Level | `slog` message |
+|---|---|---|
+| Token absent from header and cookie in `Middleware()` | `INFO` | `"authentication required"` |
+| `TouchAPIKeyLastUsed` store call fails | `WARN` | `"failed to touch API key last_used_at"` |
+| Unexpected error from `resolveUser` | `ERROR` | `"failed to resolve user"` |
+| Unexpected error from `FindSessionByID` | `ERROR` | `"failed to look up session"` |
+
+`ErrInvalidToken` and `ErrExpiredToken` are **not** logged — they are treated as expected conditions and produce a `401` response with no log noise.
+
+goauth never sets or replaces the global `slog` handler. Configure your own handler before starting the server to control log destination, format, and minimum level.
+
 ### RBAC (role-based access control)
 
 goauth ships a lightweight RBAC layer built on top of `RBACUserStore`. Three built-in roles are pre-configured with default permissions; applications can override or extend them.
