@@ -135,8 +135,8 @@ func TestStartCleanupLogsCleanerNameOnError(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
 
 	stop := StartCleanup(context.Background(), time.Hour, namedErrorCleaner)
+	slog.SetDefault(orig) // safe to restore immediately — StartCleanup captured the logger at entry
 	stop()
-	slog.SetDefault(orig) // restore immediately after stop() to minimize global side effects
 
 	var record struct {
 		CleanerName string `json:"cleaner_name"`
@@ -156,8 +156,8 @@ func TestStartCleanupLogsCleanerNameOnPanic(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
 
 	stop := StartCleanup(context.Background(), time.Hour, namedPanicCleaner)
+	slog.SetDefault(orig) // safe to restore immediately — StartCleanup captured the logger at entry
 	stop()
-	slog.SetDefault(orig) // restore immediately after stop() to minimize global side effects
 
 	var record struct {
 		CleanerName string `json:"cleaner_name"`
