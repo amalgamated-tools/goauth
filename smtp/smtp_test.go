@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -204,7 +205,13 @@ func newFakeSMTPServer(t *testing.T) *fakeSMTPServer {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	srv := &fakeSMTPServer{listener: ln}
-	go srv.serveOne(t)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		srv.serveOne(t)
+	}()
+	t.Cleanup(func() { srv.close(); wg.Wait() })
 	return srv
 }
 
@@ -281,14 +288,8 @@ func TestSend_success_none(t *testing.T) {
 }
 
 func TestSend_connectionRefused(t *testing.T) {
-	// Use a port that is not listening.
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	addr := ln.Addr().String()
-	_ = ln.Close() // close immediately so the port is free
-
-	p := Params{Addr: addr, From: "a@b.com", TLS: "none"}
-	err = Send(context.Background(), p, "to@example.com", []byte("msg"))
+	p := Params{Addr: "127.0.0.1:1", From: "a@b.com", TLS: "none"}
+	err := Send(context.Background(), p, "to@example.com", []byte("msg"))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "smtp connection failed")
 }

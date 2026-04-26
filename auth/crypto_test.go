@@ -116,7 +116,7 @@ func TestGenerateRandomBase64_length(t *testing.T) {
 	s, err := GenerateRandomBase64(16)
 	require.NoError(t, err)
 	// 16 bytes encoded as unpadded base64 produce ceiling(16*4/3) = 22 characters.
-	require.NotEmpty(t, s)
+	require.Len(t, s, 22)
 }
 
 func TestGenerateRandomBase64_isRandom(t *testing.T) {
