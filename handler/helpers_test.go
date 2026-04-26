@@ -430,3 +430,76 @@ func TestToUserDTO_withoutOidc(t *testing.T) {
 	require.False(t, dto.OIDCLinked)
 	require.False(t, dto.IsAdmin)
 }
+
+// ---------------------------------------------------------------------------
+// issueTokens
+// ---------------------------------------------------------------------------
+
+func TestIssueTokens_noSessions(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	w := httptest.NewRecorder()
+
+	access, refresh, ok := issueTokens(w, req, "user-1", nil, newTestJWT(), "auth", false, "", 0)
+
+	require.True(t, ok)
+	require.NotEmpty(t, access)
+	require.Empty(t, refresh)
+
+	var authCookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "auth" {
+			authCookie = c
+		}
+	}
+	require.NotNil(t, authCookie)
+	require.NotEmpty(t, authCookie.Value)
+
+	// No refresh cookie.
+	for _, c := range w.Result().Cookies() {
+		require.NotEqual(t, "refresh", c.Name)
+	}
+}
+
+func TestIssueTokens_withSessions_refreshCookie(t *testing.T) {
+	sessions := &mockSessionStore{}
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	w := httptest.NewRecorder()
+
+	access, refresh, ok := issueTokens(w, req, "user-1", sessions, newTestJWT(), "auth", false, "refresh", time.Hour)
+
+	require.True(t, ok)
+	require.NotEmpty(t, access)
+	require.NotEmpty(t, refresh)
+
+	var authCookie, refreshCookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		switch c.Name {
+		case "auth":
+			authCookie = c
+		case "refresh":
+			refreshCookie = c
+		}
+	}
+	require.NotNil(t, authCookie)
+	require.NotNil(t, refreshCookie)
+	require.NotEmpty(t, refreshCookie.Value)
+}
+
+func TestIssueTokens_withSessions_noRefreshCookieName(t *testing.T) {
+	// When Sessions is set but RefreshCookieName is empty, refresh token is
+	// returned but not set as a cookie (caller must deliver it another way).
+	sessions := &mockSessionStore{}
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	w := httptest.NewRecorder()
+
+	access, refresh, ok := issueTokens(w, req, "user-1", sessions, newTestJWT(), "auth", false, "", time.Hour)
+
+	require.True(t, ok)
+	require.NotEmpty(t, access)
+	require.NotEmpty(t, refresh)
+
+	// No refresh cookie set.
+	for _, c := range w.Result().Cookies() {
+		require.Equal(t, "auth", c.Name, "unexpected cookie %q", c.Name)
+	}
+}

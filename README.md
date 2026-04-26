@@ -84,7 +84,7 @@ r.Group(func(r chi.Router) {
 
 ```go
 jwtMgr, err := auth.NewJWTManager(secret, ttl, issuer)
-// secret  – signing secret (empty → random, tokens won't survive restarts)
+// secret  – signing secret (recommended: at least auth.MinSecretLength (32) bytes; empty → random, tokens won't survive restarts)
 // ttl     – token lifetime (e.g. 24 * time.Hour)
 // issuer  – value used for iss/aud claims (defaults to "goauth")
 
@@ -156,6 +156,12 @@ r.Use(auth.Middleware(jwtMgr, cfg, apiKeyStore))
 r.Use(auth.AdminMiddleware(jwtMgr, userStore, cfg, apiKeyStore))
 
 // Require a specific role or permission on a route group (see RBAC below).
+// The second argument is an auth.RoleChecker:
+//   type RoleChecker interface {
+//       HasRole(ctx context.Context, userID string, role auth.Role) (bool, error)
+//       HasPermission(ctx context.Context, userID string, perm auth.Permission) (bool, error)
+//   }
+// Use auth.NewStoreRoleChecker or auth.NewCachingRoleChecker to build one (see RBAC below).
 r.Use(auth.RequireRole(jwtMgr, roleChecker, cfg, apiKeyStore, auth.RoleEditor))
 r.Use(auth.RequirePermission(jwtMgr, roleChecker, cfg, apiKeyStore, auth.PermWriteContent))
 
@@ -173,9 +179,24 @@ roles := auth.RolesFromContext(ctx)
 
 All four middleware variants (`Middleware`, `AdminMiddleware`, `RequireRole`, `RequirePermission`) use the same token extraction and session validation logic. Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header.
 
-`AdminMiddleware` caches admin status checks (via `AdminChecker.IsAdmin`) for **5 seconds** per user ID. `RequireRole` and `RequirePermission` each maintain an internal `CachingRoleChecker` with the same **5-second** TTL.
+`AdminMiddleware` caches admin status checks (via `AdminChecker.IsAdmin`) for **5 seconds** per user ID (up to **4,096** entries per process; the oldest-inserted entry is evicted when the cache is full; expired entries are purged at most once per minute). `RequireRole` and `RequirePermission` each maintain an internal `CachingRoleChecker` with the same **5-second** TTL.
 
 When `Sessions` is set, the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. API key requests bypass the session check.
+
+#### Observability
+
+The middleware uses structured log events via the standard library's `log/slog` package, propagating the request context for trace correlation. Some events are emitted only by specific middleware paths.
+
+| Event | Level | `slog` message |
+|---|---|---|
+| Token absent from header and cookie in `Middleware()` | `INFO` | `"authentication required"` |
+| `TouchAPIKeyLastUsed` store call fails | `WARN` | `"failed to touch API key last_used_at"` |
+| Unexpected error from `resolveUser` | `ERROR` | `"failed to resolve user"` |
+| Unexpected error from `FindSessionByID` | `ERROR` | `"failed to look up session"` |
+
+`ErrInvalidToken` and `ErrExpiredToken` are **not** logged — they are treated as expected conditions and produce a `401` response with no log noise.
+
+goauth never sets or replaces the global `slog` handler. Configure your own handler before starting the server to control log destination, format, and minimum level.
 
 ### RBAC (role-based access control)
 
@@ -266,7 +287,7 @@ passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), auth.BcryptCo
 
 #### SecretEncrypter (AES-256-GCM)
 
-`SecretEncrypter` is safe for concurrent use. The AES block cipher is initialised once at construction time; `Encrypt` and `Decrypt` each create their own `cipher.AEAD` instance so there is no shared mutable GCM state between goroutines. The raw derived key is zeroed immediately after the cipher is created.
+`SecretEncrypter` is safe for concurrent use. Both the AES block cipher and the `cipher.AEAD` (GCM) instance are created once at construction time and reused across all `Encrypt` and `Decrypt` calls. Go's AES-GCM implementation does not share mutable state between concurrent `Seal`/`Open` invocations, so a single cached instance is safe. The raw derived key is zeroed immediately after the cipher is created.
 
 ```go
 enc, err := jwtMgr.NewSecretEncrypter()
@@ -369,6 +390,8 @@ type PasskeyStore interface {
 ```
 
 `userID` in `CreateChallenge` is `nil` during authentication (discoverable login) and non-nil during registration.
+
+`FinishAuthentication` attempts to call `UpdateCredentialData` after a successful WebAuthn assertion to persist the updated sign counter, but only if the updated credential data can be marshaled successfully. Failures are non-fatal (authentication still succeeds), and marshal/store problems are logged as warnings — see the `FinishAuthentication` notes below.
 
 #### MagicLinkStore
 
@@ -477,7 +500,7 @@ h := &handler.AuthHandler{
     SecureCookies:     true,
     DisableSignup:     false,    // set true to prevent self-registration
     Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
-    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // defaults to 7 days when Sessions is set
+    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // 7-day default (handler.DefaultRefreshTokenTTL); only used when Sessions is set
     RefreshCookieName: "refresh",  // optional; stores refresh token in an HttpOnly cookie
     RequireVerification: true,     // optional; rejects login for unverified email addresses
 }
@@ -813,6 +836,8 @@ Registration and authentication use server-side challenge storage (via `PasskeyS
 
 `FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token` + `user`) **and** sets the JWT in an `HttpOnly` session cookie (same cookie name as `CookieName`). There is no `refresh_token` field — `PasskeyHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. To enable server-side sessions and refresh-token rotation for passkey logins, create a session and re-issue the JWT manually after `FinishAuthentication` succeeds.
 
+> **Sign-counter update is best-effort.** After a successful WebAuthn assertion, `FinishAuthentication` attempts to call `PasskeyStore.UpdateCredentialData` to persist the updated sign counter, but only if the updated credential data can be marshaled successfully. If the `json.Marshal` step or the store call fails, a `slog.WarnContext` log entry is emitted with `user_id` and `credential_id` fields — but **authentication is not blocked**: the handler still returns HTTP 200 with the `AuthResponse`. Monitor for the log messages `"failed to marshal credential for counter update"` and `"failed to update credential counter"` to detect persistent store issues.
+
 `FinishRegistration` returns a single `PasskeyCredentialDTO` (HTTP 201); `ListCredentials` returns `[]PasskeyCredentialDTO` (HTTP 200):
 
 ```go
@@ -932,7 +957,7 @@ POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login 
 GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → AuthResponse (HTTP 200)
 ```
 
-The `Sender` field is of type `handler.MagicLinkSender` (`func(ctx context.Context, email, token string) error`). It must be set; a `nil` Sender causes `RequestMagicLink` to return `503 Service Unavailable` after the token has already been persisted to `MagicLinks`. This means every call with a nil Sender accumulates an unconsumed token in the store. In tests, use a no-op Sender (e.g., `func(ctx context.Context, email, token string) error { return nil }`) rather than leaving the field nil.
+The `Sender` field is of type `handler.MagicLinkSender` (`func(ctx context.Context, email, token string) error`). It must be set; a `nil` Sender causes `RequestMagicLink` to return `503 Service Unavailable` immediately — before any token is generated or written to `MagicLinks`. No unconsumed tokens accumulate in the store. In tests, use a no-op Sender (e.g., `func(ctx context.Context, email, token string) error { return nil }`) rather than leaving the field nil.
 
 `RequestMagicLink` expects `{"email": "<address>"}` as its JSON request body. `VerifyMagicLink` accepts a `token` query parameter instead of a request body.
 
@@ -969,7 +994,7 @@ All `MagicLinkHandler` endpoints return `{"error": "<message>"}` JSON on failure
 |---|---|---|
 | `RequestMagicLink` | `400 Bad Request` | Invalid JSON body or `email` is empty |
 | `RequestMagicLink` | `500 Internal Server Error` | Token generation or store error |
-| `RequestMagicLink` | `503 Service Unavailable` | `Sender` is `nil` (magic link sending not configured); the token has already been persisted in the store at this point |
+| `RequestMagicLink` | `503 Service Unavailable` | `Sender` is `nil` (magic link sending not configured); no token is generated or stored |
 | `VerifyMagicLink` | `400 Bad Request` | `token` query parameter is missing |
 | `VerifyMagicLink` | `401 Unauthorized` | Token not found in store or token is expired |
 | `VerifyMagicLink` | `500 Internal Server Error` | User lookup/creation or JWT creation failure |
@@ -1160,3 +1185,38 @@ if cfg.Enabled() {
 - **Magic links / reset tokens** – Raw tokens are never stored; only their SHA-256 hash is persisted. Tokens are one-time use and short-lived (15 min for magic links, 1 h for password resets by default).
 - **Password reset** – Reset tokens are bound to accounts that have a password hash. OIDC-only accounts cannot use the password reset flow.
 - **Email enumeration** – `RequestMagicLink`, `RequestReset`, and `SendVerification` return the same success response whether or not the email is registered, preventing enumeration via timing or response differences. Validation and operational errors still surface as non-200 responses.
+
+---
+
+## Development
+
+Requires Go 1.26 or later.
+
+### Running tests
+
+```sh
+make test
+# or, with verbose output
+go test -v ./...
+```
+
+### Linting
+
+The linter uses `golangci-lint` and enforces that test files use `testify/require` (not `assert` or `t.Error`/`t.Fatal`):
+
+```sh
+make lint
+```
+
+### Formatting
+
+```sh
+make fmt           # gofmt
+make hardfmt       # gofumpt (stricter)
+```
+
+### All checks
+
+```sh
+make all  # lint + fmt + test
+```

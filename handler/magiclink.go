@@ -56,6 +56,11 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	if h.Sender == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "magic link sending is not configured")
+		return
+	}
+
 	token, err := auth.GenerateRandomBase64(32)
 	if err != nil {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate token")
@@ -67,11 +72,6 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 	if _, err := h.MagicLinks.CreateMagicLink(r.Context(), req.Email, tokenHash, expiresAt); err != nil {
 		slog.ErrorContext(r.Context(), "failed to create magic link", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create magic link")
-		return
-	}
-
-	if h.Sender == nil {
-		writeError(r.Context(), w, http.StatusServiceUnavailable, "magic link sending is not configured")
 		return
 	}
 	if err := h.Sender(r.Context(), req.Email, token); err != nil {

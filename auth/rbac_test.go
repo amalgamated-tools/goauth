@@ -652,3 +652,130 @@ func TestCachingRoleCheckerConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// ---------------------------------------------------------------------------
+// sweepRoleEntriesLocked / sweepPermEntriesLocked — eviction path coverage
+// ---------------------------------------------------------------------------
+
+// newTestCachingRoleChecker creates a bare cachingRoleChecker for white-box
+// testing of the internal sweep and eviction logic.
+func newTestCachingRoleChecker(delegate RoleChecker) *cachingRoleChecker {
+	return &cachingRoleChecker{
+		delegate:    delegate,
+		ttl:         time.Hour,
+		roleEntries: make(map[roleCacheKey]roleCacheEntry),
+		permEntries: make(map[permCacheKey]permCacheEntry),
+	}
+}
+
+func TestSweepRoleEntries_evictsOldest(t *testing.T) {
+	crc := newTestCachingRoleChecker(NewStoreRoleChecker(&mockRBACUserStore{}))
+
+	// Fill roleEntries and roleOrder to exactly the capacity limit.
+	for i := range defaultRoleCacheMaxEntries {
+		key := roleCacheKey{userID: fmt.Sprintf("u%d", i), role: RoleAdmin}
+		crc.roleEntries[key] = roleCacheEntry{result: true, expiresAt: time.Now().Add(time.Hour), seq: uint64(i)}
+		crc.roleOrder = append(crc.roleOrder, orderEntry[roleCacheKey]{key: key, seq: uint64(i)})
+	}
+
+	before := len(crc.roleEntries)
+	crc.sweepRoleEntriesLocked(time.Now())
+
+	// At least one entry must have been evicted to bring the map below capacity.
+	require.Less(t, len(crc.roleEntries), before)
+}
+
+func TestSweepRoleEntries_emptyOrderArbitraryEviction(t *testing.T) {
+	// When roleOrder is empty but the map is at capacity the fallback
+	// "arbitrary eviction" branch must still reduce the map size.
+	crc := newTestCachingRoleChecker(NewStoreRoleChecker(&mockRBACUserStore{}))
+
+	for i := range defaultRoleCacheMaxEntries {
+		key := roleCacheKey{userID: fmt.Sprintf("u%d", i), role: RoleAdmin}
+		crc.roleEntries[key] = roleCacheEntry{result: true, expiresAt: time.Now().Add(time.Hour), seq: uint64(i)}
+	}
+	// Leave roleOrder intentionally empty.
+
+	crc.sweepRoleEntriesLocked(time.Now())
+	require.Less(t, len(crc.roleEntries), defaultRoleCacheMaxEntries)
+}
+
+func TestSweepRoleEntries_staleSeqSkipped(t *testing.T) {
+	// An orderEntry whose seq doesn't match the live entry must be skipped
+	// without deleting the live entry.
+	crc := newTestCachingRoleChecker(NewStoreRoleChecker(&mockRBACUserStore{}))
+
+	// Fill to below capacity so the eviction loop never fires, isolating the
+	// stale-seq skip path from the arbitrary-eviction fallback.
+	for i := range defaultRoleCacheMaxEntries - 1 {
+		key := roleCacheKey{userID: fmt.Sprintf("u%d", i), role: RoleAdmin}
+		liveSeq := uint64(i) + 1000 // live entry has a higher seq
+		crc.roleEntries[key] = roleCacheEntry{result: true, expiresAt: time.Now().Add(time.Hour), seq: liveSeq}
+		// Order entry carries the old (stale) seq.
+		crc.roleOrder = append(crc.roleOrder, orderEntry[roleCacheKey]{key: key, seq: uint64(i)})
+	}
+
+	before := len(crc.roleEntries)
+	crc.sweepRoleEntriesLocked(time.Now())
+
+	// All order entries are stale (seq mismatch), so the FIFO eviction path
+	// must not have deleted any live entry.
+	require.Equal(t, before, len(crc.roleEntries), "stale order entries must not delete live entries")
+}
+
+func TestSweepPermEntries_evictsOldest(t *testing.T) {
+	crc := newTestCachingRoleChecker(NewStoreRoleChecker(&mockRBACUserStore{}))
+
+	for i := range defaultPermCacheMaxEntries {
+		key := permCacheKey{userID: fmt.Sprintf("u%d", i), perm: PermReadContent}
+		crc.permEntries[key] = permCacheEntry{result: true, expiresAt: time.Now().Add(time.Hour), seq: uint64(i)}
+		crc.permOrder = append(crc.permOrder, orderEntry[permCacheKey]{key: key, seq: uint64(i)})
+	}
+
+	before := len(crc.permEntries)
+	crc.sweepPermEntriesLocked(time.Now())
+	require.Less(t, len(crc.permEntries), before)
+}
+
+func TestSweepPermEntries_emptyOrderArbitraryEviction(t *testing.T) {
+	crc := newTestCachingRoleChecker(NewStoreRoleChecker(&mockRBACUserStore{}))
+
+	for i := range defaultPermCacheMaxEntries {
+		key := permCacheKey{userID: fmt.Sprintf("u%d", i), perm: PermReadContent}
+		crc.permEntries[key] = permCacheEntry{result: true, expiresAt: time.Now().Add(time.Hour), seq: uint64(i)}
+	}
+
+	crc.sweepPermEntriesLocked(time.Now())
+	require.Less(t, len(crc.permEntries), defaultPermCacheMaxEntries)
+}
+
+func TestSweepRoleEntries_sweepInterval_deletesExpired(t *testing.T) {
+	crc := newTestCachingRoleChecker(NewStoreRoleChecker(&mockRBACUserStore{}))
+
+	// Pre-set lastSweep to trigger the time-based sweep on this call.
+	crc.roleLastSweepTime = time.Now().Add(-2 * cacheSweepInterval)
+
+	key := roleCacheKey{userID: "expiring-user", role: RoleAdmin}
+	crc.roleEntries[key] = roleCacheEntry{result: true, expiresAt: time.Now().Add(-time.Second)}
+	crc.roleOrder = append(crc.roleOrder, orderEntry[roleCacheKey]{key: key, seq: 1})
+
+	crc.sweepRoleEntriesLocked(time.Now())
+
+	_, present := crc.roleEntries[key]
+	require.False(t, present)
+}
+
+func TestSweepPermEntries_sweepInterval_deletesExpired(t *testing.T) {
+	crc := newTestCachingRoleChecker(NewStoreRoleChecker(&mockRBACUserStore{}))
+
+	crc.permLastSweepTime = time.Now().Add(-2 * cacheSweepInterval)
+
+	key := permCacheKey{userID: "expiring-user", perm: PermReadContent}
+	crc.permEntries[key] = permCacheEntry{result: true, expiresAt: time.Now().Add(-time.Second)}
+	crc.permOrder = append(crc.permOrder, orderEntry[permCacheKey]{key: key, seq: 1})
+
+	crc.sweepPermEntriesLocked(time.Now())
+
+	_, present := crc.permEntries[key]
+	require.False(t, present)
+}
