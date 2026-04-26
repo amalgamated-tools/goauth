@@ -389,6 +389,8 @@ type PasskeyStore interface {
 
 `userID` in `CreateChallenge` is `nil` during authentication (discoverable login) and non-nil during registration.
 
+`FinishAuthentication` attempts to call `UpdateCredentialData` after a successful WebAuthn assertion to persist the updated sign counter, but only if the updated credential data can be marshaled successfully. Failures are non-fatal (authentication still succeeds), and marshal/store problems are logged as warnings — see the `FinishAuthentication` notes below.
+
 #### MagicLinkStore
 
 ```go
@@ -831,6 +833,8 @@ Registration and authentication use server-side challenge storage (via `PasskeyS
 | `DeleteCredential` | 204 | *(no body)* |
 
 `FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token` + `user`) **and** sets the JWT in an `HttpOnly` session cookie (same cookie name as `CookieName`). There is no `refresh_token` field — `PasskeyHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. To enable server-side sessions and refresh-token rotation for passkey logins, create a session and re-issue the JWT manually after `FinishAuthentication` succeeds.
+
+> **Sign-counter update is best-effort.** After a successful WebAuthn assertion, `FinishAuthentication` attempts to call `PasskeyStore.UpdateCredentialData` to persist the updated sign counter, but only if the updated credential data can be marshaled successfully. If the `json.Marshal` step or the store call fails, a `slog.WarnContext` log entry is emitted with `user_id` and `credential_id` fields — but **authentication is not blocked**: the handler still returns HTTP 200 with the `AuthResponse`. Monitor for the log messages `"failed to marshal credential for counter update"` and `"failed to update credential counter"` to detect persistent store issues.
 
 `FinishRegistration` returns a single `PasskeyCredentialDTO` (HTTP 201); `ListCredentials` returns `[]PasskeyCredentialDTO` (HTTP 200):
 
