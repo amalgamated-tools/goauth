@@ -847,14 +847,14 @@ All passkey endpoints return `{"error": "<message>"}` JSON on failure. The table
 |---|---|---|
 | `BeginRegistration`, `FinishRegistration`, `BeginAuthentication`, `FinishAuthentication` | `503 Service Unavailable` | `WebAuthn` field is `nil` (passkeys not configured) |
 | `BeginRegistration` | `400 Bad Request` | Invalid JSON request body, `name` is empty, or `name` exceeds 100 characters |
-| `BeginRegistration` | `500 Internal Server Error` | User lookup failed, WebAuthn ceremony error, or challenge storage error |
+| `BeginRegistration` | `500 Internal Server Error` | User lookup failed, credential list failure (`ListCredentialsByUser`), WebAuthn ceremony error, or challenge storage error |
 | `FinishRegistration` | `400 Bad Request` | `session_id` query parameter missing, session not found, session expired, or session belongs to a different user |
 | `FinishRegistration` | `400 Bad Request` | WebAuthn attestation verification failed |
-| `FinishRegistration` | `500 Internal Server Error` | User lookup failed (transient store error) or credential storage failed |
+| `FinishRegistration` | `500 Internal Server Error` | User lookup failed (transient store error), credential list failure (`ListCredentialsByUser`), or credential storage failed |
 | `BeginAuthentication` | `500 Internal Server Error` | WebAuthn ceremony error or challenge storage error |
 | `FinishAuthentication` | `400 Bad Request` | `session_id` query parameter missing |
 | `FinishAuthentication` | `401 Unauthorized` | Session not found, session expired, credential not found, user lookup failed, or WebAuthn assertion verification failed |
-| `FinishAuthentication` | `500 Internal Server Error` | JWT creation failed |
+| `FinishAuthentication` | `500 Internal Server Error` | `ListCredentialsByUser` store error during authentication, or JWT creation failed |
 | `ListCredentials` | `500 Internal Server Error` | Store error while listing credentials |
 | `DeleteCredential` | `400 Bad Request` | Credential ID missing from URL |
 | `DeleteCredential` | `404 Not Found` | Credential not found or does not belong to the authenticated user |
