@@ -443,10 +443,10 @@ ok, err := auth.ValidateTOTP(secret, code)
 generatedCode, err := auth.GenerateTOTPCode(secret, time.Now())
 ```
 
-**Replay protection** – `ValidateTOTP` alone does not prevent a valid code from being used twice within the ~90-second window. Use `auth.TOTPUsedCodeCache` (zero value is ready to use) in `TOTPHandler` to block replays:
+**Replay protection** – `ValidateTOTP` alone does not prevent a valid code from being used twice within the ~90-second window. Pass `&auth.TOTPUsedCodeCache{}` to `TOTPHandler.UsedCodes` to block replays (see the `TOTPHandler` section below). For standalone use outside a handler, the zero value is ready to use directly:
 
 ```go
-var usedCodes auth.TOTPUsedCodeCache // process-local; zero value ready to use
+var usedCodes auth.TOTPUsedCodeCache // process-local; zero value ready to use directly
 
 if usedCodes.WasUsed(userID, code) {
     // reject
