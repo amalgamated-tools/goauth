@@ -171,9 +171,11 @@ ctx = auth.ContextWithRoles(ctx, []auth.Role{auth.RoleAdmin})
 roles := auth.RolesFromContext(ctx)
 ```
 
-Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header. Admin status is checked via the `AdminChecker.IsAdmin` method and cached for 5 seconds per user.
+All four middleware variants (`Middleware`, `AdminMiddleware`, `RequireRole`, `RequirePermission`) use the same token extraction and session validation logic. Tokens are accepted from the `Authorization: Bearer <token>` header or from the configured cookie. API keys are **only** accepted from the `Authorization` header.
 
-When `Sessions` is set the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. API key requests bypass the session check.
+`AdminMiddleware` caches admin status checks (via `AdminChecker.IsAdmin`) for **5 seconds** per user ID. `RequireRole` and `RequirePermission` each maintain an internal `CachingRoleChecker` with the same **5-second** TTL.
+
+When `Sessions` is set, the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. API key requests bypass the session check.
 
 ### RBAC (role-based access control)
 
