@@ -1,8 +1,11 @@
 package maintenance
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -118,5 +121,41 @@ func TestStartCleanupRecoversPanic(t *testing.T) {
 	// Panicking cleaners must not crash the process; the loop must continue.
 	require.Eventually(t, func() bool {
 		return calls.Load() >= 2
+	}, 2*time.Second, 5*time.Millisecond)
+}
+
+func namedErrorCleaner(_ context.Context) error {
+	return errors.New("db error")
+}
+
+func TestStartCleanupLogsCleanerNameOnError(t *testing.T) {
+	var buf bytes.Buffer
+	orig := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(orig) })
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	stop := StartCleanup(context.Background(), time.Hour, namedErrorCleaner)
+	stop()
+
+	require.Eventually(t, func() bool {
+		return strings.Contains(buf.String(), "namedErrorCleaner")
+	}, 2*time.Second, 5*time.Millisecond)
+}
+
+func namedPanicCleaner(_ context.Context) error {
+	panic("intentional test panic")
+}
+
+func TestStartCleanupLogsCleanerNameOnPanic(t *testing.T) {
+	var buf bytes.Buffer
+	orig := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(orig) })
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	stop := StartCleanup(context.Background(), time.Hour, namedPanicCleaner)
+	stop()
+
+	require.Eventually(t, func() bool {
+		return strings.Contains(buf.String(), "namedPanicCleaner")
 	}, 2*time.Second, 5*time.Millisecond)
 }
