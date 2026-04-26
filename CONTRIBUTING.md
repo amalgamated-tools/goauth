@@ -96,7 +96,7 @@ Store method implementations must return `auth.ErrNotFound` (or wrap it with `fm
 
 ### Logging
 
-Use `log/slog` with structured key–value pairs. Pass the request context through to preserve trace correlation. Do not set or replace the global `slog` handler inside library code.
+Use `log/slog` with structured key–value pairs and **always pass the request context using the context-aware slog functions** (e.g., `slog.InfoContext(ctx, "msg", ...)`, `slog.ErrorContext(ctx, "msg", ...)`). This preserves trace correlation. Do not set or replace the global `slog` handler inside library code.
 
 ### No direct pushes to `main`
 
