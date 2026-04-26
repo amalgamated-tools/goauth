@@ -1,8 +1,11 @@
 package maintenance
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -119,4 +122,46 @@ func TestStartCleanup_recoversPanic(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return calls.Load() >= 2
 	}, 2*time.Second, 5*time.Millisecond)
+}
+
+func namedErrorCleaner(_ context.Context) error {
+	return errors.New("db error")
+}
+
+func TestStartCleanupLogsCleanerNameOnError(t *testing.T) {
+	var buf bytes.Buffer
+	orig := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(orig) })
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	stop := StartCleanup(context.Background(), time.Hour, namedErrorCleaner)
+	slog.SetDefault(orig) // safe to restore immediately — StartCleanup captured the logger at entry
+	stop()
+
+	var record struct {
+		CleanerName string `json:"cleaner_name"`
+	}
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &record))
+	require.Contains(t, record.CleanerName, "namedErrorCleaner")
+}
+
+func namedPanicCleaner(_ context.Context) error {
+	panic("intentional test panic")
+}
+
+func TestStartCleanupLogsCleanerNameOnPanic(t *testing.T) {
+	var buf bytes.Buffer
+	orig := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(orig) })
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	stop := StartCleanup(context.Background(), time.Hour, namedPanicCleaner)
+	slog.SetDefault(orig) // safe to restore immediately — StartCleanup captured the logger at entry
+	stop()
+
+	var record struct {
+		CleanerName string `json:"cleaner_name"`
+	}
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &record))
+	require.Contains(t, record.CleanerName, "namedPanicCleaner")
 }

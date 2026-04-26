@@ -240,6 +240,8 @@ if !rl.Allow(r) {
 
 Stale visitor entries are swept lazily every 5 minutes.
 
+When `trustedProxies` is set and the direct peer IP matches a trusted CIDR, the limiter reads the `X-Forwarded-For` header and applies a **right-to-left scan** — it picks the rightmost IP that is *not* in the trusted set. This mirrors the "trusted-leftmost-forwarder" model recommended for multi-hop reverse-proxy chains and avoids accepting a client-supplied IP from the leftmost, untrusted part of the header.
+
 ### Crypto utilities
 
 ```go
@@ -443,10 +445,10 @@ ok, err := auth.ValidateTOTP(secret, code)
 generatedCode, err := auth.GenerateTOTPCode(secret, time.Now())
 ```
 
-**Replay protection** – `ValidateTOTP` alone does not prevent a valid code from being used twice within the ~90-second window. Use `auth.TOTPUsedCodeCache` (zero value is ready to use) in `TOTPHandler` to block replays:
+**Replay protection** – `ValidateTOTP` alone does not prevent a valid code from being used twice within the ~90-second window. Pass `&auth.TOTPUsedCodeCache{}` to `TOTPHandler.UsedCodes` to block replays (see the `TOTPHandler` section below). For standalone use outside a handler, the zero value is ready to use directly:
 
 ```go
-var usedCodes auth.TOTPUsedCodeCache // process-local; zero value ready to use
+var usedCodes auth.TOTPUsedCodeCache // process-local; zero value ready to use directly
 
 if usedCodes.WasUsed(userID, code) {
     // reject
@@ -461,7 +463,7 @@ usedCodes.MarkUsed(userID, code)
 
 All handlers use `net/http` only and are compatible with any router. Router-specific helpers (e.g. URL parameter extraction) are injected via a `func(r *http.Request, key string) string` field.
 
-All endpoints that accept a JSON request body enforce a **1 MiB** maximum body size. Requests with larger bodies receive `400 Bad Request`.
+> **Request body limit** – endpoints that decode JSON via the shared `decodeJSON` helper enforce a **1 MiB** maximum and reject larger requests with `400 Bad Request`. Passkey finish endpoints (`PasskeyHandler.FinishRegistration` and `PasskeyHandler.FinishAuthentication`) do not use `decodeJSON` in this package, so this limit does not apply to them here.
 
 ### AuthHandler – email/password
 
@@ -778,7 +780,7 @@ GET  /auth/passkey/credentials            → h.ListCredentials
 DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential     // 204 No Content
 ```
 
-Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client. Discoverable login is used so users do not need to enter an identifier before presenting a passkey.
+Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client. Discoverable login is used so users do not need to enter an identifier before presenting a passkey. Challenges expire after **5 minutes**; `FinishRegistration` and `FinishAuthentication` reject any `session_id` whose challenge has expired.
 
 #### Request bodies
 
@@ -934,7 +936,7 @@ The `Sender` field is of type `handler.MagicLinkSender` (`func(ctx context.Conte
 
 The `Sender` field has the named type `handler.MagicLinkSender` (`func(ctx context.Context, email, token string) error`). Assign any function with that signature to deliver the one-time token to the user via email or another channel.
 
-Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account when no user exists for the email address. `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration; validation and operational errors still surface as non-200 responses.
+Tokens expire after 15 minutes. `VerifyMagicLink` auto-provisions a new account when no user exists for the email address; the new account's display name is set to the email address. `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration; validation and operational errors still surface as non-200 responses.
 
 #### Response types
 

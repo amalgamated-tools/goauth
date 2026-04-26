@@ -202,14 +202,16 @@ type AdminChecker interface {
 	IsAdmin(ctx context.Context, userID string) (bool, error)
 }
 
+type adminCacheEntry struct {
+	isAdmin   bool
+	expiresAt time.Time
+}
+
 type cachingAdminChecker struct {
 	delegate AdminChecker
 	ttl      time.Duration
 	mu       sync.RWMutex
-	entries  map[string]struct {
-		isAdmin   bool
-		expiresAt time.Time
-	}
+	entries  map[string]adminCacheEntry
 }
 
 func newCachingAdminChecker(delegate AdminChecker, ttl time.Duration) AdminChecker {
@@ -219,10 +221,7 @@ func newCachingAdminChecker(delegate AdminChecker, ttl time.Duration) AdminCheck
 	return &cachingAdminChecker{
 		delegate: delegate,
 		ttl:      ttl,
-		entries: make(map[string]struct {
-			isAdmin   bool
-			expiresAt time.Time
-		}),
+		entries:  make(map[string]adminCacheEntry),
 	}
 }
 
@@ -242,10 +241,7 @@ func (c *cachingAdminChecker) IsAdmin(ctx context.Context, userID string) (bool,
 	}
 
 	c.mu.Lock()
-	c.entries[userID] = struct {
-		isAdmin   bool
-		expiresAt time.Time
-	}{isAdmin: isAdmin, expiresAt: now.Add(c.ttl)}
+	c.entries[userID] = adminCacheEntry{isAdmin: isAdmin, expiresAt: now.Add(c.ttl)}
 	c.mu.Unlock()
 
 	return isAdmin, nil
