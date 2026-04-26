@@ -1,0 +1,43 @@
+# MagicLinkHandler — Passwordless Login
+
+`MagicLinkHandler` provides passwordless authentication via one-time email links. Tokens expire after 15 minutes and are single-use. If no account exists for the email, one is auto-provisioned on verification.
+
+## Configuration
+
+```go
+h := &handler.MagicLinkHandler{
+    Users:             userStore,
+    MagicLinks:        magicLinkStore,
+    JWT:               jwtMgr,
+    Sender:            func(ctx context.Context, email, token string) error { /* send email */ return nil },
+    CookieName:        "session",
+    SecureCookies:     true,
+    Sessions:          sessionStore,      // optional
+    RefreshTokenTTL:   7 * 24 * time.Hour,
+    RefreshCookieName: "refresh",
+}
+```
+
+## Routes
+
+```
+POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login link
+GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → AuthResponse (HTTP 200)
+```
+
+## Response types
+
+`VerifyMagicLink` returns HTTP 200 with the same `AuthResponse` wrapper as `AuthHandler.Login` — `token`, `refresh_token` (when `Sessions` is set), and `user` (`UserDTO`). It also sets an `HttpOnly` session cookie and, when `Sessions` is set and `RefreshCookieName` is non-empty, an `HttpOnly` refresh token cookie.
+
+`RequestMagicLink` returns HTTP 200 with:
+
+```json
+{"message": "if that email is valid, a login link has been sent"}
+```
+
+!!! info "Email enumeration prevention"
+    `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration. Validation and operational errors still surface as non-200 responses.
+
+## Session tracking
+
+Session tracking and refresh token rotation work identically to `AuthHandler` — set `Sessions`, `RefreshTokenTTL`, and `RefreshCookieName` to enable them.

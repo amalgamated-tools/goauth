@@ -18,6 +18,7 @@ import (
 const passkeyChallengeExpiry = 5 * time.Minute
 
 var errPasskeySessionExpired = errors.New("passkey session expired")
+var errListCredentials = errors.New("failed to list credentials")
 
 // PasskeyHandler holds dependencies for WebAuthn endpoints.
 // URLParamFunc extracts URL parameters (router-agnostic).
@@ -28,7 +29,20 @@ type PasskeyHandler struct {
 	JWT           *auth.JWTManager
 	CookieName    string
 	SecureCookies bool
-	URLParamFunc  func(r *http.Request, key string) string
+	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
+	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
+	// DefaultRefreshTokenTTL when Sessions is non-nil.
+	RefreshTokenTTL time.Duration
+	// RefreshCookieName is the name of the HttpOnly cookie used to store the
+	// refresh token. When empty the refresh token is only returned in the
+	// response body.
+	RefreshCookieName string
+	URLParamFunc      func(r *http.Request, key string) string
+}
+
+// issueTokens delegates to the package-level issueTokens helper.
+func (h *PasskeyHandler) issueTokens(w http.ResponseWriter, r *http.Request, userID string) (accessToken, refreshToken string, ok bool) {
+	return issueTokens(w, r, userID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 }
 
 type passkeyUser struct {
@@ -132,7 +146,11 @@ func (h *PasskeyHandler) BeginRegistration(w http.ResponseWriter, r *http.Reques
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
 		return
 	}
-	existingCreds, _ := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
+	existingCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
+	if err != nil {
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
+		return
+	}
 	waCreds := loadWebAuthnCredentials(r.Context(), existingCreds)
 	waUser := &passkeyUser{user: user, credentials: waCreds}
 
@@ -178,7 +196,11 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
 		return
 	}
-	existingCreds, _ := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
+	existingCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
+	if err != nil {
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
+		return
+	}
 	waUser := &passkeyUser{user: user, credentials: loadWebAuthnCredentials(r.Context(), existingCreds)}
 
 	credential, err := h.WebAuthn.FinishRegistration(waUser, challengeData.SessionData, r)
@@ -242,6 +264,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 
 	var authedUserID, authedCredentialID string
 	var authedUser *auth.User
+	var listCredsErr error
 
 	handler := webauthn.DiscoverableUserHandler(func(rawID, userHandle []byte) (webauthn.User, error) {
 		credID := base64.RawURLEncoding.EncodeToString(rawID)
@@ -253,7 +276,11 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		if err != nil {
 			return nil, fmt.Errorf("user not found: %w", err)
 		}
-		userCreds, _ := h.Passkeys.ListCredentialsByUser(r.Context(), user.ID)
+		userCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), user.ID)
+		if err != nil {
+			listCredsErr = err
+			return nil, fmt.Errorf("%w: %v", errListCredentials, err)
+		}
 		authedUserID = user.ID
 		authedCredentialID = credID
 		authedUser = user
@@ -262,7 +289,11 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 
 	updatedCred, _, err := h.WebAuthn.FinishPasskeyLogin(handler, challengeData.SessionData, r)
 	if err != nil {
-		writeError(r.Context(), w, http.StatusUnauthorized, "authentication failed")
+		if listCredsErr != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
+		} else {
+			writeError(r.Context(), w, http.StatusUnauthorized, "authentication failed")
+		}
 		return
 	}
 
@@ -278,14 +309,14 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 			slog.Any("error", err))
 	}
 
-	token, err := h.JWT.CreateToken(r.Context(), authedUserID)
-	if err != nil {
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create token")
+	token, refreshToken, ok := h.issueTokens(w, r, authedUserID)
+	if !ok {
 		return
 	}
 
-	SetAuthCookie(w, token, h.CookieName, h.SecureCookies)
-	writeJSON(r.Context(), w, http.StatusOK, AuthResponse{Token: token, User: ToUserDTO(authedUser)})
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	writeJSON(r.Context(), w, http.StatusOK, AuthResponse{Token: token, RefreshToken: refreshToken, User: ToUserDTO(authedUser)})
 }
 
 // ListCredentials returns all passkey credentials for the current user.
