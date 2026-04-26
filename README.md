@@ -452,7 +452,7 @@ usedCodes.MarkUsed(userID, code)
 
 All handlers use `net/http` only and are compatible with any router. Router-specific helpers (e.g. URL parameter extraction) are injected via a `func(r *http.Request, key string) string` field.
 
-> **Request body limit** – all endpoints that accept a JSON body enforce a **1 MiB** maximum. Requests with a larger body are rejected with `400 Bad Request`.
+> **Request body limit** – endpoints that decode JSON via the shared `decodeJSON` helper enforce a **1 MiB** maximum and reject larger requests with `400 Bad Request`. Passkey finish endpoints (`PasskeyHandler.FinishRegistration` and `PasskeyHandler.FinishAuthentication`) do not use `decodeJSON` in this package, so this limit does not apply to them here.
 
 ### AuthHandler – email/password
 
