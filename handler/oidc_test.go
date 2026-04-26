@@ -592,3 +592,26 @@ func TestOIDCCallback_missingCode(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+// ---------------------------------------------------------------------------
+// Callback — config validation
+// ---------------------------------------------------------------------------
+
+func TestCallback_sessionsWithoutRefreshCookieName_returns500(t *testing.T) {
+	// When Sessions is configured but RefreshCookieName is empty, Callback must
+	// refuse with 500 rather than silently dropping the refresh token.
+	h := newTestOIDCHandler()
+	h.Sessions = &mockSessionStore{}
+	// h.RefreshCookieName is "" (zero value)
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=xyz", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "abc"})
+	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "verifier"})
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	var body map[string]string
+	_ = json.NewDecoder(w.Body).Decode(&body)
+	require.Contains(t, body["error"], "configuration")
+}

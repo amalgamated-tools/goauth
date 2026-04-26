@@ -29,7 +29,20 @@ type PasskeyHandler struct {
 	JWT           *auth.JWTManager
 	CookieName    string
 	SecureCookies bool
-	URLParamFunc  func(r *http.Request, key string) string
+	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
+	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
+	// DefaultRefreshTokenTTL when Sessions is non-nil.
+	RefreshTokenTTL time.Duration
+	// RefreshCookieName is the name of the HttpOnly cookie used to store the
+	// refresh token. When empty the refresh token is only returned in the
+	// response body.
+	RefreshCookieName string
+	URLParamFunc      func(r *http.Request, key string) string
+}
+
+// issueTokens delegates to the package-level issueTokens helper.
+func (h *PasskeyHandler) issueTokens(w http.ResponseWriter, r *http.Request, userID string) (accessToken, refreshToken string, ok bool) {
+	return issueTokens(w, r, userID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 }
 
 type passkeyUser struct {
@@ -296,14 +309,14 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 			slog.Any("error", err))
 	}
 
-	token, err := h.JWT.CreateToken(r.Context(), authedUserID)
-	if err != nil {
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create token")
+	token, refreshToken, ok := h.issueTokens(w, r, authedUserID)
+	if !ok {
 		return
 	}
 
-	SetAuthCookie(w, token, h.CookieName, h.SecureCookies)
-	writeJSON(r.Context(), w, http.StatusOK, AuthResponse{Token: token, User: ToUserDTO(authedUser)})
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	writeJSON(r.Context(), w, http.StatusOK, AuthResponse{Token: token, RefreshToken: refreshToken, User: ToUserDTO(authedUser)})
 }
 
 // ListCredentials returns all passkey credentials for the current user.
