@@ -850,7 +850,7 @@ All passkey endpoints return `{"error": "<message>"}` JSON on failure. The table
 | `BeginRegistration` | `500 Internal Server Error` | User lookup failed, credential list failure (`ListCredentialsByUser`), WebAuthn ceremony error, or challenge storage error |
 | `FinishRegistration` | `400 Bad Request` | `session_id` query parameter missing, session not found, session expired, or session belongs to a different user |
 | `FinishRegistration` | `400 Bad Request` | WebAuthn attestation verification failed |
-| `FinishRegistration` | `500 Internal Server Error` | User lookup failed (transient store error), credential list failure (`ListCredentialsByUser`), or credential storage failed |
+| `FinishRegistration` | `500 Internal Server Error` | User lookup failed, credential marshal failure, credential list failure (`ListCredentialsByUser`), or credential storage failed |
 | `BeginAuthentication` | `500 Internal Server Error` | WebAuthn ceremony error or challenge storage error |
 | `FinishAuthentication` | `400 Bad Request` | `session_id` query parameter missing |
 | `FinishAuthentication` | `401 Unauthorized` | Session not found, session expired, credential not found, user lookup failed, or WebAuthn assertion verification failed |
