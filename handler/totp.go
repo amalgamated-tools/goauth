@@ -45,11 +45,17 @@ type totpVerifyRequest struct {
 // isReplay returns true when code has already been used for userID within the
 // replay window.
 func (h *TOTPHandler) isReplay(userID, code string) bool {
+	if h.UsedCodes == nil {
+		panic("TOTPHandler.UsedCodes is nil; initialize with &auth.TOTPUsedCodeCache{}")
+	}
 	return h.UsedCodes.WasUsed(userID, code)
 }
 
 // recordUsed marks code as used for userID to prevent future replays.
 func (h *TOTPHandler) recordUsed(userID, code string) {
+	if h.UsedCodes == nil {
+		panic("TOTPHandler.UsedCodes is nil; initialize with &auth.TOTPUsedCodeCache{}")
+	}
 	h.UsedCodes.MarkUsed(userID, code)
 }
 
