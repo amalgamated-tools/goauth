@@ -214,6 +214,8 @@ func (c *cachingAdminChecker) sweepEntriesLocked(now time.Time) {
 	// Evict the oldest-inserted entries first until the cache is under capacity.
 	for len(c.entries) >= defaultAdminCacheMaxEntries {
 		if len(c.order) == 0 {
+			// Compaction removed all stale entries but the map is still at capacity;
+			// evict an arbitrary entry to preserve the size bound.
 			for k := range c.entries {
 				delete(c.entries, k)
 				break

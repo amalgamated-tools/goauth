@@ -449,7 +449,7 @@ func TestCachingAdminChecker_expiry(t *testing.T) {
 	require.Equal(t, 2, calls)
 }
 
-func TestCachingAdminCheckerEvictsOldest(t *testing.T) {
+func TestCachingAdminChecker_evictsOldest(t *testing.T) {
 	calls := 0
 	delegate := &mockAdminChecker{
 		isAdminFunc: func(_ context.Context, userID string) (bool, error) {
