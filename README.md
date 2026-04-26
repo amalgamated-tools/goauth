@@ -123,7 +123,7 @@ Sentinel errors: `auth.ErrInvalidToken`, `auth.ErrExpiredToken`, `auth.ErrNotFou
 
 ### Sentinel errors reference
 
-| Error | When returned |
+| Error | Description |
 |---|---|
 | `auth.ErrInvalidToken` | Token signature or structure is invalid |
 | `auth.ErrExpiredToken` | Token has passed its `exp` claim |
