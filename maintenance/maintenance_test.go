@@ -3,9 +3,9 @@ package maintenance
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -136,10 +136,13 @@ func TestStartCleanupLogsCleanerNameOnError(t *testing.T) {
 
 	stop := StartCleanup(context.Background(), time.Hour, namedErrorCleaner)
 	stop()
+	slog.SetDefault(orig) // restore immediately after stop() to minimize global side effects
 
-	require.Eventually(t, func() bool {
-		return strings.Contains(buf.String(), "namedErrorCleaner")
-	}, 2*time.Second, 5*time.Millisecond)
+	var record struct {
+		CleanerName string `json:"cleaner_name"`
+	}
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &record))
+	require.Contains(t, record.CleanerName, "namedErrorCleaner")
 }
 
 func namedPanicCleaner(_ context.Context) error {
@@ -154,8 +157,11 @@ func TestStartCleanupLogsCleanerNameOnPanic(t *testing.T) {
 
 	stop := StartCleanup(context.Background(), time.Hour, namedPanicCleaner)
 	stop()
+	slog.SetDefault(orig) // restore immediately after stop() to minimize global side effects
 
-	require.Eventually(t, func() bool {
-		return strings.Contains(buf.String(), "namedPanicCleaner")
-	}, 2*time.Second, 5*time.Millisecond)
+	var record struct {
+		CleanerName string `json:"cleaner_name"`
+	}
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &record))
+	require.Contains(t, record.CleanerName, "namedPanicCleaner")
 }
