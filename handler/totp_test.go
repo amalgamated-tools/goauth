@@ -51,7 +51,7 @@ func newTOTPHandler(totp auth.TOTPStore, users auth.UserStore) *TOTPHandler {
 		TOTP:      totp,
 		Users:     users,
 		Issuer:    "TestApp",
-		UsedCodes: auth.TOTPUsedCodeCache{},
+		UsedCodes: &auth.TOTPUsedCodeCache{},
 	}
 }
 

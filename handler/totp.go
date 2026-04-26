@@ -25,7 +25,7 @@ type TOTPHandler struct {
 	TOTP      auth.TOTPStore
 	Users     auth.UserStore
 	Issuer    string
-	UsedCodes auth.TOTPUsedCodeCache // required for replay protection; zero value is ready to use
+	UsedCodes *auth.TOTPUsedCodeCache // required for replay protection; &auth.TOTPUsedCodeCache{} is ready to use
 }
 
 type totpGenerateResponse struct {
