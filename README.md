@@ -91,7 +91,9 @@ jwtMgr, err := auth.NewJWTManager(secret, ttl, issuer)
 token, err := jwtMgr.CreateToken(ctx, userID)
 // CreateTokenWithSession embeds the session ID as the JWT jti claim.
 // Use this (or let AuthHandler do it automatically) when Sessions is enabled.
-token, err := jwtMgr.CreateTokenWithSession(ctx, userID, sessionID)
+token, err = jwtMgr.CreateTokenWithSession(ctx, userID, sessionID)
+
+tokenString := token // signed JWT string returned by CreateToken / CreateTokenWithSession
 
 claims, err := jwtMgr.ValidateToken(ctx, tokenString)
 // claims is of type *auth.Claims:
@@ -105,7 +107,7 @@ claims, err := jwtMgr.ValidateToken(ctx, tokenString)
 // time-based claim validation (expiry, not-before, issued-at).
 // Useful for logout or audit flows that need the session ID from a token
 // that may be expired, not yet valid, or otherwise outside time-based checks.
-claims, err := jwtMgr.ParseTokenClaims(tokenString)
+claims, err = jwtMgr.ParseTokenClaims(tokenString)
 
 encrypter, err := jwtMgr.NewSecretEncrypter() // AES-256-GCM, derived from JWT secret
 
