@@ -1,6 +1,6 @@
 # Middleware
 
-goauth ships three middleware constructors that can be applied to any `net/http`-compatible router.
+goauth ships four middleware constructors that can be applied to any `net/http`-compatible router.
 
 ## Configuration
 
@@ -28,6 +28,8 @@ Require admin status (checked via `AdminChecker.IsAdmin`, cached 5 seconds per u
 // The second argument is an auth.AdminChecker; UserStore satisfies this interface.
 r.Use(auth.AdminMiddleware(jwtMgr, userStore, cfg, apiKeyStore))
 ```
+
+The internal admin cache has a **4,096-entry FIFO size cap** and sweeps expired entries at most once per minute during writes. Oldest-inserted entries are evicted first when the cap is reached.
 
 ## Role / permission middleware
 
