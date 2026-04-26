@@ -22,7 +22,7 @@ passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), auth.BcryptCo
 
 ## SecretEncrypter (AES-256-GCM)
 
-`SecretEncrypter` is safe for concurrent use. The AES block cipher is initialised once at construction time; `Encrypt` and `Decrypt` each create their own `cipher.AEAD` instance so there is no shared mutable GCM state between goroutines. The raw derived key is zeroed immediately after the cipher is created.
+`SecretEncrypter` is safe for concurrent use. The AES block cipher and `cipher.AEAD` (GCM) are both created once at construction time and reused across all `Encrypt` and `Decrypt` calls. GCM's `Seal` and `Open` operations are safe for concurrent use. The raw derived key is zeroed immediately after the cipher is created.
 
 ```go
 enc, err := jwtMgr.NewSecretEncrypter()

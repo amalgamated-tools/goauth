@@ -9,7 +9,7 @@ h := &handler.TOTPHandler{
     TOTP:      totpStore,
     Users:     userStore,
     Issuer:    "MyApp",
-    UsedCodes: auth.TOTPUsedCodeCache{}, // zero value is ready to use; prevents replay attacks
+    UsedCodes: &auth.TOTPUsedCodeCache{}, // required; zero value is ready to use; prevents replay attacks
 }
 ```
 
