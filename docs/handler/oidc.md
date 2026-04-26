@@ -13,7 +13,14 @@ h, err := handler.NewOIDCHandler(
     "https://myapp.example.com/auth/oidc/callback",
     "session", true,
 )
+
+// Optional: enable server-side session tracking and refresh tokens
+h.Sessions          = sessionStore
+h.RefreshCookieName = "refresh"                         // store refresh token in an HttpOnly cookie
+h.RefreshTokenTTL   = handler.DefaultRefreshTokenTTL   // defaults to 7 days
 ```
+
+When `Sessions` is set, `RefreshCookieName` **must** also be set. `Callback` returns HTTP 500 immediately if `Sessions != nil` and `RefreshCookieName` is empty, because the redirect-based OIDC flow has no response body through which to deliver the refresh token.
 
 ## Routes
 
@@ -41,6 +48,12 @@ The callback performs PKCE verification and handles three cases automatically:
 
 Account linking uses a short-lived (5-minute) HMAC-signed state token to protect the integrity of the linking flow. The state value is signed, not encrypted, so any embedded user identifier should be treated as visible to the browser and other parties that can inspect the redirect URL or related cookies.
 
-## No refresh tokens
+## Session tracking and refresh tokens
 
-`OIDCHandler` does not have a `Sessions` field and issues an access JWT only (no refresh tokens). The token lifetime is determined by the configured `JWTManager` TTL, not enforced by `OIDCHandler` itself. If you need server-side session revocation and refresh-token rotation for OIDC logins, implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
+When `Sessions` is set on `OIDCHandler`, a successful `Callback` creates a server-side session, embeds the session ID as the JWT `jti` claim, and sets both an access token cookie and (when `RefreshCookieName` is set) an `HttpOnly` refresh token cookie.
+
+The access token lifetime is determined by the configured `JWTManager` TTL. The refresh token lifetime is controlled by `RefreshTokenTTL` (defaults to `handler.DefaultRefreshTokenTTL`, 7 days).
+
+Without `Sessions`, `OIDCHandler` issues an access JWT only (no refresh tokens). The token lifetime is then entirely determined by the `JWTManager` TTL.
+
+Pass `auth.Config{Sessions: sessionStore}` to `auth.Middleware` so that revoked OIDC sessions are rejected on every subsequent request.
