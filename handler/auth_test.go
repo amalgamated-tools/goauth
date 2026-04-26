@@ -35,7 +35,7 @@ func TestSignup_success(t *testing.T) {
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
 	require.Equal(t, http.StatusCreated, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 	require.Equal(t, "alice@test.com", resp.User.Email)
 }
@@ -134,7 +134,7 @@ func TestLogin_success(t *testing.T) {
 		`{"email":"alice@test.com","password":"goodpassword123"}`)
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 }
 
@@ -258,7 +258,7 @@ func TestMe_success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var dto UserDTO
-	_ = json.NewDecoder(w.Body).Decode(&dto)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&dto))
 	require.Equal(t, "alice@test.com", dto.Email)
 }
 
@@ -306,7 +306,7 @@ func TestUpdateProfile_success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var dto UserDTO
-	_ = json.NewDecoder(w.Body).Decode(&dto)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&dto))
 	require.Equal(t, "Bob", dto.Name)
 }
 
@@ -479,7 +479,7 @@ func TestLogin_createsSessionAndReturnsRefreshToken(t *testing.T) {
 	w := postJSON(t, h.Login, `{"email":"alice@test.com","password":"goodpassword123"}`)
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 	require.NotEmpty(t, resp.RefreshToken)
 }
@@ -491,7 +491,7 @@ func TestSignup_createsSessionAndReturnsRefreshToken(t *testing.T) {
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
 	require.Equal(t, http.StatusCreated, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 	require.NotEmpty(t, resp.RefreshToken)
 }
@@ -501,7 +501,7 @@ func TestSignup_noRefreshTokenWithoutSessions(t *testing.T) {
 	w := postJSON(t, h.Signup, `{"name":"Alice","email":"alice@test.com","password":"password123"}`)
 	require.Equal(t, http.StatusCreated, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.Empty(t, resp.RefreshToken)
 }
 
@@ -596,7 +596,7 @@ func TestRefreshToken_success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 	require.NotEmpty(t, resp.RefreshToken)
 	require.NotEqual(t, rawRefresh, resp.RefreshToken)

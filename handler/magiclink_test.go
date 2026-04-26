@@ -58,7 +58,7 @@ func TestRequestMagicLink_success(t *testing.T) {
 	require.Equal(t, "alice@example.com", sentEmail)
 	require.NotEmpty(t, sentToken)
 	var resp map[string]string
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp["message"])
 }
 
@@ -130,7 +130,7 @@ func TestVerifyMagicLink_success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 	require.Equal(t, "alice@example.com", resp.User.Email)
 }
@@ -298,7 +298,7 @@ func TestVerifyMagicLinkWithSessionsCreatesSession(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "u1", capturedUserID)
 	var resp AuthResponse
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.NotEmpty(t, resp.Token)
 	require.NotEmpty(t, resp.RefreshToken)
 }

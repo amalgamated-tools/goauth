@@ -319,7 +319,7 @@ func TestWriteError(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	var body map[string]string
-	_ = json.NewDecoder(w.Body).Decode(&body)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, "bad input", body["error"])
 }
 
