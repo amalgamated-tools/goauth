@@ -195,7 +195,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 // the current session by parsing the session ID from the access token.
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if h.Sessions != nil {
-		if tok := tokenFromRequest(r, h.CookieName); tok != "" {
+		if tok := auth.ExtractToken(r, h.CookieName); tok != "" {
 			if claims, err := h.JWT.ParseTokenClaims(tok); err == nil && claims.ID != "" {
 				_ = h.Sessions.DeleteSession(r.Context(), claims.ID, claims.UserID)
 			}
