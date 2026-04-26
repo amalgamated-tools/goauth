@@ -1210,35 +1210,6 @@ if cfg.Enabled() {
 
 ---
 
-## Development
+## Contributing
 
-Requires Go 1.26 or later.
-
-### Running tests
-
-```sh
-make test
-# or, with verbose output
-go test -v ./...
-```
-
-### Linting
-
-The linter uses `golangci-lint` and enforces that test files use `testify/require` (not `assert` or `t.Error`/`t.Fatal`):
-
-```sh
-make lint
-```
-
-### Formatting
-
-```sh
-make fmt           # gofmt
-make hardfmt       # gofumpt (stricter)
-```
-
-### All checks
-
-```sh
-make all  # lint + fmt + test
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, test and lint commands, coding conventions, and the pull-request workflow.
