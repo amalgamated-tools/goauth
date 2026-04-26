@@ -201,7 +201,7 @@ func (h *OIDCHandler) handleLinkCallback(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	} else if !errors.Is(err, auth.ErrNotFound) {
-		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Failed to link"), http.StatusFound)
+		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Link verification failed"), http.StatusFound)
 		return
 	}
 	if err := h.Users.LinkOIDCSubject(r.Context(), linkUserID, subject); err != nil {
