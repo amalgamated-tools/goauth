@@ -100,6 +100,26 @@ func TestRequestMagicLink_senderErrorStillReturns200(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestRequestMagicLink_nilSenderReturns503WithoutDBWrite(t *testing.T) {
+	createCalled := false
+	store := &mockMagicLinkStore{
+		createFunc: func(_ context.Context, _, _ string, _ time.Time) (*auth.MagicLink, error) {
+			createCalled = true
+			return nil, nil
+		},
+	}
+	h := &MagicLinkHandler{
+		Users:      &mockUserStore{},
+		MagicLinks: store,
+		JWT:        newTestJWT(),
+		Sender:     nil,
+		CookieName: "auth",
+	}
+	w := postJSON(t, h.RequestMagicLink, `{"email":"alice@example.com"}`)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	require.False(t, createCalled, "CreateMagicLink must not be called when Sender is nil")
+}
+
 // ---------------------------------------------------------------------------
 // VerifyMagicLink
 // ---------------------------------------------------------------------------
