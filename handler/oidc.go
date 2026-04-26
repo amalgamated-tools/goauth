@@ -247,8 +247,11 @@ func (h *OIDCHandler) findOrCreateUser(ctx context.Context, subject, email, name
 	}
 	if user, err := h.Users.CreateOIDCUser(ctx, name, email, subject); err == nil {
 		return user, nil
+	} else if !errors.Is(err, auth.ErrEmailExists) {
+		return nil, fmt.Errorf("create OIDC user: %w", err)
 	}
-	// Race retry.
+	// Race retry: ErrEmailExists means another request already created the user
+	// concurrently, so look them up instead.
 	if u, err := h.Users.FindByOIDCSubject(ctx, subject); err == nil {
 		return u, nil
 	}

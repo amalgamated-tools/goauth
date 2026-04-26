@@ -1,8 +1,11 @@
 package maintenance
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStartCleanupCallsCleaners(t *testing.T) {
+func TestStartCleanup_callsCleaners(t *testing.T) {
 	var calls atomic.Int64
 	cleaner := func(_ context.Context) error {
 		calls.Add(1)
@@ -25,7 +28,7 @@ func TestStartCleanupCallsCleaners(t *testing.T) {
 	}, 2*time.Second, 5*time.Millisecond)
 }
 
-func TestStartCleanupStopsOnStop(t *testing.T) {
+func TestStartCleanup_stopsOnStop(t *testing.T) {
 	var calls atomic.Int64
 	cleaner := func(_ context.Context) error {
 		calls.Add(1)
@@ -45,7 +48,7 @@ func TestStartCleanupStopsOnStop(t *testing.T) {
 	require.Equal(t, snapshot, calls.Load())
 }
 
-func TestStartCleanupLogsErrorAndContinues(t *testing.T) {
+func TestStartCleanup_logsErrorAndContinues(t *testing.T) {
 	var calls atomic.Int64
 	cleaner := func(_ context.Context) error {
 		calls.Add(1)
@@ -61,7 +64,7 @@ func TestStartCleanupLogsErrorAndContinues(t *testing.T) {
 	}, 2*time.Second, 5*time.Millisecond)
 }
 
-func TestStartCleanupMultipleCleaners(t *testing.T) {
+func TestStartCleanup_multipleCleaners(t *testing.T) {
 	var a, b atomic.Int64
 	cleanerA := func(_ context.Context) error { a.Add(1); return nil }
 	cleanerB := func(_ context.Context) error { b.Add(1); return nil }
@@ -74,7 +77,7 @@ func TestStartCleanupMultipleCleaners(t *testing.T) {
 	}, 2*time.Second, 5*time.Millisecond)
 }
 
-func TestStartCleanupParentContextCancellation(t *testing.T) {
+func TestStartCleanup_parentContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var calls atomic.Int64
@@ -95,7 +98,7 @@ func TestStartCleanupParentContextCancellation(t *testing.T) {
 	stop() // must not block or panic
 }
 
-func TestStartCleanupPanicsOnInvalidInterval(t *testing.T) {
+func TestStartCleanup_panicsOnInvalidInterval(t *testing.T) {
 	noop := func(context.Context) error { return nil }
 	require.Panics(t, func() {
 		StartCleanup(context.Background(), 0, noop)
@@ -105,7 +108,7 @@ func TestStartCleanupPanicsOnInvalidInterval(t *testing.T) {
 	})
 }
 
-func TestStartCleanupRecoversPanic(t *testing.T) {
+func TestStartCleanup_recoversPanic(t *testing.T) {
 	var calls atomic.Int64
 	cleaner := func(_ context.Context) error {
 		calls.Add(1)
@@ -119,4 +122,46 @@ func TestStartCleanupRecoversPanic(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return calls.Load() >= 2
 	}, 2*time.Second, 5*time.Millisecond)
+}
+
+func namedErrorCleaner(_ context.Context) error {
+	return errors.New("db error")
+}
+
+func TestStartCleanupLogsCleanerNameOnError(t *testing.T) {
+	var buf bytes.Buffer
+	orig := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(orig) })
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	stop := StartCleanup(context.Background(), time.Hour, namedErrorCleaner)
+	slog.SetDefault(orig) // safe to restore immediately — StartCleanup captured the logger at entry
+	stop()
+
+	var record struct {
+		CleanerName string `json:"cleaner_name"`
+	}
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &record))
+	require.Contains(t, record.CleanerName, "namedErrorCleaner")
+}
+
+func namedPanicCleaner(_ context.Context) error {
+	panic("intentional test panic")
+}
+
+func TestStartCleanupLogsCleanerNameOnPanic(t *testing.T) {
+	var buf bytes.Buffer
+	orig := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(orig) })
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	stop := StartCleanup(context.Background(), time.Hour, namedPanicCleaner)
+	slog.SetDefault(orig) // safe to restore immediately — StartCleanup captured the logger at entry
+	stop()
+
+	var record struct {
+		CleanerName string `json:"cleaner_name"`
+	}
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &record))
+	require.Contains(t, record.CleanerName, "namedPanicCleaner")
 }

@@ -116,9 +116,10 @@ func (s *StoreRoleChecker) HasPermission(ctx context.Context, userID string, per
 }
 
 const (
-	cacheSweepInterval         = time.Minute
-	defaultRoleCacheMaxEntries = 4096
-	defaultPermCacheMaxEntries = 4096
+	cacheSweepInterval          = time.Minute
+	defaultRoleCacheMaxEntries  = 4096
+	defaultPermCacheMaxEntries  = 4096
+	defaultAdminCacheMaxEntries = 4096
 )
 
 // orderEntry tracks insertion order for FIFO eviction.

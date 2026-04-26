@@ -200,7 +200,12 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	credData, _ := json.Marshal(credential)
+	credData, err := json.Marshal(credential)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to marshal credential", slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to marshal credential")
+		return
+	}
 	credID := base64.RawURLEncoding.EncodeToString(credential.ID)
 	aaguid := base64.RawURLEncoding.EncodeToString(credential.Authenticator.AAGUID)
 
@@ -274,8 +279,16 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if data, err := json.Marshal(updatedCred); err == nil {
-		_ = h.Passkeys.UpdateCredentialData(r.Context(), authedUserID, authedCredentialID, string(data))
+	if data, err := json.Marshal(updatedCred); err != nil {
+		slog.WarnContext(r.Context(), "failed to marshal credential for counter update",
+			slog.String("user_id", authedUserID),
+			slog.String("credential_id", authedCredentialID),
+			slog.Any("error", err))
+	} else if err := h.Passkeys.UpdateCredentialData(r.Context(), authedUserID, authedCredentialID, string(data)); err != nil {
+		slog.WarnContext(r.Context(), "failed to update credential counter",
+			slog.String("user_id", authedUserID),
+			slog.String("credential_id", authedCredentialID),
+			slog.Any("error", err))
 	}
 
 	token, refreshToken, ok := h.issueTokens(w, r, authedUserID)

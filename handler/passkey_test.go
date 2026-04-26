@@ -111,7 +111,7 @@ func TestPasskey_enabled_false(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]bool
-	_ = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.False(t, resp["enabled"])
 }
 
@@ -206,7 +206,7 @@ func TestPasskey_listCredentials_empty(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var result []any
-	_ = json.NewDecoder(w.Body).Decode(&result)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&result))
 	require.Len(t, result, 0)
 }
 
@@ -227,7 +227,7 @@ func TestPasskey_listCredentials_returnsItems(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var result []PasskeyCredentialDTO
-	_ = json.NewDecoder(w.Body).Decode(&result)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&result))
 	require.Len(t, result, 1)
 	require.Equal(t, "cred-1", result[0].ID)
 	require.Equal(t, "My Key", result[0].Name)

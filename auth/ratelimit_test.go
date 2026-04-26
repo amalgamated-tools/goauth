@@ -215,3 +215,73 @@ func TestIsTrusted(t *testing.T) {
 	require.True(t, isTrusted(net.ParseIP("192.168.1.1"), []*net.IPNet{cidr}))
 	require.False(t, isTrusted(net.ParseIP("10.0.0.1"), []*net.IPNet{cidr}))
 }
+
+// ---------------------------------------------------------------------------
+// ipFromRequestTrusted — additional branch coverage
+// ---------------------------------------------------------------------------
+
+func TestIPFromRequestTrusted_allXFFEntriesTrusted(t *testing.T) {
+	// All XFF entries fall within the trusted CIDR, so we fall back to the
+	// direct peer address (the trusted proxy).
+	_, trusted, _ := net.ParseCIDR("10.0.0.0/8")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.0.0.1:0"
+	req.Header.Set("X-Forwarded-For", "10.0.0.2, 10.0.0.3")
+
+	ip := ipFromRequestTrusted(req, []*net.IPNet{trusted})
+	require.Equal(t, "10.0.0.1", ip)
+}
+
+func TestIPFromRequestTrusted_xffHostPortUntrusted(t *testing.T) {
+	// XFF contains a host:port entry whose IP is not trusted — it should be
+	// returned as the client IP (without the port).
+	_, trusted, _ := net.ParseCIDR("10.0.0.0/8")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.0.0.1:0"
+	req.Header.Set("X-Forwarded-For", "203.0.113.5:12345") // not trusted, has port
+
+	ip := ipFromRequestTrusted(req, []*net.IPNet{trusted})
+	require.Equal(t, "203.0.113.5", ip)
+}
+
+func TestIPFromRequestTrusted_xffHostPortTrusted(t *testing.T) {
+	// XFF entry is a trusted host:port. The walk should continue past it.
+	_, trusted, _ := net.ParseCIDR("10.0.0.0/8")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.0.0.1:0"
+	// First real client IP, then a trusted proxy given as host:port.
+	req.Header.Set("X-Forwarded-For", "203.0.113.99, 10.0.0.2:8080")
+
+	ip := ipFromRequestTrusted(req, []*net.IPNet{trusted})
+	// 10.0.0.2 is trusted, so we continue left; 203.0.113.99 is not trusted.
+	require.Equal(t, "203.0.113.99", ip)
+}
+
+func TestIPFromRequestTrusted_xffInvalidEntry(t *testing.T) {
+	// XFF contains a non-IP, non-host:port entry — should be skipped.
+	_, trusted, _ := net.ParseCIDR("10.0.0.0/8")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.0.0.1:0"
+	// bad entry followed by the real untrusted IP
+	req.Header.Set("X-Forwarded-For", "203.0.113.10, not-an-ip!!")
+
+	ip := ipFromRequestTrusted(req, []*net.IPNet{trusted})
+	// "not-an-ip!!" is skipped; 203.0.113.10 is not trusted → use it.
+	require.Equal(t, "203.0.113.10", ip)
+}
+
+func TestRateLimiter_clientIP_noTrustedProxies(t *testing.T) {
+	rl := NewRateLimiter(1, 1)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "5.6.7.8:1234"
+	require.Equal(t, "5.6.7.8", rl.clientIP(req))
+}
+
+func TestRateLimiter_clientIP_withTrustedProxies(t *testing.T) {
+	_, cidr, _ := net.ParseCIDR("10.0.0.0/8")
+	rl := NewRateLimiterWithTrustedProxies(1, 1, []*net.IPNet{cidr})
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.0.0.1:0"
+	req.Header.Set("X-Forwarded-For", "5.6.7.8")
+	require.Equal(t, "5.6.7.8", rl.clientIP(req))
+}

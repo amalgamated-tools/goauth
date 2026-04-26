@@ -11,6 +11,7 @@ import (
 
 	"github.com/amalgamated-tools/goauth/auth"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 )
 
 func newTestOIDCHandler() *OIDCHandler {
@@ -247,7 +248,7 @@ func TestFindOrCreateUser_raceRetryLinkError(t *testing.T) {
 			return existing, nil
 		},
 		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
-			return nil, errors.New("unique constraint violation")
+			return nil, auth.ErrEmailExists
 		},
 		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
 			return linkErr
@@ -277,7 +278,7 @@ func TestFindOrCreateUser_raceRetryAlreadyLinked(t *testing.T) {
 			return existing, nil
 		},
 		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
-			return nil, errors.New("unique constraint violation")
+			return nil, auth.ErrEmailExists
 		},
 		linkOIDCSubjectFunc: func(_ context.Context, _, _ string) error {
 			return auth.ErrOIDCSubjectAlreadyLinked
@@ -309,6 +310,30 @@ func TestFindOrCreateUser_createsNew(t *testing.T) {
 	user, err := h.findOrCreateUser(context.Background(), "sub-new", "new@example.com", "New User")
 	require.NoError(t, err)
 	require.Equal(t, "new-u", user.ID)
+}
+
+func TestFindOrCreateUser_createError(t *testing.T) {
+	// A non-race DB error from CreateOIDCUser must be returned immediately,
+	// not silently swallowed by the race-retry block.
+	dbErr := errors.New("connection reset by peer")
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
+			return nil, dbErr
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	user, err := h.findOrCreateUser(context.Background(), "sub-err", "err@example.com", "Err User")
+	require.Error(t, err)
+	require.ErrorIs(t, err, dbErr)
+	require.Nil(t, user)
 }
 
 // ---------------------------------------------------------------------------
@@ -370,6 +395,202 @@ func TestHandleLinkCallback_alreadyLinked(t *testing.T) {
 	require.Equal(t, http.StatusFound, w.Code)
 	loc := w.Header().Get("Location")
 	require.NotEqual(t, "/?oidc_linked=true", loc)
+}
+
+// ---------------------------------------------------------------------------
+// Login handler
+// ---------------------------------------------------------------------------
+
+func newOIDCHandlerWithConfig() *OIDCHandler {
+	h := newTestOIDCHandler()
+	h.OAuthConfig = oauth2.Config{
+		ClientID:    "test-client",
+		RedirectURL: "http://localhost/callback",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://example.com/authorize",
+			TokenURL: "https://example.com/token",
+		},
+		Scopes: []string{"openid", "email", "profile"},
+	}
+	return h
+}
+
+func TestOIDCLogin_redirectsWithStateCookies(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	w := httptest.NewRecorder()
+	h.Login(w, req)
+
+	require.Equal(t, http.StatusFound, w.Code)
+	// Must redirect to the provider.
+	loc := w.Header().Get("Location")
+	require.Contains(t, loc, "https://example.com/authorize")
+
+	// Must set both OIDC state and verifier cookies.
+	var stateCookie, verifierCookie bool
+	for _, c := range w.Result().Cookies() {
+		switch c.Name {
+		case oidcStateCookieName:
+			stateCookie = true
+			require.NotEmpty(t, c.Value)
+			require.True(t, c.HttpOnly)
+		case oidcVerifierCookieName:
+			verifierCookie = true
+			require.NotEmpty(t, c.Value)
+		}
+	}
+	require.True(t, stateCookie, "missing oidc_state cookie")
+	require.True(t, verifierCookie, "missing oidc_verifier cookie")
+}
+
+// ---------------------------------------------------------------------------
+// Link handler
+// ---------------------------------------------------------------------------
+
+func TestOIDCLink_missingNonce(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	req := httptest.NewRequest(http.MethodGet, "/link", nil)
+	w := httptest.NewRecorder()
+	h.Link(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestOIDCLink_invalidNonce(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	req := httptest.NewRequest(http.MethodGet, "/link?nonce=invalid-nonce", nil)
+	w := httptest.NewRecorder()
+	h.Link(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestOIDCLink_alreadyLinked(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	// Create a valid nonce for user-1.
+	nonce := "test-link-nonce"
+	h.linkNonces[nonce] = linkNonce{UserID: "user-1", ExpiresAt: time.Now().Add(time.Minute)}
+
+	// User already has an OIDC subject linked.
+	sub := "existing-sub"
+	h.Users = &mockUserStore{
+		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
+			return &auth.User{ID: id, OIDCSubject: &sub}, nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/link?nonce="+nonce, nil)
+	w := httptest.NewRecorder()
+	h.Link(w, req)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestOIDCLink_userNotFound(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	nonce := "notfound-nonce"
+	h.linkNonces[nonce] = linkNonce{UserID: "missing-user", ExpiresAt: time.Now().Add(time.Minute)}
+
+	h.Users = &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/link?nonce="+nonce, nil)
+	w := httptest.NewRecorder()
+	h.Link(w, req)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestOIDCLink_success(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	nonce := "success-link-nonce"
+	h.linkNonces[nonce] = linkNonce{UserID: "user-ok", ExpiresAt: time.Now().Add(time.Minute)}
+
+	h.Users = &mockUserStore{
+		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
+			// User exists and has no OIDC subject yet.
+			return &auth.User{ID: id, OIDCSubject: nil}, nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/link?nonce="+nonce, nil)
+	w := httptest.NewRecorder()
+	h.Link(w, req)
+
+	// Should redirect to the OIDC provider for authentication.
+	require.Equal(t, http.StatusFound, w.Code)
+	loc := w.Header().Get("Location")
+	require.Contains(t, loc, "https://example.com/authorize")
+}
+
+// ---------------------------------------------------------------------------
+// Callback handler — early error paths (no real OIDC exchange needed)
+// ---------------------------------------------------------------------------
+
+func TestOIDCCallback_missingStateCookie(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=abc", nil)
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestOIDCCallback_stateMismatch(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=different", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "expected-state"})
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestOIDCCallback_missingVerifierCookie(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
+	// verifier cookie intentionally omitted
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestOIDCCallback_errorParam(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&error=access_denied", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
+	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "someverifier"})
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestOIDCCallback_missingCode(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
+	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "someverifier"})
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // ---------------------------------------------------------------------------
