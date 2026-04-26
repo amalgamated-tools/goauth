@@ -187,7 +187,12 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	credData, _ := json.Marshal(credential)
+	credData, err := json.Marshal(credential)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to marshal credential", slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to marshal credential")
+		return
+	}
 	credID := base64.RawURLEncoding.EncodeToString(credential.ID)
 	aaguid := base64.RawURLEncoding.EncodeToString(credential.Authenticator.AAGUID)
 
