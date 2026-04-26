@@ -166,11 +166,11 @@ When `Sessions` is set the middleware validates the JWT `jti` claim against the 
 
 #### Observability
 
-All middleware (`Middleware`, `AdminMiddleware`, `RequireRole`, `RequirePermission`) emits structured log events via the standard library's `log/slog` package, propagating the request context for trace correlation.
+The middleware uses structured log events via the standard library's `log/slog` package, propagating the request context for trace correlation. Some events are emitted only by specific middleware paths.
 
 | Event | Level | `slog` message |
 |---|---|---|
-| Token absent from header and cookie | `INFO` | `"authentication required"` |
+| Token absent from header and cookie in `Middleware()` | `INFO` | `"authentication required"` |
 | `TouchAPIKeyLastUsed` store call fails | `WARN` | `"failed to touch API key last_used_at"` |
 | Unexpected error from `resolveUser` | `ERROR` | `"failed to resolve user"` |
 | Unexpected error from `FindSessionByID` | `ERROR` | `"failed to look up session"` |
