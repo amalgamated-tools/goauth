@@ -612,7 +612,15 @@ POST /auth/oidc/link-nonce             → h.CreateLinkNonce    // issue nonce f
 GET  /auth/oidc/link?nonce=<nonce>     → h.Link               // start link flow (requires auth)
 ```
 
-The callback performs PKCE verification and handles three cases automatically: existing OIDC subject → log in; existing email → link subject and log in; new user → create account.  
+The callback performs PKCE verification and resolves the identity through the following ordered steps:
+
+1. **Existing OIDC subject** — `FindByOIDCSubject` returns a user → log in immediately.
+2. **Existing email** — `FindByEmail` returns a user → link the OIDC subject to that account (best-effort) and log in.
+3. **New user** — `CreateOIDCUser` succeeds → log in with the new account.
+4. **Concurrent-creation race** — `CreateOIDCUser` returns `auth.ErrEmailExists` (another concurrent request already created the account) → retry `FindByOIDCSubject` and `FindByEmail` to resolve the user.
+
+Any other error from `CreateOIDCUser` (for example, a database connection failure or check-constraint violation) is returned immediately as a 500. It is **not** silently retried, so the original error is always preserved in the server logs.
+
 Account linking uses a short-lived (5-minute) HMAC-signed state token so the user's browser never sees the user ID in plaintext.
 
 `NewOIDCHandler` always requests the `openid`, `email`, and `profile` scopes. The provider must expose an email claim; the `profile` scope is requested so the provider may return a display name for new account creation.
@@ -644,7 +652,7 @@ OIDC endpoints use `{"error": "<message>"}` JSON for non-redirect failure respon
 | `Login` | `500 Internal Server Error` | Failed to generate OAuth state |
 | `Callback` | `400 Bad Request` (JSON) | Missing state cookie, invalid state parameter, missing PKCE verifier, missing `authorization_code`, or missing required `sub`/`email` claims |
 | `Callback` | `401 Unauthorized` (JSON) | OIDC provider returned an error (e.g. user denied consent), token exchange failed, missing or invalid `id_token`, or OIDC provider did not verify the email |
-| `Callback` | `500 Internal Server Error` (JSON) | Failed to parse claims or create user, or token/JWT creation failed |
+| `Callback` | `500 Internal Server Error` (JSON) | Failed to parse claims, store error during user resolution or creation (non-race errors from `CreateOIDCUser` are propagated immediately), or JWT creation failed |
 | `Callback` (link flow) | Redirect `/?oidc_link_error=…` | User not found, subject already linked to this account, subject already linked to another account, or link store error |
 | `Callback` (link flow) | Redirect `/?oidc_linked=true` | Account linking succeeded |
 | `CreateLinkNonce` | `500 Internal Server Error` | Nonce generation failed |
