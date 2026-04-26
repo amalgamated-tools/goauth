@@ -200,8 +200,10 @@ func TestGenerateTOTPCode_invalidSecret(t *testing.T) {
 
 func TestGenerateTOTPCode_matchesHOTP(t *testing.T) {
 	// Compare GenerateTOTPCode output against hotpCode directly.
-	secret, _ := GenerateTOTPSecret()
-	keyBytes, _ := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secret)
+	secret, err := GenerateTOTPSecret()
+	require.NoError(t, err)
+	keyBytes, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secret)
+	require.NoError(t, err)
 	t0 := time.Unix(0, 0)
 	step := uint64(t0.Unix() / totpPeriod)
 

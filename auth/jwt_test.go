@@ -227,11 +227,14 @@ func TestParseTokenClaims_wrongIssuer(t *testing.T) {
 	// Both managers share the same signing secret so the signature is valid,
 	// but the manual issuer check must reject it.
 	ctx := context.Background()
-	mgr1, _ := NewJWTManager("shared-secret-32-bytes-long-here!", time.Hour, "issuer-a")
-	mgr2, _ := NewJWTManager("shared-secret-32-bytes-long-here!", time.Hour, "issuer-b")
+	mgr1, err := NewJWTManager("shared-secret-32-bytes-long-here!", time.Hour, "issuer-a")
+	require.NoError(t, err)
+	mgr2, err := NewJWTManager("shared-secret-32-bytes-long-here!", time.Hour, "issuer-b")
+	require.NoError(t, err)
 
-	tok, _ := mgr1.CreateToken(ctx, "user-iss")
-	_, err := mgr2.ParseTokenClaims(tok)
+	tok, err := mgr1.CreateToken(ctx, "user-iss")
+	require.NoError(t, err)
+	_, err = mgr2.ParseTokenClaims(tok)
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
@@ -239,7 +242,8 @@ func TestParseTokenClaims_wrongAudience(t *testing.T) {
 	// Craft a token with a valid issuer but wrong audience so the audience
 	// check (not the issuer check) returns ErrInvalidToken.
 	secret := []byte("shared-secret-32-bytes-long-here!")
-	mgr, _ := NewJWTManager(string(secret), time.Hour, "testapp")
+	mgr, err := NewJWTManager(string(secret), time.Hour, "testapp")
+	require.NoError(t, err)
 
 	// Use golang-jwt directly to sign a token with the right issuer but a
 	// mismatched audience, bypassing the JWTManager helper.
@@ -264,8 +268,9 @@ func TestParseTokenClaims_wrongAudience(t *testing.T) {
 func TestParseTokenClaims_wrongAlgorithm(t *testing.T) {
 	// A syntactically valid JWT header that claims RS256 must be rejected by
 	// the inner signing-method guard before any signature check occurs.
-	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	mgr, err := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	require.NoError(t, err)
 	badToken := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.invalidsig"
-	_, err := mgr.ParseTokenClaims(badToken)
+	_, err = mgr.ParseTokenClaims(badToken)
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
