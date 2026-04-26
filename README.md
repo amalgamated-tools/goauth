@@ -951,7 +951,7 @@ POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login 
 GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → AuthResponse (HTTP 200)
 ```
 
-The `Sender` field is of type `handler.MagicLinkSender` (`func(ctx context.Context, email, token string) error`). It must be set; a `nil` Sender causes `RequestMagicLink` to return `503 Service Unavailable` after the token has already been persisted to `MagicLinks`. This means every call with a nil Sender accumulates an unconsumed token in the store. In tests, use a no-op Sender (e.g., `func(ctx context.Context, email, token string) error { return nil }`) rather than leaving the field nil.
+The `Sender` field is of type `handler.MagicLinkSender` (`func(ctx context.Context, email, token string) error`). It must be set; a `nil` Sender causes `RequestMagicLink` to return `503 Service Unavailable` immediately — before any token is generated or written to `MagicLinks`. No unconsumed tokens accumulate in the store. In tests, use a no-op Sender (e.g., `func(ctx context.Context, email, token string) error { return nil }`) rather than leaving the field nil.
 
 `RequestMagicLink` expects `{"email": "<address>"}` as its JSON request body. `VerifyMagicLink` accepts a `token` query parameter instead of a request body.
 
@@ -988,7 +988,7 @@ All `MagicLinkHandler` endpoints return `{"error": "<message>"}` JSON on failure
 |---|---|---|
 | `RequestMagicLink` | `400 Bad Request` | Invalid JSON body or `email` is empty |
 | `RequestMagicLink` | `500 Internal Server Error` | Token generation or store error |
-| `RequestMagicLink` | `503 Service Unavailable` | `Sender` is `nil` (magic link sending not configured); the token has already been persisted in the store at this point |
+| `RequestMagicLink` | `503 Service Unavailable` | `Sender` is `nil` (magic link sending not configured); no token is generated or stored |
 | `VerifyMagicLink` | `400 Bad Request` | `token` query parameter is missing |
 | `VerifyMagicLink` | `401 Unauthorized` | Token not found in store or token is expired |
 | `VerifyMagicLink` | `500 Internal Server Error` | User lookup/creation or JWT creation failure |
