@@ -41,8 +41,8 @@ type OIDCHandler struct {
 	// DefaultRefreshTokenTTL when Sessions is non-nil.
 	RefreshTokenTTL time.Duration
 	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. When empty the refresh token is only returned in the
-	// response body.
+	// refresh token. Must be non-empty when Sessions is set; Callback returns
+	// 500 if this constraint is violated.
 	RefreshCookieName string
 	linkNonces        map[string]linkNonce
 	linkNoncesMu      sync.Mutex

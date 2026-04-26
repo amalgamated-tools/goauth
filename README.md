@@ -190,11 +190,11 @@ When `Sessions` is set, the middleware validates the JWT `jti` claim against the
 
 #### Observability
 
-The middleware uses structured log events via the standard library's `log/slog` package, propagating the request context for trace correlation. Some events are emitted only by specific middleware paths.
+All four middleware functions — `Middleware`, `AdminMiddleware`, `RequireRole`, and `RequirePermission` — share the same authentication path and emit the same structured log events via the standard library's `log/slog` package, propagating the request context for trace correlation.
 
 | Event | Level | `slog` message |
 |---|---|---|
-| Token absent from header and cookie in `Middleware()` | `INFO` | `"authentication required"` |
+| Token absent from header and cookie | `INFO` | `"authentication required"` |
 | `TouchAPIKeyLastUsed` store call fails | `WARN` | `"failed to touch API key last_used_at"` |
 | Unexpected error from `resolveUser` | `ERROR` | `"failed to resolve user"` |
 | Unexpected error from `FindSessionByID` | `ERROR` | `"failed to look up session"` |
@@ -635,6 +635,13 @@ h, err := handler.NewOIDCHandler(
     "session", true,
 )
 
+// Optional: enable server-side session tracking and refresh token rotation.
+// When Sessions is set, RefreshCookieName must also be set (Callback returns
+// 500 otherwise).
+h.Sessions          = sessionStore
+h.RefreshCookieName = "refresh"
+h.RefreshTokenTTL   = 7 * 24 * time.Hour // defaults to handler.DefaultRefreshTokenTTL
+
 // Routes
 GET  /auth/oidc/login                  → h.Login              // redirects to provider
 GET  /auth/oidc/callback               → h.Callback           // handles provider redirect
@@ -657,6 +664,8 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 
 `Callback` does **not** return JSON on success — it sets the JWT in an `HttpOnly` session cookie and redirects the browser to `/?oidc_login=1` (HTTP 302) so that single-page applications can detect a completed OIDC login via the query parameter. On failure, `Callback` returns a JSON error body. The redirect destination is currently fixed; frontends that need a custom post-login URL should rely on the `oidc_login=1` query parameter (or another explicit non-`HttpOnly` signal) to trigger navigation, rather than attempting to read the session cookie from browser JavaScript.
 
+When `Sessions` is set on `OIDCHandler`, `Callback` creates a server-side session and returns a refresh token alongside the short-lived access token, identical to the behaviour of `AuthHandler`. **When `Sessions` is set, `RefreshCookieName` must also be non-empty**; `Callback` returns `500 Internal Server Error` if this constraint is violated. Session tracking and refresh token rotation follow the same rules as `AuthHandler` — see [Session tracking and refresh token rotation](#session-tracking-and-refresh-token-rotation).
+
 `CreateLinkNonce` returns HTTP 200 with `{"nonce": "<nonce>"}`. Pass the nonce as the `nonce` query parameter to the `Link` route within 5 minutes to start the account-linking flow.
 
 `Link` redirects the browser to the OIDC provider (HTTP 302) using PKCE, just like `Login`. When the provider redirects back to `Callback`, the handler detects the link-in-progress state and redirects to:
@@ -671,8 +680,6 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token so the use
 
 > **Note:** The table above covers only the outcomes handled inside `handleLinkCallback`. Errors that occur earlier in the OIDC exchange — such as the provider returning an `error` query parameter (e.g. the user cancels on the consent screen), a missing `code`, a failed token exchange, or an invalid `id_token` — are surfaced as JSON error responses (HTTP 400, 401, or 500 as appropriate) rather than redirects. Clients must handle both redirect and JSON error outcomes.
 
-> **No session tracking or refresh tokens.** `OIDCHandler` does not have a `Sessions` field and always issues a plain short-lived JWT. If you need server-side session revocation and refresh-token rotation for OIDC logins, do not use the built-in `Callback` as-is; implement a custom callback flow that completes the OIDC exchange, creates a session, and issues tokens with the session-aware JWT API (for example, `JWTManager.CreateTokenWithSession`) together with your refresh-token flow.
-
 #### Error responses
 
 OIDC endpoints use `{"error": "<message>"}` JSON for non-redirect failure responses. `Login` and `Callback` may return JSON errors or redirect-based errors depending on the phase of the flow. The `Link` endpoint returns JSON errors.
@@ -680,6 +687,7 @@ OIDC endpoints use `{"error": "<message>"}` JSON for non-redirect failure respon
 | Endpoint | Status / Redirect | Condition |
 |---|---|---|
 | `Login` | `500 Internal Server Error` | Failed to generate OAuth state |
+| `Callback` | `500 Internal Server Error` (JSON) | `Sessions` is set but `RefreshCookieName` is empty (misconfiguration) |
 | `Callback` | `400 Bad Request` (JSON) | Missing state cookie, invalid state parameter, missing PKCE verifier, missing `authorization_code`, or missing required `sub`/`email` claims |
 | `Callback` | `401 Unauthorized` (JSON) | OIDC provider returned an error (e.g. user denied consent), token exchange failed, missing or invalid `id_token`, or OIDC provider did not verify the email |
 | `Callback` | `500 Internal Server Error` (JSON) | Failed to parse claims, store error during user resolution or creation, failed to resolve the OIDC user after the `auth.ErrEmailExists` race-retry path, or JWT creation failed |
