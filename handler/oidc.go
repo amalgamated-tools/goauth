@@ -99,6 +99,12 @@ func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Callback handles the OIDC provider redirect.
 func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
+	if h.Sessions != nil && h.RefreshCookieName == "" {
+		slog.ErrorContext(r.Context(), "OIDCHandler misconfigured: Sessions requires RefreshCookieName")
+		writeError(r.Context(), w, http.StatusInternalServerError, "server configuration error")
+		return
+	}
+
 	cookie, err := r.Cookie(oidcStateCookieName)
 	if err != nil || cookie.Value == "" {
 		writeError(r.Context(), w, http.StatusBadRequest, "missing state cookie")
