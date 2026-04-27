@@ -29,6 +29,16 @@ Require admin status (checked via `AdminChecker.IsAdmin`, cached 5 seconds per u
 r.Use(auth.AdminMiddleware(jwtMgr, userStore, cfg, apiKeyStore))
 ```
 
+`AdminChecker` is a single-method interface:
+
+```go
+type AdminChecker interface {
+    IsAdmin(ctx context.Context, userID string) (bool, error)
+}
+```
+
+`auth.UserStore` satisfies `AdminChecker` directly. To derive an `AdminChecker` from a `RoleChecker`, use `auth.NewAdminCheckerFromRoleChecker` (see [RBAC](rbac.md)).
+
 The internal admin cache has a **4,096-entry FIFO size cap** and sweeps expired entries at most once per minute during writes. Oldest-inserted entries are evicted first when the cap is reached.
 
 ## Role / permission middleware

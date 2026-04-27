@@ -27,7 +27,16 @@ token, err := jwtMgr.CreateTokenWithSession(ctx, userID, sessionID)
 
 ```go
 claims, err := jwtMgr.ValidateToken(ctx, tokenString)
-// claims.UserID contains the subject; claims.ID contains the session ID (jti)
+// claims.UserID contains the subject (sub); claims.ID contains the session ID (jti)
+```
+
+`Claims` embeds `jwt.RegisteredClaims` and exposes one additional field:
+
+```go
+type Claims struct {
+    UserID string `json:"sub"` // authenticated user ID
+    jwt.RegisteredClaims       // ID (jti), ExpiresAt, IssuedAt, Issuer, Audience, …
+}
 ```
 
 ### Parsing without time checks
