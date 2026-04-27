@@ -96,9 +96,8 @@ func writeJSON(ctx context.Context, w http.ResponseWriter, status int, data any)
 	}
 }
 
-// errorBody is used instead of map[string]string to avoid the per-call heap
-// allocation that map literal construction requires (~280 bytes per map vs
-// ~16 bytes for the struct when boxed as any).
+// errorBody is used instead of map[string]string to avoid allocating a map
+// for each error response.
 type errorBody struct {
 	Error string `json:"error"`
 }

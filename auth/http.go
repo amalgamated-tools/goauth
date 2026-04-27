@@ -6,7 +6,8 @@ import (
 )
 
 // jsonErrorBody is a small struct used instead of map[string]string to avoid
-// the per-call heap allocation that map literal construction requires.
+// allocating a map literal per call, reducing allocations without relying on
+// exact `encoding/json` allocation behavior across Go versions.
 type jsonErrorBody struct {
 	Error string `json:"error"`
 }
