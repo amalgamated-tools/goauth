@@ -96,9 +96,15 @@ func writeJSON(ctx context.Context, w http.ResponseWriter, status int, data any)
 	}
 }
 
+// errorBody is used instead of map[string]string to avoid allocating a map
+// for each error response.
+type errorBody struct {
+	Error string `json:"error"`
+}
+
 // writeError sends a JSON error response.
 func writeError(ctx context.Context, w http.ResponseWriter, status int, message string) {
-	writeJSON(ctx, w, status, map[string]string{"error": message})
+	writeJSON(ctx, w, status, errorBody{Error: message})
 }
 
 // decodeJSON reads and decodes the JSON request body.
