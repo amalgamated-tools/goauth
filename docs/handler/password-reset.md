@@ -28,5 +28,8 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 !!! info "Email enumeration prevention"
     `RequestReset` always returns HTTP 200 with a generic message, regardless of whether the email is registered.
 
+!!! note "Token cleanup on email delivery failure"
+    If `SendResetEmail` returns an error, `RequestReset` deletes the stored reset token to keep state consistent. The caller still receives the generic HTTP 200 success response; the failure is logged server-side via `slog.ErrorContext`.
+
 !!! tip "Scheduling cleanup"
     Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation of expired tokens.

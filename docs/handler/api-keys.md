@@ -18,9 +18,17 @@ All routes require auth middleware.
 
 ```
 GET    /api-keys        → h.List    // list keys (prefix + metadata only, never the raw key)
-POST   /api-keys        → h.Create  // create key; raw key returned once, never again
-DELETE /api-keys/{id}   → h.Delete
+POST   /api-keys        → h.Create  // 201 Created; raw key returned once, never again
+DELETE /api-keys/{id}   → h.Delete  // 204 No Content
 ```
+
+### Create request body
+
+```json
+{"name": "CI pipeline key"}
+```
+
+`name` is required and must be 100 characters or fewer.
 
 ## Response types
 
