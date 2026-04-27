@@ -90,6 +90,23 @@ t.Error("wrong value")
 
 The `require` package short-circuits a test immediately on failure, which prevents misleading cascading errors and keeps test output readable.
 
+### Test function naming
+
+Test functions must follow the `TestSubject_scenario` naming convention — a PascalCase subject (the function, type, or behavior under test) separated from a lowerCamelCase scenario description by a single underscore:
+
+```go
+// ✅ correct
+func TestSecretEncrypter_roundtrip(t *testing.T)     { … }
+func TestMiddleware_validJWT(t *testing.T)            { … }
+func TestExtractToken_fromHeader(t *testing.T)        { … }
+
+// ❌ incorrect — no scenario suffix, or wrong casing
+func TestSecretEncrypter(t *testing.T)                { … }
+func Test_secretEncrypter_roundtrip(t *testing.T)    { … }
+```
+
+Consistent naming makes it easy to identify which component a test covers and what condition it exercises, both in `go test -v` output and in CI logs.
+
 ### Error handling in stores
 
 Store method implementations must return `auth.ErrNotFound` (or wrap it with `fmt.Errorf("…: %w", auth.ErrNotFound)`) when a record does not exist. Never return a driver-specific error such as `sql.ErrNoRows` directly — the handlers use `errors.Is(err, auth.ErrNotFound)` to produce correct HTTP status codes.
