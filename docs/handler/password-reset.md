@@ -33,3 +33,12 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 
 !!! tip "Scheduling cleanup"
     Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation of expired tokens.
+
+## HTTP status codes
+
+| Endpoint | Success | Notable error codes |
+|---|---|---|
+| `RequestReset` | 200 OK | 400 (email required), 429 (rate limited) |
+| `ResetPassword` | 200 OK | 400 (token or new password required, invalid/expired token, or weak password) |
+
+`RequestReset` always returns 200 whether or not the email is registered, preventing enumeration.
