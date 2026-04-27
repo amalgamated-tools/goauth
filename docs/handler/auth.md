@@ -46,12 +46,12 @@ See [handler package](index.md#shared-response-types) for the `UserDTO` and `Aut
 | Endpoint | Success | Notable error codes |
 |---|---|---|
 | `Signup` | **201 Created** | 400 (missing fields or invalid password), 403 (signup disabled), 409 (email already registered) |
-| `Login` | 200 OK | 401 (invalid credentials), 403 (email not verified when `RequireVerification` is set) |
+| `Login` | 200 OK | 400 (missing email/password), 401 (invalid credentials), 403 (email not verified when `RequireVerification` is set) |
 | `Logout` | 200 OK (`{"message": "logged out"}`) | — |
-| `RefreshToken` | 200 OK | 401 (invalid or expired refresh token), 404 (sessions not enabled) |
-| `Me` | 200 OK | 401 (unauthenticated) |
+| `RefreshToken` | 200 OK | 400 (missing refresh token), 401 (invalid or expired refresh token), 404 (sessions not enabled) |
+| `Me` | 200 OK | 401 (unauthenticated), 404 (user not found) |
 | `UpdateProfile` | 200 OK | 400 (name required) |
-| `ChangePassword` | 200 OK | 400 (missing fields or weak password), 401 (wrong current password) |
+| `ChangePassword` | 200 OK | 400 (missing fields, weak password, or OIDC-only account: cannot change password), 401 (wrong current password) |
 
 ## Session tracking and refresh token rotation
 
