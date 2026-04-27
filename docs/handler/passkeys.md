@@ -30,20 +30,30 @@ h := &handler.PasskeyHandler{
 
 ```
 // Public routes
-GET  /auth/passkey/enabled                → h.Enabled
-POST /auth/passkey/login/begin            → h.BeginAuthentication
-POST /auth/passkey/login/finish           → h.FinishAuthentication   // ?session_id=<id>
+GET  /auth/passkey/enabled                → h.Enabled               // {"enabled": <bool>}
+POST /auth/passkey/login/begin            → h.BeginAuthentication   // → {session_id, options}
+POST /auth/passkey/login/finish           → h.FinishAuthentication  // ?session_id=<id>
 
 // Authenticated routes
-POST /auth/passkey/register/begin         → h.BeginRegistration
-POST /auth/passkey/register/finish        → h.FinishRegistration      // ?session_id=<id>
+POST /auth/passkey/register/begin         → h.BeginRegistration     // body: {"name": "..."} (max 100 chars) → {session_id, options}
+POST /auth/passkey/register/finish        → h.FinishRegistration    // ?session_id=<id>  (201 Created)
 GET  /auth/passkey/credentials            → h.ListCredentials
-DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential
+DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential      // 204 No Content
 ```
 
 ## Registration and authentication flow
 
 Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client.
+
+**Registration:**
+
+1. `BeginRegistration` — authenticated user sends `{"name": "My Phone"}`. The handler returns a `session_id` and an `options` object (WebAuthn `PublicKeyCredentialCreationOptions`) to pass to `navigator.credentials.create()`.
+2. `FinishRegistration` — client submits the created credential with `?session_id=<id>` from step 1.
+
+**Authentication:**
+
+1. `BeginAuthentication` — returns a `session_id` and an `options` object (WebAuthn `PublicKeyCredentialRequestOptions`) to pass to `navigator.credentials.get()`.
+2. `FinishAuthentication` — client submits the assertion with `?session_id=<id>` from step 1.
 
 ## Response types
 
