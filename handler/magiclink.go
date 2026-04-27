@@ -81,7 +81,7 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK,
-		map[string]string{"message": "if that email is valid, a login link has been sent"})
+		messageBody{Message: "if that email is valid, a login link has been sent"})
 }
 
 // VerifyMagicLink handles GET requests with a token query parameter.

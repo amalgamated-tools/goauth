@@ -69,26 +69,26 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 		if !errors.Is(err, auth.ErrNotFound) {
 			slog.ErrorContext(r.Context(), "failed to find user for email verification", slog.Any("error", err))
 		}
-		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": verificationOKMessage})
+		writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
 		return
 	}
 
 	if user.EmailVerified {
-		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": verificationOKMessage})
+		writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
 		return
 	}
 
 	plaintext, err := auth.GenerateRandomHex(verificationTokenBytes)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to generate verification token", slog.Any("error", err))
-		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": verificationOKMessage})
+		writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
 		return
 	}
 	tokenHash := auth.HashHighEntropyToken(plaintext)
 
 	if _, err := h.Verifications.CreateEmailVerification(r.Context(), user.ID, tokenHash, time.Now().UTC().Add(h.tokenTTL())); err != nil {
 		slog.ErrorContext(r.Context(), "failed to store verification token", slog.Any("error", err))
-		writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": verificationOKMessage})
+		writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
 		return
 	}
 
@@ -98,7 +98,7 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 		}
 	}
 
-	writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": verificationOKMessage})
+	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
 }
 
 // VerifyEmail consumes a verification token from the query string and marks
@@ -135,5 +135,5 @@ func (h *EmailVerificationHandler) VerifyEmail(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "email verified"})
+	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: "email verified"})
 }

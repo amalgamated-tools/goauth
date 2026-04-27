@@ -205,7 +205,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	ClearAuthCookie(w, h.CookieName, h.SecureCookies)
-	writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "logged out"})
+	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: "logged out"})
 }
 
 // RefreshToken exchanges a valid refresh token for a new access token and a
@@ -355,5 +355,5 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to update password")
 		return
 	}
-	writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "password updated"})
+	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: "password updated"})
 }

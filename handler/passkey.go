@@ -65,6 +65,12 @@ type passkeyBeginResponse struct {
 	Options   any    `json:"options"`
 }
 
+// passkeyEnabledBody is used instead of map[string]bool to avoid a map
+// allocation on the passkey enabled response path.
+type passkeyEnabledBody struct {
+	Enabled bool `json:"enabled"`
+}
+
 // PasskeyCredentialDTO is the public representation of a passkey credential.
 type PasskeyCredentialDTO struct {
 	ID        string    `json:"id"`
@@ -119,7 +125,7 @@ func (h *PasskeyHandler) loadChallenge(ctx context.Context, id string) (*passkey
 
 // Enabled reports whether passkeys are configured.
 func (h *PasskeyHandler) Enabled(w http.ResponseWriter, r *http.Request) {
-	writeJSON(r.Context(), w, http.StatusOK, map[string]bool{"enabled": h.WebAuthn != nil})
+	writeJSON(r.Context(), w, http.StatusOK, passkeyEnabledBody{Enabled: h.WebAuthn != nil})
 }
 
 // BeginRegistration starts the WebAuthn registration ceremony.
