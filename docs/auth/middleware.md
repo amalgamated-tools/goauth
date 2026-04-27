@@ -68,3 +68,20 @@ token := auth.ExtractToken(r, "session")
 ## Session revocation
 
 When `Sessions` is set, the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. API key requests bypass the session check.
+
+## Error responses
+
+All middleware constructors return errors as JSON with `Content-Type: application/json`:
+
+```json
+{"error": "human-readable message"}
+```
+
+| Status | Condition |
+|---|---|
+| `401 Unauthorized` | Missing, invalid, or expired token; revoked session |
+| `403 Forbidden` | Authenticated user lacks required admin status, role, or permission |
+| `429 Too Many Requests` | Rate limit exceeded (rate-limiting middleware only) |
+| `500 Internal Server Error` | Store lookup failure |
+
+See [handler error responses](../handler/index.md#error-responses) for the same format used by all HTTP handlers.

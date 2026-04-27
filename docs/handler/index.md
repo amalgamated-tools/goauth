@@ -49,3 +49,23 @@ Returned by `Signup`, `Login`, `RefreshToken`, and `VerifyMagicLink`:
 ```go
 // Contains: token, refresh_token (when Sessions is set), and user (UserDTO)
 ```
+
+## Error responses
+
+All handlers return errors as JSON with the `Content-Type: application/json` header. The shape is always:
+
+```json
+{"error": "human-readable message"}
+```
+
+The HTTP status code reflects the error category:
+
+| Status | Meaning |
+|---|---|
+| `400 Bad Request` | Missing or malformed request body / parameters |
+| `401 Unauthorized` | Invalid, expired, or absent credentials |
+| `403 Forbidden` | Authenticated but not authorised (e.g. signup disabled, unverified email) |
+| `404 Not Found` | Requested resource does not exist |
+| `409 Conflict` | Duplicate resource (e.g. email already registered) |
+| `429 Too Many Requests` | Rate limit exceeded (see [Rate limiting](../auth/rate-limiting.md)) |
+| `500 Internal Server Error` | Unexpected server-side failure |
