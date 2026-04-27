@@ -35,6 +35,8 @@ ok, err = cached.HasPermission(ctx, userID, auth.PermWriteContent)
 adminChecker := auth.NewAdminCheckerFromRoleChecker(cached)
 ```
 
+`NewCachingRoleChecker` maintains separate role and permission caches, each with a **4,096-entry FIFO size cap**. Expired entries are swept at most once per minute during writes; oldest-inserted entries are evicted first when the cap is reached.
+
 ## Store interface
 
 The `RBACUserStore` interface is separate from `UserStore` and only required when using `RequireRole` or `RequirePermission` middleware:
