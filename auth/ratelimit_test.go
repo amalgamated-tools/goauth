@@ -155,7 +155,7 @@ func TestParseTrustedProxyCIDRs_invalid(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestIPFromRequest(t *testing.T) {
+func TestIPFromRequest_splitsRemoteAddr(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "203.0.113.5:4321"
 
@@ -209,7 +209,7 @@ func TestNewRateLimiter_withTrustedProxies(t *testing.T) {
 	require.Len(t, rl.trustedProxies, 1)
 }
 
-func TestIsTrusted(t *testing.T) {
+func TestIsTrusted_matchesCIDR(t *testing.T) {
 	_, cidr, _ := net.ParseCIDR("192.168.0.0/16")
 
 	require.True(t, isTrusted(net.ParseIP("192.168.1.1"), []*net.IPNet{cidr}))

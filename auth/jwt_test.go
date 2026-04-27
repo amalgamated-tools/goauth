@@ -118,7 +118,7 @@ func TestHMACSign_differentManagers(t *testing.T) {
 	require.False(t, mgr2.HMACVerify(data, sig1))
 }
 
-func TestNewSecretEncrypterFromJWT(t *testing.T) {
+func TestJWTManager_newSecretEncrypter(t *testing.T) {
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	enc, err := mgr.NewSecretEncrypter()

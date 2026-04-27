@@ -131,7 +131,7 @@ func TestStoreRoleChecker_hasPermissionError(t *testing.T) {
 
 // --- RegisterRolePermissions --------------------------------------------------
 
-func TestRegisterRolePermissions(t *testing.T) {
+func TestRegisterRolePermissions_replacesExistingPerms(t *testing.T) {
 	rolePermMu.Lock()
 	saved := copyRolePerms(rolePermissions)
 	rolePermMu.Unlock()
@@ -264,7 +264,7 @@ func TestRolesFromContext_empty(t *testing.T) {
 	require.Nil(t, RolesFromContext(context.Background()))
 }
 
-func TestContextWithRoles(t *testing.T) {
+func TestContextWithRoles_returnsStoredRoles(t *testing.T) {
 	ctx := ContextWithRoles(context.Background(), []Role{RoleAdmin, RoleEditor})
 	roles := RolesFromContext(ctx)
 	require.Len(t, roles, 2)
@@ -524,7 +524,7 @@ func TestNewAdminCheckerFromRoleChecker_error(t *testing.T) {
 
 // --- FIFO cache eviction order -----------------------------------------------
 
-func TestCachingRoleCheckerEvictsOldestRole(t *testing.T) {
+func TestCachingRoleChecker_evictsOldestRole(t *testing.T) {
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
 			return []Role{RoleAdmin}, nil
@@ -557,7 +557,7 @@ func TestCachingRoleCheckerEvictsOldestRole(t *testing.T) {
 	require.Equal(t, defaultRoleCacheMaxEntries, len(checker.roleEntries))
 }
 
-func TestCachingRoleCheckerEvictsOldestPerm(t *testing.T) {
+func TestCachingRoleChecker_evictsOldestPerm(t *testing.T) {
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {
 			return []Role{RoleAdmin}, nil
@@ -590,7 +590,7 @@ func TestCachingRoleCheckerEvictsOldestPerm(t *testing.T) {
 	require.Equal(t, defaultPermCacheMaxEntries, len(checker.permEntries))
 }
 
-func TestCachingRoleCheckerReinsertAfterExpiry(t *testing.T) {
+func TestCachingRoleChecker_reinsertAfterExpiry(t *testing.T) {
 	// Verify that a key re-inserted after expiry is correctly tracked in the
 	// order queue and does not cause incorrect eviction of newer entries.
 	store := &mockRBACUserStore{
@@ -624,7 +624,7 @@ func TestCachingRoleCheckerReinsertAfterExpiry(t *testing.T) {
 	require.Equal(t, mapEntry.seq, lastOrder.seq, "re-inserted entry seq must match order queue")
 }
 
-func TestCachingRoleCheckerConcurrentAccess(t *testing.T) {
+func TestCachingRoleChecker_concurrentAccess(t *testing.T) {
 	t.Parallel()
 	store := &mockRBACUserStore{
 		getRolesFunc: func(_ context.Context, _ string) ([]Role, error) {

@@ -296,7 +296,7 @@ func TestVerifyMagicLink_userStoreError(t *testing.T) {
 // VerifyMagicLink with session tracking
 // ---------------------------------------------------------------------------
 
-func TestVerifyMagicLinkWithSessionsCreatesSession(t *testing.T) {
+func TestVerifyMagicLink_withSessionsCreatesSession(t *testing.T) {
 	var capturedUserID string
 	sessions := &mockSessionStore{
 		createFunc: func(_ context.Context, userID, _, _, _ string, _ time.Time) (*auth.Session, error) {
@@ -323,7 +323,7 @@ func TestVerifyMagicLinkWithSessionsCreatesSession(t *testing.T) {
 	require.NotEmpty(t, resp.RefreshToken)
 }
 
-func TestVerifyMagicLinkWithSessionsSetsRefreshCookie(t *testing.T) {
+func TestVerifyMagicLink_withSessionsSetsRefreshCookie(t *testing.T) {
 	sessions := &mockSessionStore{}
 	userStore := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -347,7 +347,7 @@ func TestVerifyMagicLinkWithSessionsSetsRefreshCookie(t *testing.T) {
 	require.NotEmpty(t, foundRefresh.Value)
 }
 
-func TestVerifyMagicLinkWithSessionsCreateSessionError(t *testing.T) {
+func TestVerifyMagicLink_withSessionsCreateSessionError(t *testing.T) {
 	sessions := &mockSessionStore{
 		createFunc: func(_ context.Context, _, _, _, _ string, _ time.Time) (*auth.Session, error) {
 			return nil, errors.New("db error")
@@ -367,7 +367,7 @@ func TestVerifyMagicLinkWithSessionsCreateSessionError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestVerifyMagicLinkWithSessionsCreateTokenError(t *testing.T) {
+func TestVerifyMagicLink_withSessionsCreateTokenError(t *testing.T) {
 	var deletedSessionID string
 	sessions := &mockSessionStore{
 		createFunc: func(_ context.Context, userID, _, _, _ string, _ time.Time) (*auth.Session, error) {

@@ -194,7 +194,7 @@ func TestSession_revokeAll_storeError(t *testing.T) {
 // toSessionDTO
 // ---------------------------------------------------------------------------
 
-func TestToSessionDTO(t *testing.T) {
+func TestToSessionDTO_mapsAllFields(t *testing.T) {
 	now := time.Now().Truncate(time.Second)
 	s := &auth.Session{
 		ID:        "s1",
