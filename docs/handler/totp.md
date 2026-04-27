@@ -36,7 +36,7 @@ Enrollment is a two-step flow:
 
 | Route | HTTP status | Response body |
 |---|---|---|
-| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store` |
+| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store`, `Pragma: no-cache` |
 | `Enroll` | 200 | `{"enrolled": true}` |
 | `Verify` | 200 | `{"valid": true}` |
 | `Status` | 200 | `{"enrolled": <bool>}` |

@@ -25,6 +25,8 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 
 `RequestReset` returns the same success response whether or not the email is registered, preventing enumeration. Reset tokens are consumed (deleted) after successful use.
 
+If `SendResetEmail` returns an error, the newly-created token is deleted before responding so that orphaned tokens do not accumulate in the database. The 200 response is still returned to avoid leaking information.
+
 !!! info "Email enumeration prevention"
     `RequestReset` always returns HTTP 200 with a generic message, regardless of whether the email is registered.
 
