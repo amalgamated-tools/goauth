@@ -81,7 +81,7 @@ func TestParseLinkState_wrongKey(t *testing.T) {
 // consumeLinkNonce / CreateLinkNonce
 // ---------------------------------------------------------------------------
 
-func TestConsumeLinkNonce(t *testing.T) {
+func TestConsumeLinkNonce_deletesEntry(t *testing.T) {
 	h := newTestOIDCHandler()
 
 	nonce := "test-nonce-123"
@@ -108,7 +108,7 @@ func TestConsumeLinkNonce_notFound(t *testing.T) {
 	require.Empty(t, h.consumeLinkNonce("does-not-exist"))
 }
 
-func TestCreateLinkNonce(t *testing.T) {
+func TestCreateLinkNonce_returnsNonce(t *testing.T) {
 	h := newTestOIDCHandler()
 
 	req := httptest.NewRequest(http.MethodGet, "/link-nonce", nil)

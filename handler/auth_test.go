@@ -223,7 +223,7 @@ func TestLogin_invalidJSON(t *testing.T) {
 // Logout
 // ---------------------------------------------------------------------------
 
-func TestLogout(t *testing.T) {
+func TestLogout_clearsAuthCookie(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
 	w := httptest.NewRecorder()

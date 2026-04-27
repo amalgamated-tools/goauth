@@ -105,7 +105,7 @@ func TestUserIDFromContext_empty(t *testing.T) {
 	require.Empty(t, UserIDFromContext(ctx))
 }
 
-func TestContextWithUserID(t *testing.T) {
+func TestContextWithUserID_roundTrip(t *testing.T) {
 	ctx := ContextWithUserID(context.Background(), "user-42")
 	require.Equal(t, "user-42", UserIDFromContext(ctx))
 }

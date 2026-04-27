@@ -302,7 +302,7 @@ func withUserID(req *http.Request, userID string) *http.Request {
 // writeJSON / writeError
 // ---------------------------------------------------------------------------
 
-func TestWriteJSON(t *testing.T) {
+func TestWriteJSON_setsContentType(t *testing.T) {
 	w := httptest.NewRecorder()
 	writeJSON(context.Background(), w, http.StatusCreated, map[string]string{"key": "val"})
 
@@ -313,7 +313,7 @@ func TestWriteJSON(t *testing.T) {
 	require.Equal(t, "val", body["key"])
 }
 
-func TestWriteError(t *testing.T) {
+func TestWriteError_writesErrorField(t *testing.T) {
 	w := httptest.NewRecorder()
 	writeError(context.Background(), w, http.StatusBadRequest, "bad input")
 
@@ -378,7 +378,7 @@ func TestValidatePassword_boundaries(t *testing.T) {
 // SetAuthCookie / ClearAuthCookie
 // ---------------------------------------------------------------------------
 
-func TestSetAuthCookie(t *testing.T) {
+func TestSetAuthCookie_setsHttpOnly(t *testing.T) {
 	w := httptest.NewRecorder()
 	SetAuthCookie(w, "mytoken", "auth", false)
 
@@ -394,7 +394,7 @@ func TestSetAuthCookie(t *testing.T) {
 	require.Equal(t, http.SameSiteStrictMode, found.SameSite)
 }
 
-func TestClearAuthCookie(t *testing.T) {
+func TestClearAuthCookie_setsNegativeMaxAge(t *testing.T) {
 	w := httptest.NewRecorder()
 	ClearAuthCookie(w, "auth", false)
 

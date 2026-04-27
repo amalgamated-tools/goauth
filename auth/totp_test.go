@@ -169,7 +169,7 @@ func TestHOTPCode_rfc4226Vectors(t *testing.T) {
 // Constant consistency
 // ---------------------------------------------------------------------------
 
-func TestTotpModuloMatchesDigits(t *testing.T) {
+func TestHOTPCode_moduloMatchesDigits(t *testing.T) {
 	require.Equal(t, uint32(math.Pow10(totpDigits)), uint32(totpModulo),
 		"totpModulo must equal 10^totpDigits; update totpModulo when totpDigits changes")
 }

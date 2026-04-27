@@ -8,7 +8,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func TestHashHighEntropyToken(t *testing.T) {
+func TestHashHighEntropyToken_returnsSHA256Hex(t *testing.T) {
 	h1 := HashHighEntropyToken("token123")
 	h2 := HashHighEntropyToken("token123")
 	require.Equal(t, h1, h2)
@@ -25,7 +25,7 @@ func TestHashHighEntropyToken(t *testing.T) {
 	require.NotEqual(t, h1, h4)
 }
 
-func TestGenerateRandomHex(t *testing.T) {
+func TestGenerateRandomHex_producesCorrectLength(t *testing.T) {
 	h1, err := GenerateRandomHex(16)
 	require.NoError(t, err)
 	// 16 bytes → 32 hex chars.
@@ -46,7 +46,7 @@ func TestGenerateRandomHex(t *testing.T) {
 	require.Len(t, h4, 40)
 }
 
-func TestMustGenerateDummyBcryptHash(t *testing.T) {
+func TestMustGenerateDummyBcryptHash_panicsOnEmptyInput(t *testing.T) {
 	hash := MustGenerateDummyBcryptHash("some-secret")
 	require.NotEmpty(t, hash)
 	require.NoError(t, bcrypt.CompareHashAndPassword(hash, []byte("some-secret")))

@@ -128,7 +128,7 @@ func namedErrorCleaner(_ context.Context) error {
 	return errors.New("db error")
 }
 
-func TestStartCleanupLogsCleanerNameOnError(t *testing.T) {
+func TestStartCleanup_logsCleanerNameOnError(t *testing.T) {
 	var buf bytes.Buffer
 	orig := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(orig) })
@@ -149,7 +149,7 @@ func namedPanicCleaner(_ context.Context) error {
 	panic("intentional test panic")
 }
 
-func TestStartCleanupLogsCleanerNameOnPanic(t *testing.T) {
+func TestStartCleanup_logsCleanerNameOnPanic(t *testing.T) {
 	var buf bytes.Buffer
 	orig := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(orig) })
