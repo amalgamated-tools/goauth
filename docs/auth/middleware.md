@@ -77,6 +77,18 @@ Tokens are accepted from the `Authorization: Bearer <token>` header or from the 
 token := auth.ExtractToken(r, "session")
 ```
 
+### API key `last_used_at` update throttle
+
+To reduce database write pressure on high-traffic deployments, the middleware calls `APIKeyStore.TouchAPIKeyLastUsed` at most once every **5 minutes** per key ID within a single process. The in-process state is stored in a plain `map` protected by a mutex and is not shared between processes.
+
+Practical implications:
+
+- The `last_used_at` value returned by `APIKeyHandler.List` lags behind real usage by up to 5 minutes.
+- In multi-process deployments (e.g. horizontal scaling), the 5-minute window is tracked independently per process, so the lag may appear shorter than 5 minutes from an external observer's perspective.
+- The throttle map is swept whenever it has at least 100 entries, removing entries whose last write was at least 5 minutes ago.
+
+If your application requires precise `last_used_at` timestamps, implement `TouchAPIKeyLastUsed` as a no-op and maintain a separate high-frequency audit log outside the library's throttle window.
+
 ## Session revocation
 
 When `Sessions` is set, the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. API key requests bypass the session check.
