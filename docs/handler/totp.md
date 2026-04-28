@@ -34,13 +34,13 @@ Enrollment is a two-step flow:
 
 ## Response types
 
-| Route | HTTP status | Response body |
-|---|---|---|
-| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store` |
-| `Enroll` | 200 | `{"enrolled": true}` |
-| `Verify` | 200 | `{"valid": true}` |
-| `Status` | 200 | `{"enrolled": <bool>}` |
-| `Disable` | 204 | *(no body)* |
+| Route | HTTP status | Response body | Notable error codes |
+|---|---|---|---|
+| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store`, `Pragma: no-cache` | — |
+| `Enroll` | 200 | `{"enrolled": true}` | 400 (missing fields or invalid secret), 401 (invalid TOTP code) |
+| `Verify` | 200 | `{"valid": true}` | 400 (code required), 401 (invalid code), 404 (TOTP not configured) |
+| `Status` | 200 | `{"enrolled": <bool>}` | — |
+| `Disable` | 204 | *(no body)* | 404 (TOTP not configured) |
 
 See [TOTP / MFA](../auth/totp.md) for the underlying primitives and replay protection details.
 
