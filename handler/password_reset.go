@@ -52,8 +52,9 @@ func (h *PasswordResetHandler) tokenTTL() time.Duration {
 
 // RequestReset handles POST /password-reset/request. It accepts an email
 // address, generates a secure reset token, persists its hash, and delivers
-// the raw token via SendResetEmail. The response is always 200 OK to avoid
-// leaking whether the email address is registered.
+// the raw token via SendResetEmail. Returns 503 if SendResetEmail is nil
+// (misconfiguration); otherwise always returns 200 OK to avoid leaking
+// whether the email address is registered.
 func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Request) {
 	if h.RateLimiter != nil && !h.RateLimiter.Allow(r) {
 		writeError(r.Context(), w, http.StatusTooManyRequests, "too many requests")

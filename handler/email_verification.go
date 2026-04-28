@@ -48,8 +48,9 @@ type sendVerificationRequest struct {
 }
 
 // SendVerification creates a verification token for the given email address
-// and calls SendEmail if configured. It always returns 200 to avoid leaking
-// whether an address is registered.
+// and calls SendEmail if configured. Returns 503 if SendEmail is nil
+// (misconfiguration); otherwise always returns 200 to avoid leaking whether
+// an address is registered.
 //
 // Route: POST /verify-email/send
 func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *http.Request) {
