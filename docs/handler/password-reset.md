@@ -43,7 +43,7 @@ Password constraints: 8–72 bytes.
 Reset tokens are consumed (deleted) after successful use.
 
 !!! info "Email enumeration prevention"
-    `RequestReset` always returns HTTP 200 with the following response, regardless of whether the email is registered:
+    Beyond `400`, `429`, and `503` cases, `RequestReset` always returns HTTP 200 with the following response, regardless of whether the email is registered:
 
     ```json
     {"message": "if that email is registered, a reset link has been sent"}
@@ -59,7 +59,7 @@ Reset tokens are consumed (deleted) after successful use.
 
 | Endpoint | Status | Condition |
 |---|---|---|
-| `RequestReset` | 200 OK | `{"message": "if that email is registered, a reset link has been sent"}` (always, even if email is unregistered or account is OIDC-only) |
+| `RequestReset` | 200 OK | Normal success response when not rate-limited and `SendResetEmail` is configured (even if email is unregistered or account is OIDC-only) |
 | `RequestReset` | 400 Bad Request | Missing `email` field |
 | `RequestReset` | 429 Too Many Requests | Rate limit exceeded (only when `RateLimiter` is configured) |
 | `RequestReset` | 503 Service Unavailable | `SendResetEmail` is `nil` (not configured) |
