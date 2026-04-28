@@ -17,8 +17,10 @@ import (
 
 const passkeyChallengeExpiry = 5 * time.Minute
 
-var errPasskeySessionExpired = errors.New("passkey session expired")
-var errListCredentials = errors.New("failed to list credentials")
+var (
+	errPasskeySessionExpired = errors.New("passkey session expired")
+	errListCredentials       = errors.New("failed to list credentials")
+)
 
 // PasskeyHandler holds dependencies for WebAuthn endpoints.
 // URLParamFunc extracts URL parameters (router-agnostic).
