@@ -96,7 +96,7 @@ The `id` field can be passed to `DeleteCredential` to remove a specific passkey.
 | `FinishRegistration` | 201 Created | `PasskeyCredentialDTO` |
 | `FinishRegistration` | 400 Bad Request | Missing `session_id`; invalid/expired session; registration verification failed |
 | `FinishRegistration` | 503 Service Unavailable | `WebAuthn` is `nil` |
-| `FinishRegistration` | 500 Internal Server Error | Store failure |
+| `FinishRegistration` | 500 Internal Server Error | Failed to fetch user, list credentials, marshal credential, or store credential |
 | `BeginAuthentication` | 200 OK | `{session_id, options}` |
 | `BeginAuthentication` | 503 Service Unavailable | `WebAuthn` is `nil` |
 | `BeginAuthentication` | 500 Internal Server Error | Failed to begin WebAuthn ceremony or store challenge |

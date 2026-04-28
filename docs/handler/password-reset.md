@@ -44,4 +44,4 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 | `RequestReset` | 500 Internal Server Error | Store failure during user lookup, token creation, or token generation |
 | `ResetPassword` | 200 OK | `{"message": "password reset successfully"}` |
 | `ResetPassword` | 400 Bad Request | Missing `token` or `newPassword`; password outside 8–72 bytes; invalid or expired token; OIDC-only account (no password set) |
-| `ResetPassword` | 500 Internal Server Error | Store failure during token lookup, user lookup, or password update |
+| `ResetPassword` | 500 Internal Server Error | Internal failure during token lookup, user lookup, password hashing, or password update |
