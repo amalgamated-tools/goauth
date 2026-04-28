@@ -83,3 +83,20 @@ type PasskeyCredentialDTO struct {
 ```
 
 The `id` field can be passed to `DeleteCredential` to remove a specific passkey.
+
+## Disabling passkeys
+
+Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` returns `{"enabled": false}` normally. All other endpoints (`BeginRegistration`, `FinishRegistration`, `BeginAuthentication`, `FinishAuthentication`) return HTTP 503 "passkeys not configured". `ListCredentials` and `DeleteCredential` remain accessible via auth middleware but are not affected by the `WebAuthn` field.
+
+## HTTP status codes
+
+| Endpoint | Success | Notable error codes |
+|---|---|---|
+| `Enabled` | 200 OK | — |
+| `BeginRegistration` | 200 OK | 400 (missing `name`; name exceeds 100 chars), 401 (unauthenticated), 503 (`WebAuthn` is nil) |
+| `FinishRegistration` | **201 Created** | 400 (missing `session_id`), 401 (invalid/expired session or WebAuthn verification failure), 503 (`WebAuthn` is nil) |
+| `BeginAuthentication` | 200 OK | 503 (`WebAuthn` is nil) |
+| `FinishAuthentication` | 200 OK | 400 (missing `session_id`), 401 (invalid/expired session or WebAuthn verification failure), 503 (`WebAuthn` is nil) |
+| `ListCredentials` | 200 OK | 401 (unauthenticated), 500 (store failure) |
+| `DeleteCredential` | 204 No Content | 400 (missing credential ID), 401 (unauthenticated), 404 (credential not found or owned by another user), 500 (store failure) |
+
