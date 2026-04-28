@@ -40,7 +40,7 @@ type apiKeyDTO struct {
     ID         string     `json:"id"`
     Name       string     `json:"name"`
     KeyPrefix  string     `json:"key_prefix"` // configured prefix + first 12 hex chars of the random portion
-    LastUsedAt *time.Time `json:"last_used_at"` // null until first use
+    LastUsedAt *time.Time `json:"last_used_at"` // null until first use; see note below
     CreatedAt  time.Time  `json:"created_at"`
 }
 
@@ -55,6 +55,9 @@ type apiKeyCreateResponse struct {
     The raw API key is returned once in the `Create` response and cannot be recovered. Store it securely before closing the creation response.
 
 The `Create` response also sets `Cache-Control: no-store` and `Pragma: no-cache` to prevent the raw key from being stored in browser or proxy caches.
+
+!!! note "`last_used_at` update throttle"
+    The middleware updates `last_used_at` at most once every **5 minutes** per key ID (within a single process) to reduce database write pressure. The value may therefore lag behind real usage by up to 5 minutes. See [API key `last_used_at` update throttle](../auth/middleware.md#api-key-last_used_at-update-throttle) for details.
 
 ## HTTP status codes
 
