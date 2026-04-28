@@ -105,9 +105,7 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Always return 200 to avoid leaking whether the email is registered.
-	writeJSON(r.Context(), w, http.StatusOK, map[string]string{
-		"message": "if that email is registered, a reset link has been sent",
-	})
+	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: "if that email is registered, a reset link has been sent"})
 }
 
 // ResetPassword handles POST /password-reset/confirm. It validates the token,
@@ -171,5 +169,5 @@ func (h *PasswordResetHandler) ResetPassword(w http.ResponseWriter, r *http.Requ
 		slog.ErrorContext(r.Context(), "password reset: consume token", slog.Any("error", err))
 	}
 
-	writeJSON(r.Context(), w, http.StatusOK, map[string]string{"message": "password reset successfully"})
+	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: "password reset successfully"})
 }
