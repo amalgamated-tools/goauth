@@ -26,7 +26,7 @@ GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks 
 
 `SendVerification` silently skips already-verified addresses and returns the same success response whether or not the address is registered, preventing enumeration.
 
-`SendVerification` always returns HTTP 200:
+`SendVerification` returns HTTP 400 for a missing `email` field or a malformed request body. For all valid requests it returns HTTP 200 regardless of whether the address is registered:
 
 ```json
 {"message": "if that address is registered, a verification email has been sent"}
@@ -38,6 +38,6 @@ GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks 
 {"message": "email verified"}
 ```
 
-It returns HTTP 400 for a missing or invalid/expired token.
+It returns HTTP 400 for a missing or invalid/expired token, and HTTP 500 when a store operation fails (`ConsumeEmailVerification` or `SetEmailVerified` returns an unexpected error). Error responses use the shape `{"error": "..."}`.
 
 To gate login on email verification, set `RequireVerification: true` on `AuthHandler`.
