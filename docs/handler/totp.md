@@ -36,7 +36,7 @@ Enrollment is a two-step flow:
 
 | Route | HTTP status | Response body | Notable error codes |
 |---|---|---|---|
-| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store` | — |
+| `Generate` | 200 | `{"secret": "...", "provisioning_uri": "otpauth://..."}` — `Cache-Control: no-store`, `Pragma: no-cache` | — |
 | `Enroll` | 200 | `{"enrolled": true}` | 400 (missing fields or invalid secret), 401 (invalid TOTP code) |
 | `Verify` | 200 | `{"valid": true}` | 400 (code required), 401 (invalid code), 404 (TOTP not configured) |
 | `Status` | 200 | `{"enrolled": <bool>}` | — |

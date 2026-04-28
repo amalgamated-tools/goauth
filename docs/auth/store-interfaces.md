@@ -6,16 +6,16 @@ The library defines store interfaces that consuming applications implement again
 
 ```go
 type UserStore interface {
-    CreateUser(ctx, name, email, passwordHash string) (*User, error)
-    CreateOIDCUser(ctx, name, email, oidcSubject string) (*User, error)
-    FindByEmail(ctx, email string) (*User, error)
-    FindByID(ctx, id string) (*User, error)
-    FindByOIDCSubject(ctx, subject string) (*User, error)
-    LinkOIDCSubject(ctx, userID, oidcSubject string) error
-    UpdatePassword(ctx, userID, passwordHash string) error
-    UpdateName(ctx, userID, name string) (*User, error)
-    IsAdmin(ctx, userID string) (bool, error)
-    CountUsers(ctx) (int, error)
+    CreateUser(ctx context.Context, name, email, passwordHash string) (*User, error)
+    CreateOIDCUser(ctx context.Context, name, email, oidcSubject string) (*User, error)
+    FindByEmail(ctx context.Context, email string) (*User, error)
+    FindByID(ctx context.Context, id string) (*User, error)
+    FindByOIDCSubject(ctx context.Context, subject string) (*User, error)
+    LinkOIDCSubject(ctx context.Context, userID, oidcSubject string) error
+    UpdatePassword(ctx context.Context, userID, passwordHash string) error
+    UpdateName(ctx context.Context, userID, name string) (*User, error)
+    IsAdmin(ctx context.Context, userID string) (bool, error)
+    CountUsers(ctx context.Context) (int, error)
 }
 ```
 
@@ -42,12 +42,12 @@ Accounts with an empty `PasswordHash` cannot authenticate or reset passwords thr
 
 ```go
 type APIKeyStore interface {
-    CreateAPIKey(ctx, userID, name, keyHash, keyPrefix string) (*APIKey, error)
-    ListAPIKeysByUser(ctx, userID string) ([]APIKey, error)
-    FindAPIKeyByIDAndUser(ctx, id, userID string) (*APIKey, error)
-    ValidateAPIKey(ctx, keyHash string) (userID, apiKeyID string, err error)
-    TouchAPIKeyLastUsed(ctx, id string) error
-    DeleteAPIKey(ctx, id, userID string) error
+    CreateAPIKey(ctx context.Context, userID, name, keyHash, keyPrefix string) (*APIKey, error)
+    ListAPIKeysByUser(ctx context.Context, userID string) ([]APIKey, error)
+    FindAPIKeyByIDAndUser(ctx context.Context, id, userID string) (*APIKey, error)
+    ValidateAPIKey(ctx context.Context, keyHash string) (userID, apiKeyID string, err error)
+    TouchAPIKeyLastUsed(ctx context.Context, id string) error
+    DeleteAPIKey(ctx context.Context, id, userID string) error
 }
 ```
 
@@ -57,13 +57,13 @@ type APIKeyStore interface {
 
 ```go
 type SessionStore interface {
-    CreateSession(ctx, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error)
-    FindSessionByID(ctx, id string) (*Session, error)
-    FindSessionByRefreshTokenHash(ctx, hash string) (*Session, error)
-    ListSessionsByUser(ctx, userID string) ([]Session, error)
-    DeleteSession(ctx, id, userID string) error
-    DeleteAllSessionsByUser(ctx, userID string) error
-    DeleteExpiredSessions(ctx) error
+    CreateSession(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error)
+    FindSessionByID(ctx context.Context, id string) (*Session, error)
+    FindSessionByRefreshTokenHash(ctx context.Context, hash string) (*Session, error)
+    ListSessionsByUser(ctx context.Context, userID string) ([]Session, error)
+    DeleteSession(ctx context.Context, id, userID string) error
+    DeleteAllSessionsByUser(ctx context.Context, userID string) error
+    DeleteExpiredSessions(ctx context.Context) error
 }
 ```
 
@@ -75,15 +75,15 @@ Return `auth.ErrNotFound` from `FindSessionByID`, `FindSessionByRefreshTokenHash
 
 ```go
 type PasskeyStore interface {
-    CreateChallenge(ctx, userID *string, sessionData string, expiresAt time.Time) (*PasskeyChallenge, error)
-    GetAndDeleteChallenge(ctx, id string) (*PasskeyChallenge, error)
-    DeleteExpiredChallenges(ctx) error
-    CreateCredential(ctx, userID, name, credentialID, credentialData, aaguid string) (*PasskeyCredential, error)
-    ListCredentialsByUser(ctx, userID string) ([]PasskeyCredential, error)
-    FindCredentialByCredentialID(ctx, credentialID string) (*PasskeyCredential, error)
-    FindCredentialByIDAndUser(ctx, id, userID string) (*PasskeyCredential, error)
-    UpdateCredentialData(ctx, userID, credentialID, credentialData string) error
-    DeleteCredential(ctx, id, userID string) error
+    CreateChallenge(ctx context.Context, userID *string, sessionData string, expiresAt time.Time) (*PasskeyChallenge, error)
+    GetAndDeleteChallenge(ctx context.Context, id string) (*PasskeyChallenge, error)
+    DeleteExpiredChallenges(ctx context.Context) error
+    CreateCredential(ctx context.Context, userID, name, credentialID, credentialData, aaguid string) (*PasskeyCredential, error)
+    ListCredentialsByUser(ctx context.Context, userID string) ([]PasskeyCredential, error)
+    FindCredentialByCredentialID(ctx context.Context, credentialID string) (*PasskeyCredential, error)
+    FindCredentialByIDAndUser(ctx context.Context, id, userID string) (*PasskeyCredential, error)
+    UpdateCredentialData(ctx context.Context, userID, credentialID, credentialData string) error
+    DeleteCredential(ctx context.Context, id, userID string) error
 }
 ```
 
@@ -93,9 +93,9 @@ type PasskeyStore interface {
 
 ```go
 type MagicLinkStore interface {
-    CreateMagicLink(ctx, email, tokenHash string, expiresAt time.Time) (*MagicLink, error)
-    FindAndDeleteMagicLink(ctx, tokenHash string) (*MagicLink, error)
-    DeleteExpiredMagicLinks(ctx) error
+    CreateMagicLink(ctx context.Context, email, tokenHash string, expiresAt time.Time) (*MagicLink, error)
+    FindAndDeleteMagicLink(ctx context.Context, tokenHash string) (*MagicLink, error)
+    DeleteExpiredMagicLinks(ctx context.Context) error
 }
 ```
 
@@ -105,9 +105,9 @@ type MagicLinkStore interface {
 
 ```go
 type EmailVerificationStore interface {
-    CreateEmailVerification(ctx, userID, tokenHash string, expiresAt time.Time) (*EmailVerificationToken, error)
-    ConsumeEmailVerification(ctx, tokenHash string) (*EmailVerificationToken, error)
-    SetEmailVerified(ctx, userID string) error
+    CreateEmailVerification(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*EmailVerificationToken, error)
+    ConsumeEmailVerification(ctx context.Context, tokenHash string) (*EmailVerificationToken, error)
+    SetEmailVerified(ctx context.Context, userID string) error
 }
 ```
 
@@ -117,9 +117,9 @@ type EmailVerificationStore interface {
 
 ```go
 type TOTPStore interface {
-    CreateTOTPSecret(ctx, userID, secret string) (*TOTPSecret, error)
-    GetTOTPSecret(ctx, userID string) (*TOTPSecret, error)
-    DeleteTOTPSecret(ctx, userID string) error
+    CreateTOTPSecret(ctx context.Context, userID, secret string) (*TOTPSecret, error)
+    GetTOTPSecret(ctx context.Context, userID string) (*TOTPSecret, error)
+    DeleteTOTPSecret(ctx context.Context, userID string) error
 }
 ```
 
@@ -129,10 +129,10 @@ type TOTPStore interface {
 
 ```go
 type PasswordResetStore interface {
-    CreatePasswordResetToken(ctx, userID, tokenHash string, expiresAt time.Time) (*PasswordResetToken, error)
-    FindPasswordResetToken(ctx, tokenHash string) (*PasswordResetToken, error)
-    DeletePasswordResetToken(ctx, id string) error
-    DeleteExpiredPasswordResetTokens(ctx) error
+    CreatePasswordResetToken(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*PasswordResetToken, error)
+    FindPasswordResetToken(ctx context.Context, tokenHash string) (*PasswordResetToken, error)
+    DeletePasswordResetToken(ctx context.Context, id string) error
+    DeleteExpiredPasswordResetTokens(ctx context.Context) error
 }
 ```
 

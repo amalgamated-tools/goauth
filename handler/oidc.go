@@ -28,6 +28,12 @@ type linkNonce struct {
 	ExpiresAt time.Time
 }
 
+// nonceBody is used instead of map[string]string to avoid a map allocation
+// on the OIDC nonce response path.
+type nonceBody struct {
+	Nonce string `json:"nonce"`
+}
+
 // OIDCHandler holds dependencies for OIDC auth endpoints.
 type OIDCHandler struct {
 	Users         auth.UserStore
@@ -287,7 +293,7 @@ func (h *OIDCHandler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
 	h.linkNonces[nonce] = linkNonce{UserID: userID, ExpiresAt: now.Add(oidcStateCookieTTL)}
 	h.linkNoncesMu.Unlock()
 
-	writeJSON(r.Context(), w, http.StatusOK, map[string]string{"nonce": nonce})
+	writeJSON(r.Context(), w, http.StatusOK, nonceBody{Nonce: nonce})
 }
 
 // Link validates the nonce and redirects for account linking.

@@ -42,6 +42,18 @@ type totpVerifyRequest struct {
 	Code string `json:"code"`
 }
 
+// totpStatusBody is used instead of map[string]bool to avoid a map allocation
+// on the TOTP status response path.
+type totpStatusBody struct {
+	Enrolled bool `json:"enrolled"`
+}
+
+// totpVerifyBody is used instead of map[string]bool to avoid a map allocation
+// on the TOTP verify success response path.
+type totpVerifyBody struct {
+	Valid bool `json:"valid"`
+}
+
 // isReplay returns true when code has already been used for userID within the
 // replay window.
 func (h *TOTPHandler) isReplay(userID, code string) bool {
@@ -69,7 +81,7 @@ func (h *TOTPHandler) Status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	enrolled := err == nil
-	writeJSON(r.Context(), w, http.StatusOK, map[string]bool{"enrolled": enrolled})
+	writeJSON(r.Context(), w, http.StatusOK, totpStatusBody{Enrolled: enrolled})
 }
 
 // Generate creates a fresh TOTP secret and returns it with a provisioning URI
@@ -141,7 +153,7 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 	}
 	h.recordUsed(userID, req.Code)
 
-	writeJSON(r.Context(), w, http.StatusOK, map[string]bool{"enrolled": true})
+	writeJSON(r.Context(), w, http.StatusOK, totpStatusBody{Enrolled: true})
 }
 
 // Verify checks a TOTP code against the user's enrolled secret.
@@ -182,7 +194,7 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 	h.recordUsed(userID, req.Code)
 
-	writeJSON(r.Context(), w, http.StatusOK, map[string]bool{"valid": true})
+	writeJSON(r.Context(), w, http.StatusOK, totpVerifyBody{Valid: true})
 }
 
 // Disable removes the enrolled TOTP secret for the authenticated user.
