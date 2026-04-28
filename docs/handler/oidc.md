@@ -32,6 +32,15 @@ POST /auth/oidc/link-nonce             → h.CreateLinkNonce    // issue nonce f
 GET  /auth/oidc/link?nonce=<nonce>     → h.Link               // start link flow (requires auth)
 ```
 
+## Response types
+
+| Endpoint | HTTP status | Response body |
+|---|---|---|
+| `Login` | 302 Found | *(redirect to provider — no body)* |
+| `Callback` | 302 Found | *(login flow: redirects to `/?oidc_login=1`; link flow: redirects to `/?oidc_linked=true` — no body in either case; JWT and optional refresh token delivered via `HttpOnly` cookies on the login path)* |
+| `CreateLinkNonce` | 200 OK | `{"nonce": "<nonce>"}` |
+| `Link` | 302 Found | *(redirect to provider — no body)* |
+
 ## Callback behaviour
 
 The callback performs PKCE verification and handles three cases automatically:

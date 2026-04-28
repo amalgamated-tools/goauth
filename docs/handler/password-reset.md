@@ -21,6 +21,13 @@ POST /password-reset/request   → h.RequestReset    // send reset email
 POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
 ```
 
+## Response types
+
+| Endpoint | HTTP status | Response body |
+|---|---|---|
+| `RequestReset` | 200 OK | `{"message": "if that email is registered, a reset link has been sent"}` |
+| `ResetPassword` | 200 OK | `{"message": "password reset successfully"}` |
+
 ## Behaviour
 
 `RequestReset` returns the same success response whether or not the email is registered, preventing enumeration. Reset tokens are consumed (deleted) after successful use.
