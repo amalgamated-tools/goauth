@@ -41,3 +41,12 @@ GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks 
 It returns HTTP 400 for a missing or invalid/expired token, and HTTP 500 when a store operation fails (`ConsumeEmailVerification` or `SetEmailVerified` returns an unexpected error). Error responses use the shape `{"error": "..."}`.
 
 To gate login on email verification, set `RequireVerification: true` on `AuthHandler`.
+
+## HTTP status codes
+
+| Endpoint | Success | Notable error codes |
+|---|---|---|
+| `SendVerification` | 200 OK | 400 (email required) |
+| `VerifyEmail` | 200 OK | 400 (token required or invalid/expired token) |
+
+`SendVerification` always returns 200 whether or not the address is registered or already verified — this prevents email enumeration.
