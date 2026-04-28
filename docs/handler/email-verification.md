@@ -22,6 +22,13 @@ POST /verify-email/send   → h.SendVerification   // send verification email
 GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks email verified
 ```
 
+## Response types
+
+| Endpoint | HTTP status | Response body |
+|---|---|---|
+| `SendVerification` | 200 OK | `{"message": "if that address is registered, a verification email has been sent"}` |
+| `VerifyEmail` | 200 OK | `{"message": "email verified"}` |
+
 ## Behaviour
 
 `SendVerification` silently skips already-verified addresses and returns the same success response whether or not the address is registered, preventing enumeration.
