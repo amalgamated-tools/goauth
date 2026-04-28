@@ -52,14 +52,14 @@ Reset tokens are consumed (deleted) after successful use.
 
 ### `RequestReset`
 
-`RequestReset` always returns HTTP 200 for valid requests (regardless of whether the address is registered) to prevent email enumeration. Validation and server-side failures still surface as non-200 responses.
+`RequestReset` returns HTTP 200 when the request passes rate limiting and validation (non-empty `email`, valid JSON), regardless of whether the address is registered, to prevent email enumeration.
 
 | Status | Condition |
 |---|---|
 | **200 OK** | Success (generic message; address may or may not be registered) |
 | 400 Bad Request | Missing or malformed request body; `email` field is empty |
 | 429 Too Many Requests | Rate limit exceeded (when `RateLimiter` is set) |
-| 500 Internal Server Error | Store failure (non-ErrNotFound error from `FindByEmail`, `CreatePasswordResetToken`, or `GenerateRandomBase64`) |
+| 500 Internal Server Error | Token generation failure (`GenerateRandomBase64`) or store failure (non-ErrNotFound error from `FindByEmail` or `CreatePasswordResetToken`) |
 
 Success response body:
 ```json
