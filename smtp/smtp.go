@@ -28,9 +28,14 @@ type Config struct {
 
 // Params holds validated parameters ready for sending.
 type Params struct {
-	Addr       string
-	From       string // bare email for SMTP envelope
-	FromHeader string // formatted for RFC 5322 From header
+	Addr string
+	From string // bare email for SMTP envelope
+	// FromHeader is populated by Validate() as an RFC 5322-formatted address
+	// string. When the configured From address includes a display name it is
+	// set to "Display Name <addr@example.com>"; otherwise it is the bare email
+	// address (e.g. "addr@example.com"). Use this value as the From header in
+	// outgoing messages.
+	FromHeader string
 	TLS        string
 	Auth       netsmtp.Auth
 }
