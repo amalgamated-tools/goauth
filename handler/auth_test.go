@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -564,6 +566,53 @@ func TestLogout_clearsRefreshCookie(t *testing.T) {
 		}
 	}
 	require.True(t, refreshCleared)
+}
+
+func TestLogout_warnOnSessionDeletionError(t *testing.T) {
+	sessions := &mockSessionStore{
+		deleteFunc: func(_ context.Context, _, _ string) error {
+			return errors.New("db error")
+		},
+	}
+	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
+	tok, _ := h.JWT.CreateTokenWithSession(context.Background(), "u1", "sess-del-err")
+
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	defer slog.SetDefault(prev)
+
+	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	w := httptest.NewRecorder()
+	h.Logout(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, buf.String(), "failed to revoke session on logout")
+	require.Contains(t, buf.String(), "sess-del-err")
+}
+
+func TestLogout_silentOnNotFoundSessionDeletion(t *testing.T) {
+	sessions := &mockSessionStore{
+		deleteFunc: func(_ context.Context, _, _ string) error {
+			return auth.ErrNotFound
+		},
+	}
+	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
+	tok, _ := h.JWT.CreateTokenWithSession(context.Background(), "u1", "sess-gone")
+
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	defer slog.SetDefault(prev)
+
+	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	w := httptest.NewRecorder()
+	h.Logout(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Empty(t, buf.String())
 }
 
 // ---------------------------------------------------------------------------
