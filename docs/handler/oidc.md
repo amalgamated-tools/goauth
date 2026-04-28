@@ -84,3 +84,26 @@ When `Sessions` is set on `OIDCHandler`:
 - Setting `RefreshCookieName` causes the refresh token to be delivered via an `HttpOnly` cookie. Because `Callback` performs a redirect, the refresh token is **only** available via the cookie (not in a response body). `RefreshCookieName` is therefore required when `Sessions` is non-nil.
 
 When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lifetime is determined by the configured `JWTManager` TTL.
+
+## HTTP status codes
+
+`Login` redirects to the OIDC provider on success, but it can return a JSON `500 Internal Server Error` if an early failure occurs before a redirect is possible (for example, when generating the OIDC state). `Callback` sets cookies and redirects on success; it returns JSON errors only when a redirect is not possible (e.g. provider configuration errors before any redirect URL is known).
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Login` | 302 Found | Redirects to OIDC provider |
+| `Login` | 500 Internal Server Error | Failed to generate random OIDC state |
+| `Callback` | 302 Found | Success — redirects to `/?oidc_login=1` |
+| `Callback` | 400 Bad Request | Missing/invalid state cookie, PKCE verifier, or authorization code; missing `sub`/`email` claims |
+| `Callback` | 401 Unauthorized | Provider authentication failed; invalid token exchange; invalid `id_token`; unverified OIDC email |
+| `Callback` | 500 Internal Server Error | `Sessions != nil && RefreshCookieName == ""`; failed to parse claims, resolve/create user, or issue tokens/session (e.g. refresh token generation, session store creation, or JWT creation) |
+| `CreateLinkNonce` | 200 OK | `{"nonce": "..."}` |
+| `CreateLinkNonce` | 500 Internal Server Error | Failed to generate nonce |
+| `Link` | 302 Found | Redirects to OIDC provider to start the linking flow |
+| `Link` | 400 Bad Request | Missing nonce |
+| `Link` | 401 Unauthorized | Invalid or expired nonce |
+| `Link` | 409 Conflict | Account is already linked to an OIDC identity, or resolving the current user (`Users.FindByID`) fails |
+| `Link` | 500 Internal Server Error | Failed to initiate OIDC redirect |
+
+!!! info "Link-callback redirects"
+    After the OIDC provider returns to `Callback` during a link flow, all outcomes (success and failure) are communicated via redirect query parameters (`oidc_linked=true` or `oidc_link_error=<value>`), never via JSON error responses. See [Linking flow error redirects](#linking-flow-error-redirects) for the possible `oidc_link_error` values.
