@@ -9,7 +9,10 @@ h := &handler.MagicLinkHandler{
     Users:             userStore,
     MagicLinks:        magicLinkStore,
     JWT:               jwtMgr,
-    Sender:            func(ctx context.Context, email, token string) error { /* send email */ return nil },
+    Sender:            func(ctx context.Context, email, token string) error {
+        /* compose and send the login email */
+        return nil
+    },
     CookieName:        "session",
     SecureCookies:     true,
     Sessions:          sessionStore,      // optional
@@ -17,6 +20,8 @@ h := &handler.MagicLinkHandler{
     RefreshCookieName: "refresh",
 }
 ```
+
+`Sender` has the named type `handler.MagicLinkSender` (`func(ctx context.Context, email, token string) error`). Pass the raw token (not the hash) directly to the user in a login URL such as `https://myapp.example.com/magic-link?token=<token>`.
 
 ## Routes
 
@@ -40,6 +45,9 @@ GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → A
 
 !!! warning "Sender is required"
     If `Sender` is `nil`, `RequestMagicLink` returns HTTP 503 (`magic link sending is not configured`) without touching the database. Configure `Sender` before mounting this handler in production.
+
+!!! note "Token retention on email delivery failure"
+    If `Sender` returns an error (email delivery fails), `RequestMagicLink` logs the failure server-side but still returns HTTP 200 and **does not delete the stored token**. The token expires naturally after 15 minutes. This is intentional — surfacing delivery failures would allow email enumeration. This differs from `PasswordResetHandler`, which deletes the reset token when `SendResetEmail` fails.
 
 ## Session tracking
 
