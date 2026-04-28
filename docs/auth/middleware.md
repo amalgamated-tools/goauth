@@ -85,7 +85,7 @@ Practical implications:
 
 - The `last_used_at` value returned by `APIKeyHandler.List` lags behind real usage by up to 5 minutes.
 - In multi-process deployments (e.g. horizontal scaling), the 5-minute window is tracked independently per process, so the lag may appear shorter than 5 minutes from an external observer's perspective.
-- The throttle map is swept whenever it grows beyond 100 entries, removing entries whose last write was more than 5 minutes ago.
+- The throttle map is swept whenever it has at least 100 entries, removing entries whose last write was at least 5 minutes ago.
 
 If your application requires precise `last_used_at` timestamps, implement `TouchAPIKeyLastUsed` as a no-op and maintain a separate high-frequency audit log outside the library's throttle window.
 
