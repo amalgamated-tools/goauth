@@ -41,6 +41,6 @@ The `id` field can be passed to `Revoke` to force a remote sign-out.
 
 | Endpoint | Success | Notable error codes |
 |---|---|---|
-| `List` | 200 OK | 401 (unauthenticated) |
-| `Revoke` | 204 No Content | 400 (missing session ID), 404 (session not found or owned by another user) |
-| `RevokeAll` | 204 No Content | 401 (unauthenticated) |
+| `List` | 200 OK | 401 (unauthenticated, from auth middleware) |
+| `Revoke` | 204 No Content | 401 (unauthenticated, from auth middleware), 400 (missing session ID), 404 (session not found or owned by another user) |
+| `RevokeAll` | 204 No Content | 401 (unauthenticated, from auth middleware) |
