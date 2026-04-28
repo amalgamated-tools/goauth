@@ -46,7 +46,7 @@ See [handler package](index.md#shared-response-types) for the `UserDTO` and `Aut
 When `Sessions` is set on `AuthHandler`:
 
 - `Signup` and `Login` create a server-side session, embed the session ID as the JWT `jti` claim, and return a `refresh_token` alongside the short-lived access token.
-- `Logout` revokes the current session by parsing the session ID from the access token (even if expired).
+- `Logout` revokes the current session by parsing the session ID from the access token (even if expired). If deletion returns `auth.ErrNotFound` (session already expired or revoked), the error is silently ignored. Any other deletion error is logged as a warning via `slog.WarnContext` and does not affect the HTTP 200 response.
 - `RefreshToken` validates the refresh token, atomically revokes the old session, creates a new session, and returns a fresh access token and a new refresh token (rotation). The consumed token is never reusable.
 - Setting `RefreshCookieName` causes the refresh token to also be delivered and expected via an HttpOnly cookie, in addition to the response body.
 - Pass `auth.Config{Sessions: sessionStore}` to `Middleware` so that revoked sessions are rejected on every request.
@@ -82,4 +82,5 @@ When `Sessions` is set on `AuthHandler`:
 | `ChangePassword` | 200 OK | `{"message": "password updated"}` |
 | `ChangePassword` | 400 Bad Request | Missing fields; password outside 8–72 bytes; OIDC-only account (no password set) |
 | `ChangePassword` | 401 Unauthorized | Wrong current password; missing or invalid auth token (middleware) |
+| `ChangePassword` | 404 Not Found | User not found |
 | `ChangePassword` | 500 Internal Server Error | Store failure or password hashing failure |

@@ -98,8 +98,9 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 | `Enabled` | 200 OK | Always |
 | `BeginRegistration` | 200 OK | `{session_id, options}` |
 | `BeginRegistration` | 400 Bad Request | Missing or empty `name`; `name` exceeds 100 characters |
+| `BeginRegistration` | 404 Not Found | User not found |
 | `BeginRegistration` | 503 Service Unavailable | `WebAuthn` is `nil` (passkeys disabled) |
-| `BeginRegistration` | 500 Internal Server Error | Failed to fetch user, list credentials, begin WebAuthn ceremony, or store challenge |
+| `BeginRegistration` | 500 Internal Server Error | Store error fetching user; failed to list credentials, begin WebAuthn ceremony, or store challenge |
 | `FinishRegistration` | 201 Created | `PasskeyCredentialDTO` |
 | `FinishRegistration` | 400 Bad Request | Missing `session_id`; invalid/expired session; registration verification failed |
 | `FinishRegistration` | 503 Service Unavailable | `WebAuthn` is `nil` |
