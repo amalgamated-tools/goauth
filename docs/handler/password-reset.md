@@ -21,9 +21,54 @@ POST /password-reset/request   → h.RequestReset    // send reset email
 POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
 ```
 
+## Request bodies
+
+`RequestReset`:
+```json
+{"email": "user@example.com"}
+```
+
+`ResetPassword`:
+```json
+{"token": "<raw-token>", "newPassword": "newpassword123"}
+```
+
+Password constraints: 8–72 bytes.
+
+## HTTP status codes
+
+### `RequestReset`
+
+`RequestReset` always returns HTTP 200 for valid requests (regardless of whether the address is registered) to prevent email enumeration. Validation and server-side failures still surface as non-200 responses.
+
+| Status | Condition |
+|---|---|
+| **200 OK** | Success (generic message; address may or may not be registered) |
+| 400 Bad Request | Missing or malformed request body; `email` field is empty |
+| 429 Too Many Requests | Rate limit exceeded (when `RateLimiter` is set) |
+| 500 Internal Server Error | Store failure (non-ErrNotFound error from `FindByEmail`, `CreatePasswordResetToken`, or `GenerateRandomBase64`) |
+
+Success response body:
+```json
+{"message": "if that email is registered, a reset link has been sent"}
+```
+
+### `ResetPassword`
+
+| Status | Condition |
+|---|---|
+| **200 OK** | Password updated successfully |
+| 400 Bad Request | Missing or malformed request body; `token` is empty or invalid/expired; password fails validation |
+| 500 Internal Server Error | Store failure (`FindPasswordResetToken`, `FindByID`, or `UpdatePassword`) |
+
+Success response body:
+```json
+{"message": "password reset successfully"}
+```
+
 ## Behaviour
 
-`RequestReset` returns the same success response whether or not the email is registered, preventing enumeration. Reset tokens are consumed (deleted) after successful use.
+Reset tokens are consumed (deleted) after successful use.
 
 !!! info "Email enumeration prevention"
     `RequestReset` always returns HTTP 200 with a generic message, regardless of whether the email is registered.
