@@ -21,16 +21,23 @@ POST /password-reset/request   → h.RequestReset    // send reset email
 POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
 ```
 
-## Response types
+## Request bodies
 
-| Endpoint | HTTP status | Response body |
-|---|---|---|
-| `RequestReset` | 200 OK | `{"message": "if that email is registered, a reset link has been sent"}` |
-| `ResetPassword` | 200 OK | `{"message": "password reset successfully"}` |
+`RequestReset`:
+```json
+{"email": "user@example.com"}
+```
+
+`ResetPassword`:
+```json
+{"token": "<raw-token>", "newPassword": "newpassword123"}
+```
+
+Password constraints: 8–72 bytes.
 
 ## Behaviour
 
-`RequestReset` returns the same success response whether or not the email is registered, preventing enumeration. Reset tokens are consumed (deleted) after successful use.
+Reset tokens are consumed (deleted) after successful use.
 
 !!! info "Email enumeration prevention"
     `RequestReset` always returns HTTP 200 with a generic message, regardless of whether the email is registered.
@@ -43,9 +50,31 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 
 ## HTTP status codes
 
-| Endpoint | Success | Notable error codes |
-|---|---|---|
-| `RequestReset` | 200 OK | 400 (email required), 429 (rate limited) |
-| `ResetPassword` | 200 OK | 400 (token or new password required, invalid/expired token, or weak password) |
+### `RequestReset`
 
-`RequestReset` returns 200 whether or not the email is registered, preventing email enumeration. Other failure modes (invalid input, rate limiting, internal errors) still return their respective error codes.
+`RequestReset` returns HTTP 200 when the request passes rate limiting and validation (non-empty `email`, valid JSON), regardless of whether the address is registered, to prevent email enumeration.
+
+| Status | Condition |
+|---|---|
+| **200 OK** | Success (generic message; address may or may not be registered) |
+| 400 Bad Request | Missing or malformed request body; `email` field is empty |
+| 429 Too Many Requests | Rate limit exceeded (when `RateLimiter` is set) |
+| 500 Internal Server Error | Token generation failure (`GenerateRandomBase64`) or store failure (non-ErrNotFound error from `FindByEmail` or `CreatePasswordResetToken`) |
+
+Success response body:
+```json
+{"message": "if that email is registered, a reset link has been sent"}
+```
+
+### `ResetPassword`
+
+| Status | Condition |
+|---|---|
+| **200 OK** | Password updated successfully |
+| 400 Bad Request | Missing or malformed request body; `token` is empty or invalid/expired; password fails validation |
+| 500 Internal Server Error | Store failure (`FindPasswordResetToken`, `FindByID`, or `UpdatePassword`) |
+
+Success response body:
+```json
+{"message": "password reset successfully"}
+```

@@ -57,7 +57,7 @@ Registration and authentication use server-side challenge storage (via `PasskeyS
 
 ## Response types
 
-`FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token`, `refresh_token` when `Sessions` is set, and `user`) **and** sets the JWT in an `HttpOnly` session cookie. When `Sessions` is set and `RefreshCookieName` is non-empty, a refresh token cookie is also set.
+`FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token`, `refresh_token` when `Sessions` is set, and `user`) **and** sets the JWT in an `HttpOnly` session cookie. When `Sessions` is set and `RefreshCookieName` is non-empty, a refresh token cookie is also set. The response also sets `Cache-Control: no-store` and `Pragma: no-cache` to prevent tokens from being stored in browser or proxy caches.
 
 When `Sessions` is `nil`, `PasskeyHandler` issues an access JWT only. The token lifetime is determined by the configured `JWTManager`.
 

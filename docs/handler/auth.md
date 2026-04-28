@@ -35,7 +35,7 @@ POST   /auth/password        → h.ChangePassword // change password (requires a
 
 ## Response types
 
-`Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when `Sessions` is set), and `user` (a `UserDTO`).
+`Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when `Sessions` is set), and `user` (a `UserDTO`). These responses also set `Cache-Control: no-store` and `Pragma: no-cache` to prevent tokens from being stored in browser or proxy caches.
 
 `Me` and `UpdateProfile` return a bare `UserDTO`.
 
