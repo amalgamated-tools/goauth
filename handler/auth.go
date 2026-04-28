@@ -197,7 +197,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if h.Sessions != nil {
 		if tok := auth.ExtractToken(r, h.CookieName); tok != "" {
 			if claims, err := h.JWT.ParseTokenClaims(tok); err == nil && claims.ID != "" {
-				if err := h.Sessions.DeleteSession(r.Context(), claims.ID, claims.UserID); err != nil {
+				if err := h.Sessions.DeleteSession(r.Context(), claims.ID, claims.UserID); err != nil && !errors.Is(err, auth.ErrNotFound) {
 					slog.WarnContext(r.Context(), "failed to revoke session on logout",
 						slog.String("session_id", claims.ID),
 						slog.Any("error", err))
