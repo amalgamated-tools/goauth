@@ -117,6 +117,7 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), auth.BcryptCost)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to hash password", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to hash password")
 		return
 	}
@@ -161,6 +162,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid email or password")
 			return
 		}
+		slog.ErrorContext(r.Context(), "failed to find user by email", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -291,6 +293,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 			return
 		}
+		slog.ErrorContext(r.Context(), "failed to get user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to get user")
 		return
 	}
@@ -311,6 +314,7 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	user, err := h.Users.UpdateName(r.Context(), userID, req.Name)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to update profile", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to update profile")
 		return
 	}
@@ -334,6 +338,11 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	user, err := h.Users.FindByID(r.Context(), userID)
 	if err != nil {
+		if errors.Is(err, auth.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusNotFound, "user not found")
+			return
+		}
+		slog.ErrorContext(r.Context(), "failed to get user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to get user")
 		return
 	}
@@ -352,6 +361,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.Users.UpdatePassword(r.Context(), userID, string(hash)); err != nil {
+		slog.ErrorContext(r.Context(), "failed to update password", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to update password")
 		return
 	}
