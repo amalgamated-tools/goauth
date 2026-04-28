@@ -18,6 +18,9 @@ const (
 )
 
 // PasswordResetHandler handles email-based password reset flows.
+//
+// If SendResetEmail is nil, RequestReset returns HTTP 503 before any database
+// write, treating a missing sender as a misconfiguration error.
 type PasswordResetHandler struct {
 	Users  auth.UserStore
 	Resets auth.PasswordResetStore
@@ -67,6 +70,11 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	if h.SendResetEmail == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "password reset sending is not configured")
+		return
+	}
+
 	user, err := h.Users.FindByEmail(r.Context(), req.Email)
 	if err != nil && !errors.Is(err, auth.ErrNotFound) {
 		slog.ErrorContext(r.Context(), "password reset: lookup user", slog.Any("error", err))
@@ -93,13 +101,11 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		if h.SendResetEmail != nil {
-			if err := h.SendResetEmail(r.Context(), user.Email, rawToken); err != nil {
-				slog.ErrorContext(r.Context(), "password reset: send email", slog.Any("error", err))
-				// Delete the orphaned token so state stays consistent.
-				if delErr := h.Resets.DeletePasswordResetToken(r.Context(), token.ID); delErr != nil {
-					slog.ErrorContext(r.Context(), "password reset: cleanup token after email failure", slog.Any("error", delErr))
-				}
+		if err := h.SendResetEmail(r.Context(), user.Email, rawToken); err != nil {
+			slog.ErrorContext(r.Context(), "password reset: send email", slog.Any("error", err))
+			// Delete the orphaned token so state stays consistent.
+			if delErr := h.Resets.DeletePasswordResetToken(r.Context(), token.ID); delErr != nil {
+				slog.ErrorContext(r.Context(), "password reset: cleanup token after email failure", slog.Any("error", delErr))
 			}
 		}
 	}

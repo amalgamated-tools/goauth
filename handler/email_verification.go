@@ -24,7 +24,8 @@ const (
 // SendEmail is called with the recipient address and the plaintext token.
 // Consuming applications are responsible for formatting the email body and
 // sending it via the smtp package (or any other mechanism).
-// If SendEmail is nil, tokens are still created and stored, but no email is sent.
+// If SendEmail is nil, SendVerification returns HTTP 503 before any database
+// write, treating a missing sender as a misconfiguration error.
 type EmailVerificationHandler struct {
 	Users         auth.UserStore
 	Verifications auth.EmailVerificationStore
@@ -62,6 +63,11 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 		return
 	}
 
+	if h.SendEmail == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "email verification sending is not configured")
+		return
+	}
+
 	// Look up user – always return 200 even when not found to avoid
 	// leaking account existence.
 	user, err := h.Users.FindByEmail(r.Context(), req.Email)
@@ -92,10 +98,8 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 		return
 	}
 
-	if h.SendEmail != nil {
-		if err := h.SendEmail(r.Context(), user.Email, plaintext); err != nil {
-			slog.ErrorContext(r.Context(), "failed to send verification email", slog.String("userID", user.ID), slog.Any("error", err))
-		}
+	if err := h.SendEmail(r.Context(), user.Email, plaintext); err != nil {
+		slog.ErrorContext(r.Context(), "failed to send verification email", slog.String("userID", user.ID), slog.Any("error", err))
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})

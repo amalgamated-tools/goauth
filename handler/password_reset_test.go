@@ -16,8 +16,9 @@ import (
 
 func newPasswordResetHandler(users auth.UserStore, resets auth.PasswordResetStore) *PasswordResetHandler {
 	return &PasswordResetHandler{
-		Users:  users,
-		Resets: resets,
+		Users:          users,
+		Resets:         resets,
+		SendResetEmail: func(_ context.Context, _, _ string) error { return nil },
 	}
 }
 
@@ -167,17 +168,24 @@ func TestRequestReset_responseMessage(t *testing.T) {
 }
 
 func TestRequestReset_nilSendResetEmail(t *testing.T) {
-	// No SendResetEmail set — should not panic and should return 200.
+	createCalled := false
 	users := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return &auth.User{ID: "u1", Email: "alice@test.com", PasswordHash: "somehash"}, nil
 		},
 	}
-	resets := &mockPasswordResetStore{}
-	h := newPasswordResetHandler(users, resets) // SendResetEmail is nil
-
+	resets := &mockPasswordResetStore{
+		createFunc: func(_ context.Context, _, _ string, _ time.Time) (*auth.PasswordResetToken, error) {
+			createCalled = true
+			return &auth.PasswordResetToken{ID: "reset-id"}, nil
+		},
+	}
+	// SendResetEmail is nil — must return 503 and must not write to the DB.
+	h := newPasswordResetHandler(users, resets)
+	h.SendResetEmail = nil
 	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	require.False(t, createCalled, "CreatePasswordResetToken must not be called when SendResetEmail is nil")
 }
 
 // ---------------------------------------------------------------------------
@@ -303,9 +311,10 @@ func TestRequestReset_tokenTTL(t *testing.T) {
 	}
 	ttl := 30 * time.Minute
 	h := &PasswordResetHandler{
-		Users:    users,
-		Resets:   resets,
-		TokenTTL: ttl,
+		Users:          users,
+		Resets:         resets,
+		TokenTTL:       ttl,
+		SendResetEmail: func(_ context.Context, _, _ string) error { return nil },
 	}
 
 	before := time.Now()
