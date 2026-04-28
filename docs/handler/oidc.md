@@ -75,3 +75,17 @@ When `Sessions` is set on `OIDCHandler`:
 - Setting `RefreshCookieName` causes the refresh token to be delivered via an `HttpOnly` cookie. Because `Callback` performs a redirect, the refresh token is **only** available via the cookie (not in a response body). `RefreshCookieName` is therefore required when `Sessions` is non-nil.
 
 When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lifetime is determined by the configured `JWTManager` TTL.
+
+## HTTP status codes
+
+`Login` and `Callback` use HTTP redirects on the success path rather than JSON responses.
+
+| Endpoint | Success | Notable error codes |
+|---|---|---|
+| `Login` | 302 (redirect to provider) | 500 (failed to generate state) |
+| `Callback` | 302 (redirect to `/?oidc_login=1`) | 400 (missing state cookie, invalid state, missing PKCE verifier, missing auth code, or missing claims), 401 (provider error, code exchange failed, invalid token, or unverified email), 500 (configuration error or user resolution failed) |
+| `CreateLinkNonce` | 200 OK | 401 (unauthenticated, from auth middleware), 500 |
+| `Link` | 302 (redirect to provider for account linking) | 400 (missing nonce), 401 (invalid or expired nonce), 409 (account already linked), 500 |
+
+!!! note "Link callback redirects"
+    After the provider redirects back through `Callback` during a link flow, all outcomes — both success and errors — use HTTP 302 redirects. Success redirects to `/?oidc_linked=true`; errors redirect to `/?oidc_link_error=<value>`. See [Linking flow error redirects](#linking-flow-error-redirects) for the full list of error values.

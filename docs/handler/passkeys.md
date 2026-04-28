@@ -83,3 +83,15 @@ type PasskeyCredentialDTO struct {
 ```
 
 The `id` field can be passed to `DeleteCredential` to remove a specific passkey.
+
+## HTTP status codes
+
+| Endpoint | Success | Notable error codes |
+|---|---|---|
+| `Enabled` | 200 OK | — |
+| `BeginRegistration` | 200 OK | 400 (name required or > 100 chars), 401 (unauthenticated), 503 (passkeys not configured) |
+| `FinishRegistration` | **201 Created** | 400 (session_id required, invalid/expired session, or registration verification failed), 401 (unauthenticated), 503 (passkeys not configured) |
+| `BeginAuthentication` | 200 OK | 503 (passkeys not configured) |
+| `FinishAuthentication` | 200 OK | 400 (session_id required), 401 (invalid/expired session or authentication failed), 503 (passkeys not configured) |
+| `ListCredentials` | 200 OK | 401 (unauthenticated, from auth middleware) |
+| `DeleteCredential` | 204 No Content | 400 (invalid credential ID), 401 (unauthenticated), 404 (credential not found) |
