@@ -44,10 +44,14 @@ dto := handler.ToUserDTO(user)
 
 ### AuthResponse
 
-Returned by `Signup`, `Login`, `RefreshToken`, and `VerifyMagicLink`:
+Returned by `Signup`, `Login`, `RefreshToken`, `VerifyMagicLink`, and `PasskeyHandler.FinishAuthentication`:
 
 ```go
-// Contains: token, refresh_token (when Sessions is set), and user (UserDTO)
+type AuthResponse struct {
+    Token        string  `json:"token"`
+    RefreshToken string  `json:"refresh_token,omitempty"` // omitted when Sessions is nil
+    User         UserDTO `json:"user"`
+}
 ```
 
 ## Error responses
