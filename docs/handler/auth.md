@@ -35,7 +35,7 @@ POST   /auth/password        → h.ChangePassword // change password (requires a
 
 ## Response types
 
-`Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when `Sessions` is set), and `user` (a `UserDTO`).
+`Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when `Sessions` is set), and `user` (a `UserDTO`). These responses also set `Cache-Control: no-store` and `Pragma: no-cache` to prevent tokens from being stored in browser or proxy caches.
 
 `Me` and `UpdateProfile` return a bare `UserDTO`.
 
@@ -51,7 +51,7 @@ See [handler package](index.md#shared-response-types) for the `UserDTO` and `Aut
 | `RefreshToken` | 200 OK | 400 (missing refresh token), 401 (invalid or expired refresh token), 404 (sessions not enabled) |
 | `Me` | 200 OK | 401 (unauthenticated), 404 (user not found) |
 | `UpdateProfile` | 200 OK | 400 (name required) |
-| `ChangePassword` | 200 OK | 400 (missing fields, weak password, or OIDC-only account: cannot change password), 401 (wrong current password) |
+| `ChangePassword` | 200 OK (`{"message": "password updated"}`) | 400 (missing fields, weak password, or OIDC-only account: cannot change password), 401 (wrong current password) |
 
 ## Session tracking and refresh token rotation
 

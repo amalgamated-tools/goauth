@@ -54,6 +54,8 @@ type apiKeyCreateResponse struct {
 !!! warning "Store the key immediately"
     The raw API key is returned once in the `Create` response and cannot be recovered. Store it securely before closing the creation response.
 
+The `Create` response also sets `Cache-Control: no-store` and `Pragma: no-cache` to prevent the raw key from being stored in browser or proxy caches.
+
 ## HTTP status codes
 
 | Endpoint | Status | Condition |

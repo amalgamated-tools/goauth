@@ -21,9 +21,23 @@ POST /password-reset/request   → h.RequestReset    // send reset email
 POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
 ```
 
+## Request bodies
+
+`RequestReset`:
+```json
+{"email": "user@example.com"}
+```
+
+`ResetPassword`:
+```json
+{"token": "<raw-token>", "newPassword": "newpassword123"}
+```
+
+Password constraints: 8–72 bytes.
+
 ## Behaviour
 
-`RequestReset` returns the same success response whether or not the email is registered, preventing enumeration. Reset tokens are consumed (deleted) after successful use.
+Reset tokens are consumed (deleted) after successful use.
 
 !!! info "Email enumeration prevention"
     `RequestReset` always returns HTTP 200 with a generic message, regardless of whether the email is registered.
