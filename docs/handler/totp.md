@@ -51,7 +51,7 @@ See [TOTP / MFA](../auth/totp.md) for the underlying primitives and replay prote
 | `Generate` | 200 OK | Success |
 | `Generate` | 500 Internal Server Error | Failed to generate secret or look up user |
 | `Enroll` | 200 OK | Success; `{"enrolled": true}` |
-| `Enroll` | 400 Bad Request | Missing `secret` or `code`; invalid base32 `secret` (< 20 bytes) |
+| `Enroll` | 400 Bad Request | Missing `secret` or `code`; invalid base32 `secret` (< 20 bytes); `secret` rejected by TOTP validation |
 | `Enroll` | 401 Unauthorized | Invalid or replayed TOTP code |
 | `Enroll` | 500 Internal Server Error | Store failure |
 | `Verify` | 200 OK | Success; `{"valid": true}` |
