@@ -18,7 +18,8 @@
 - cipher.AEAD (GCM) cached in SecretEncrypter — safe for concurrent use after init.
 - base32 encoding precomputed as package-level var in auth/totp.go (totpEncoding).
 - jsonError (auth/http.go) and writeError (handler/helpers.go): use structs instead of map[string]string (merged PR #128).
-- All handler success responses now use structs instead of map[string]string/map[string]bool (PR submitted, branch: efficiency/handler-response-structs).
+- All handler success responses now use structs instead of map[string]string/map[string]bool (merged PR #137).
+- ValidateTOTP now creates HMAC once and reuses via hotpCodeWithMAC + mac.Reset() — saves 2 allocs per TOTP auth (PR submitted, branch: efficiency/reuse-hmac-in-validate-totp).
 - handler/totp.go line 115: base32.StdEncoding.WithPadding(base32.NoPadding) still called per-request in Enroll (low priority — enrollment is rare).
 
 ## Optimisation Backlog
@@ -32,12 +33,13 @@
 | MEDIUM | Code-Level | SecretEncrypter: cache cipher.AEAD (GCM wrapper) | Save ~200-500ns + 1 alloc per Encrypt/Decrypt | MERGED PR #80 |
 | MEDIUM | Code-Level | ValidateTOTP: base32.StdEncoding.WithPadding(base32.NoPadding) per call -> package-level var | Save ~290-byte heap alloc per ValidateTOTP call | MERGED PR #82 |
 | MEDIUM | Code-Level | jsonError/writeError: map[string]string{"error":msg} -> struct | Save ~264 bytes per error response in middleware+handlers | MERGED PR #128 |
-| MEDIUM | Code-Level | All handler success responses: 15x map[string]string/bool -> structs | Save ~264 bytes × 15 response paths | PR submitted (branch: efficiency/handler-response-structs) |
+| MEDIUM | Code-Level | All handler success responses: 15x map[string]string/bool -> structs | Save ~264 bytes × 15 response paths | MERGED PR #137 |
+| MEDIUM | Code-Level | ValidateTOTP: reuse HMAC via hotpCodeWithMAC + mac.Reset() | Save ~600-700 bytes (2 hmac allocs) per TOTP auth attempt | PR submitted (branch: efficiency/reuse-hmac-in-validate-totp) |
 | LOW | Code-Level | handler/totp.go Enroll: base32.StdEncoding.WithPadding per call | Enrollment is rare — low priority | Future |
 | LOW | Data | No benchmarks for any code paths — measurement infrastructure gap | Enables future evidence-based optimisation |
 
 ## Work In Progress
-- PR submitted (branch: efficiency/handler-response-structs): replace 15x map[string]string/bool success response literals with typed structs across auth.go, email_verification.go, password_reset.go, magiclink.go, oidc.go, passkey.go, totp.go
+- PR submitted (branch: efficiency/reuse-hmac-in-validate-totp): add hotpCodeWithMAC(mac hash.Hash, counter uint64); reuse HMAC in ValidateTOTP 3-step loop; saves 2 × hmac.New allocations per TOTP auth call
 
 ## Completed Work
 - PR #39: MERGED 2026-04-20 — replace math.Pow10 with totpModulo=1_000_000 integer constant
@@ -48,12 +50,13 @@
 - PR #80: MERGED 2026-04-26 — cache cipher.AEAD in SecretEncrypter
 - PR #82: MERGED 2026-04-26 — precompute base32 encoding as package-level var (totpEncoding)
 - PR #128: MERGED (confirmed 2026-04-27) — replace map[string]string error body with struct (jsonError + writeError)
+- PR #137: MERGED 2026-04-28 — replace 15x single-key map[string]string/bool success response literals with typed structs
 
 ## Backlog Cursor
 - Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete)
 - Remaining: handler/totp.go Enroll base32 per-call (very low priority); no benchmark infra
-- Last tasks run: Task 3 (implement new PR - handler-response-structs), Task 7 (monthly summary update)
-- Last run: 2026-04-27
+- Last tasks run: Task 3 (implement new PR - reuse-hmac-in-validate-totp), Task 7 (monthly summary create new issue)
+- Last run: 2026-04-28
 
 ## Last Run
-- 2026-04-27: Confirmed PR #128 (map[string]string error body -> struct) was merged. Submitted new PR (branch: efficiency/handler-response-structs) replacing all 15 remaining single-key map[string]string/map[string]bool success response literals with small typed structs across 7 handler files. Saves ~264 bytes × 15 per corresponding requests. messageBody (helpers.go), nonceBody (oidc.go), passkeyEnabledBody (passkey.go), totpStatusBody + totpVerifyBody (totp.go). Updated monthly issue #40.
+- 2026-04-28: Confirmed PR #137 (handler success map->struct) was merged. April monthly issue #40 was closed by maintainer. Created new April 2026 monthly issue. Submitted new PR (branch: efficiency/reuse-hmac-in-validate-totp): add hotpCodeWithMAC(mac hash.Hash, counter uint64) + mac.Reset() to reuse HMAC across 3 time-step checks in ValidateTOTP — saves 2 hmac.New allocations (~600-700 bytes) per TOTP auth attempt.
