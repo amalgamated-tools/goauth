@@ -59,25 +59,27 @@ When `Sessions` is set on `AuthHandler`:
 | `Signup` | 400 Bad Request | Missing `name`, `email`, or `password`; password outside 8–72 bytes |
 | `Signup` | 403 Forbidden | Signup disabled (`DisableSignup: true`) |
 | `Signup` | 409 Conflict | Email already registered |
-| `Signup` | 500 Internal Server Error | Password hashing failure or store failure |
+| `Signup` | 500 Internal Server Error | Password hashing failure, store failure, or token/session issuance failure |
 | `Login` | 200 OK | Success |
 | `Login` | 400 Bad Request | Missing `email` or `password` |
 | `Login` | 401 Unauthorized | Invalid credentials |
 | `Login` | 403 Forbidden | Email not verified (when `RequireVerification` is set) |
-| `Login` | 500 Internal Server Error | Store failure |
+| `Login` | 500 Internal Server Error | Store failure or token/session issuance failure |
 | `Logout` | 200 OK | `{"message": "logged out"}` |
 | `RefreshToken` | 200 OK | Success |
 | `RefreshToken` | 400 Bad Request | Missing refresh token |
 | `RefreshToken` | 401 Unauthorized | Invalid or expired refresh token; user not found |
 | `RefreshToken` | 404 Not Found | Sessions not enabled (`Sessions` is `nil`) |
-| `RefreshToken` | 500 Internal Server Error | Store failure |
+| `RefreshToken` | 500 Internal Server Error | Store failure or token/session issuance failure |
 | `Me` | 200 OK | `UserDTO` |
+| `Me` | 401 Unauthorized | Missing or invalid auth token (middleware) |
 | `Me` | 404 Not Found | User not found |
 | `Me` | 500 Internal Server Error | Store failure |
 | `UpdateProfile` | 200 OK | `UserDTO` |
 | `UpdateProfile` | 400 Bad Request | Missing or empty `name` |
+| `UpdateProfile` | 401 Unauthorized | Missing or invalid auth token (middleware) |
 | `UpdateProfile` | 500 Internal Server Error | Store failure |
 | `ChangePassword` | 200 OK | `{"message": "password updated"}` |
 | `ChangePassword` | 400 Bad Request | Missing fields; password outside 8–72 bytes; OIDC-only account (no password set) |
-| `ChangePassword` | 401 Unauthorized | Wrong current password |
+| `ChangePassword` | 401 Unauthorized | Wrong current password; missing or invalid auth token (middleware) |
 | `ChangePassword` | 500 Internal Server Error | Store failure or password hashing failure |
