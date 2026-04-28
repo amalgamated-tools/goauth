@@ -57,7 +57,7 @@ Registration and authentication use server-side challenge storage (via `PasskeyS
 
 ## Response types
 
-`FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token`, `refresh_token` when `Sessions` is set, and `user`) **and** sets the JWT in an `HttpOnly` session cookie. When `Sessions` is set and `RefreshCookieName` is non-empty, a refresh token cookie is also set.
+`FinishAuthentication` returns HTTP 200 with an `AuthResponse` (`token`, `refresh_token` when `Sessions` is set, and `user`) **and** sets the JWT in an `HttpOnly` session cookie. When `Sessions` is set and `RefreshCookieName` is non-empty, a refresh token cookie is also set. The response also sets `Cache-Control: no-store` and `Pragma: no-cache` to prevent tokens from being stored in browser or proxy caches.
 
 When `Sessions` is `nil`, `PasskeyHandler` issues an access JWT only. The token lifetime is determined by the configured `JWTManager`.
 
@@ -86,12 +86,28 @@ The `id` field can be passed to `DeleteCredential` to remove a specific passkey.
 
 ## HTTP status codes
 
-| Endpoint | Success | Notable error codes |
+| Endpoint | Status | Condition |
 |---|---|---|
-| `Enabled` | 200 OK | — |
-| `BeginRegistration` | 200 OK | 400 (name required or > 100 chars), 401 (unauthenticated), 503 (passkeys not configured) |
-| `FinishRegistration` | **201 Created** | 400 (session_id required, invalid/expired session, or registration verification failed), 401 (unauthenticated), 503 (passkeys not configured) |
-| `BeginAuthentication` | 200 OK | 503 (passkeys not configured) |
-| `FinishAuthentication` | 200 OK | 400 (session_id required), 401 (invalid/expired session or authentication failed), 503 (passkeys not configured) |
-| `ListCredentials` | 200 OK | 401 (unauthenticated, from auth middleware) |
-| `DeleteCredential` | 204 No Content | 400 (invalid credential ID), 401 (unauthenticated), 404 (credential not found) |
+| `Enabled` | 200 OK | Always |
+| `BeginRegistration` | 200 OK | `{session_id, options}` |
+| `BeginRegistration` | 400 Bad Request | Missing or empty `name`; `name` exceeds 100 characters |
+| `BeginRegistration` | 503 Service Unavailable | `WebAuthn` is `nil` (passkeys disabled) |
+| `BeginRegistration` | 500 Internal Server Error | Failed to fetch user, list credentials, begin WebAuthn ceremony, or store challenge |
+| `FinishRegistration` | 201 Created | `PasskeyCredentialDTO` |
+| `FinishRegistration` | 400 Bad Request | Missing `session_id`; invalid/expired session; registration verification failed |
+| `FinishRegistration` | 503 Service Unavailable | `WebAuthn` is `nil` |
+| `FinishRegistration` | 500 Internal Server Error | Failed to fetch user, list credentials, marshal credential, or store credential |
+| `BeginAuthentication` | 200 OK | `{session_id, options}` |
+| `BeginAuthentication` | 503 Service Unavailable | `WebAuthn` is `nil` |
+| `BeginAuthentication` | 500 Internal Server Error | Failed to begin WebAuthn ceremony or store challenge |
+| `FinishAuthentication` | 200 OK | `AuthResponse` |
+| `FinishAuthentication` | 400 Bad Request | Missing `session_id` |
+| `FinishAuthentication` | 401 Unauthorized | Invalid/expired session; WebAuthn verification failed |
+| `FinishAuthentication` | 503 Service Unavailable | `WebAuthn` is `nil` |
+| `FinishAuthentication` | 500 Internal Server Error | Store failure during authentication |
+| `ListCredentials` | 200 OK | `[]PasskeyCredentialDTO` |
+| `ListCredentials` | 500 Internal Server Error | Store failure |
+| `DeleteCredential` | 204 No Content | Success |
+| `DeleteCredential` | 400 Bad Request | Missing credential ID |
+| `DeleteCredential` | 404 Not Found | Credential not found or not owned by the authenticated user |
+| `DeleteCredential` | 500 Internal Server Error | Store failure |

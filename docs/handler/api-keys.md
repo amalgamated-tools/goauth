@@ -54,10 +54,18 @@ type apiKeyCreateResponse struct {
 !!! warning "Store the key immediately"
     The raw API key is returned once in the `Create` response and cannot be recovered. Store it securely before closing the creation response.
 
+The `Create` response also sets `Cache-Control: no-store` and `Pragma: no-cache` to prevent the raw key from being stored in browser or proxy caches.
+
 ## HTTP status codes
 
-| Endpoint | Success | Notable error codes |
+| Endpoint | Status | Condition |
 |---|---|---|
-| `List` | 200 OK | 401 (unauthenticated, from auth middleware) |
-| `Create` | **201 Created** | 400 (name required or name > 100 characters), 401 (unauthenticated) |
-| `Delete` | 204 No Content | 400 (invalid credential ID), 401 (unauthenticated), 404 (API key not found) |
+| `List` | 200 OK | Success |
+| `List` | 500 Internal Server Error | Store failure |
+| `Create` | 201 Created | Success |
+| `Create` | 400 Bad Request | Missing or empty `name`; `name` exceeds 100 characters |
+| `Create` | 500 Internal Server Error | API key generation failure or store failure |
+| `Delete` | 204 No Content | Success |
+| `Delete` | 400 Bad Request | Missing key ID |
+| `Delete` | 404 Not Found | API key not found or not owned by the authenticated user |
+| `Delete` | 500 Internal Server Error | Store failure |

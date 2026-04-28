@@ -21,9 +21,23 @@ POST /password-reset/request   → h.RequestReset    // send reset email
 POST /password-reset/confirm   → h.ResetPassword   // validate token and set new password
 ```
 
+## Request bodies
+
+`RequestReset`:
+```json
+{"email": "user@example.com"}
+```
+
+`ResetPassword`:
+```json
+{"token": "<raw-token>", "newPassword": "newpassword123"}
+```
+
+Password constraints: 8–72 bytes.
+
 ## Behaviour
 
-`RequestReset` returns the same success response whether or not the email is registered, preventing enumeration. Reset tokens are consumed (deleted) after successful use.
+Reset tokens are consumed (deleted) after successful use.
 
 !!! info "Email enumeration prevention"
     `RequestReset` always returns HTTP 200 with a generic message, regardless of whether the email is registered.
@@ -36,9 +50,12 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 
 ## HTTP status codes
 
-| Endpoint | Success | Notable error codes |
+| Endpoint | Status | Condition |
 |---|---|---|
-| `RequestReset` | 200 OK | 400 (email required), 429 (rate limited) |
-| `ResetPassword` | 200 OK | 400 (token or new password required, invalid/expired token, or weak password) |
-
-`RequestReset` returns 200 whether or not the email is registered, preventing email enumeration. Other failure modes (invalid input, rate limiting, internal errors) still return their respective error codes.
+| `RequestReset` | 200 OK | Always (even if email is unregistered or account is OIDC-only) |
+| `RequestReset` | 400 Bad Request | Missing `email` field |
+| `RequestReset` | 429 Too Many Requests | Rate limit exceeded (only when `RateLimiter` is configured) |
+| `RequestReset` | 500 Internal Server Error | Store failure during user lookup, token creation, or token generation |
+| `ResetPassword` | 200 OK | `{"message": "password reset successfully"}` |
+| `ResetPassword` | 400 Bad Request | Missing `token` or `newPassword`; password outside 8–72 bytes; invalid or expired token; OIDC-only account (no password set) |
+| `ResetPassword` | 500 Internal Server Error | Internal failure during token lookup, user lookup, password hashing, or password update |

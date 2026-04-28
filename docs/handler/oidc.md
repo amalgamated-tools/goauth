@@ -32,6 +32,15 @@ POST /auth/oidc/link-nonce             → h.CreateLinkNonce    // issue nonce f
 GET  /auth/oidc/link?nonce=<nonce>     → h.Link               // start link flow (requires auth)
 ```
 
+## Response types
+
+| Endpoint | HTTP status | Response body |
+|---|---|---|
+| `Login` | 302 Found | *(redirect to provider — no body)* |
+| `Callback` | 302 Found | *(login flow: redirects to `/?oidc_login=1`; link flow: redirects to `/?oidc_linked=true` — no body in either case; JWT and optional refresh token delivered via `HttpOnly` cookies on the login path)* |
+| `CreateLinkNonce` | 200 OK | `{"nonce": "<nonce>"}` |
+| `Link` | 302 Found | *(redirect to provider — no body)* |
+
 ## Callback behaviour
 
 The callback performs PKCE verification and handles three cases automatically:
@@ -78,14 +87,23 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 
 ## HTTP status codes
 
-`Login` and `Callback` use HTTP redirects on the success path rather than JSON responses.
+`Login` redirects to the OIDC provider on success, but it can return a JSON `500 Internal Server Error` if an early failure occurs before a redirect is possible (for example, when generating the OIDC state). `Callback` sets cookies and redirects on success; it returns JSON errors only when a redirect is not possible (e.g. provider configuration errors before any redirect URL is known).
 
-| Endpoint | Success | Notable error codes |
+| Endpoint | Status | Condition |
 |---|---|---|
-| `Login` | 302 (redirect to provider) | 500 (failed to generate state) |
-| `Callback` | 302 (redirect to `/?oidc_login=1`) | 400 (missing state cookie, invalid state, missing PKCE verifier, missing auth code, or missing claims), 401 (provider error, code exchange failed, invalid token, or unverified email), 500 (configuration error or user resolution failed) |
-| `CreateLinkNonce` | 200 OK | 401 (unauthenticated, from auth middleware), 500 |
-| `Link` | 302 (redirect to provider for account linking) | 400 (missing nonce), 401 (invalid or expired nonce), 409 (account already linked), 500 |
+| `Login` | 302 Found | Redirects to OIDC provider |
+| `Login` | 500 Internal Server Error | Failed to generate random OIDC state |
+| `Callback` | 302 Found | Success — redirects to `/?oidc_login=1` |
+| `Callback` | 400 Bad Request | Missing/invalid state cookie, PKCE verifier, or authorization code; missing `sub`/`email` claims |
+| `Callback` | 401 Unauthorized | Provider authentication failed; invalid token exchange; invalid `id_token`; unverified OIDC email |
+| `Callback` | 500 Internal Server Error | `Sessions != nil && RefreshCookieName == ""`; failed to parse claims, resolve/create user, or issue tokens/session (e.g. refresh token generation, session store creation, or JWT creation) |
+| `CreateLinkNonce` | 200 OK | `{"nonce": "..."}` |
+| `CreateLinkNonce` | 500 Internal Server Error | Failed to generate nonce |
+| `Link` | 302 Found | Redirects to OIDC provider to start the linking flow |
+| `Link` | 400 Bad Request | Missing nonce |
+| `Link` | 401 Unauthorized | Invalid or expired nonce |
+| `Link` | 409 Conflict | Account is already linked to an OIDC identity, or resolving the current user (`Users.FindByID`) fails |
+| `Link` | 500 Internal Server Error | Failed to initiate OIDC redirect |
 
-!!! note "Link callback redirects"
-    After the provider redirects back through `Callback` during a link flow, all outcomes — both success and errors — use HTTP 302 redirects. Success redirects to `/?oidc_linked=true`; errors redirect to `/?oidc_link_error=<value>`. See [Linking flow error redirects](#linking-flow-error-redirects) for the full list of error values.
+!!! info "Link-callback redirects"
+    After the OIDC provider returns to `Callback` during a link flow, all outcomes (success and failure) are communicated via redirect query parameters (`oidc_linked=true` or `oidc_link_error=<value>`), never via JSON error responses. See [Linking flow error redirects](#linking-flow-error-redirects) for the possible `oidc_link_error` values.
