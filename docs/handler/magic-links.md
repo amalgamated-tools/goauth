@@ -44,3 +44,16 @@ GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → A
 ## Session tracking
 
 Session tracking and refresh token rotation work identically to `AuthHandler` — set `Sessions`, `RefreshTokenTTL`, and `RefreshCookieName` to enable them.
+
+## HTTP status codes
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `RequestMagicLink` | 200 OK | Always (even if email is unregistered) |
+| `RequestMagicLink` | 400 Bad Request | Missing `email` field |
+| `RequestMagicLink` | 503 Service Unavailable | `Sender` is `nil` (not configured) |
+| `RequestMagicLink` | 500 Internal Server Error | Token generation failure or store failure |
+| `VerifyMagicLink` | 200 OK | `AuthResponse` (token + user, plus refresh_token when Sessions is set) |
+| `VerifyMagicLink` | 400 Bad Request | Missing `token` query parameter |
+| `VerifyMagicLink` | 401 Unauthorized | Invalid, expired, or already-consumed token |
+| `VerifyMagicLink` | 500 Internal Server Error | Store failure or user resolution failure |

@@ -36,3 +36,16 @@ type SessionDTO struct {
 ```
 
 The `id` field can be passed to `Revoke` to force a remote sign-out.
+
+## HTTP status codes
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `List` | 200 OK | Success |
+| `List` | 500 Internal Server Error | Store failure |
+| `Revoke` | 204 No Content | Success |
+| `Revoke` | 400 Bad Request | Missing session ID |
+| `Revoke` | 404 Not Found | Session not found or not owned by the authenticated user |
+| `Revoke` | 500 Internal Server Error | Store failure |
+| `RevokeAll` | 204 No Content | Success |
+| `RevokeAll` | 500 Internal Server Error | Store failure |

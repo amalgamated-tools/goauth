@@ -43,3 +43,24 @@ Enrollment is a two-step flow:
 | `Disable` | 204 | *(no body)* |
 
 See [TOTP / MFA](../auth/totp.md) for the underlying primitives and replay protection details.
+
+## HTTP status codes
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Generate` | 200 OK | Success |
+| `Generate` | 500 Internal Server Error | Failed to generate secret or look up user |
+| `Enroll` | 200 | Success; `{"enrolled": true}` |
+| `Enroll` | 400 Bad Request | Missing `secret` or `code`; invalid base32 `secret` (< 20 bytes) |
+| `Enroll` | 401 Unauthorized | Invalid or replayed TOTP code |
+| `Enroll` | 500 Internal Server Error | Store failure |
+| `Verify` | 200 OK | Success; `{"valid": true}` |
+| `Verify` | 400 Bad Request | Missing `code` |
+| `Verify` | 401 Unauthorized | Invalid or replayed TOTP code |
+| `Verify` | 404 Not Found | TOTP not configured for the user |
+| `Verify` | 500 Internal Server Error | Store failure |
+| `Status` | 200 OK | Success |
+| `Status` | 500 Internal Server Error | Store failure (non-`ErrTOTPNotFound` error) |
+| `Disable` | 204 No Content | Success |
+| `Disable` | 404 Not Found | TOTP not configured for the user |
+| `Disable` | 500 Internal Server Error | Store failure |

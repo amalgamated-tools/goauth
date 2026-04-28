@@ -33,3 +33,15 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 
 !!! tip "Scheduling cleanup"
     Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation of expired tokens.
+
+## HTTP status codes
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `RequestReset` | 200 OK | Always (even if email is unregistered or account is OIDC-only) |
+| `RequestReset` | 400 Bad Request | Missing `email` field |
+| `RequestReset` | 429 Too Many Requests | Rate limit exceeded (only when `RateLimiter` is configured) |
+| `RequestReset` | 500 Internal Server Error | Store failure during user lookup, token creation, or token generation |
+| `ResetPassword` | 200 OK | `{"message": "password reset successfully"}` |
+| `ResetPassword` | 400 Bad Request | Missing `token` or `newPassword`; password outside 8–72 bytes; invalid or expired token; OIDC-only account (no password set) |
+| `ResetPassword` | 500 Internal Server Error | Store failure during token lookup, user lookup, or password update |
