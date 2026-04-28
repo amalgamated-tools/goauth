@@ -40,7 +40,11 @@ Password constraints: 8–72 bytes.
 Reset tokens are consumed (deleted) after successful use.
 
 !!! info "Email enumeration prevention"
-    `RequestReset` always returns HTTP 200 with a generic message, regardless of whether the email is registered.
+    `RequestReset` always returns HTTP 200 with the following response, regardless of whether the email is registered:
+
+    ```json
+    {"message": "if that email is registered, a reset link has been sent"}
+    ```
 
 !!! note "Token cleanup on email delivery failure"
     If `SendResetEmail` returns an error, `RequestReset` deletes the stored reset token to keep state consistent. The caller still receives the generic HTTP 200 success response; the failure is logged server-side via `slog.ErrorContext`.
@@ -52,7 +56,7 @@ Reset tokens are consumed (deleted) after successful use.
 
 | Endpoint | Status | Condition |
 |---|---|---|
-| `RequestReset` | 200 OK | Always (even if email is unregistered or account is OIDC-only) |
+| `RequestReset` | 200 OK | `{"message": "if that email is registered, a reset link has been sent"}` (always, even if email is unregistered or account is OIDC-only) |
 | `RequestReset` | 400 Bad Request | Missing `email` field |
 | `RequestReset` | 429 Too Many Requests | Rate limit exceeded (only when `RateLimiter` is configured) |
 | `RequestReset` | 500 Internal Server Error | Store failure during user lookup, token creation, or token generation |
