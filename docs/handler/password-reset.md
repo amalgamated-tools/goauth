@@ -35,6 +35,19 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 
 Password constraints: 8–72 bytes.
 
+## Behaviour
+
+Reset tokens are consumed (deleted) after successful use.
+
+!!! info "Email enumeration prevention"
+    `RequestReset` always returns HTTP 200 with a generic message, regardless of whether the email is registered.
+
+!!! note "Token cleanup on email delivery failure"
+    If `SendResetEmail` returns an error, `RequestReset` deletes the stored reset token to keep state consistent. The caller still receives the generic HTTP 200 success response; the failure is logged server-side via `slog.ErrorContext`.
+
+!!! tip "Scheduling cleanup"
+    Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation of expired tokens.
+
 ## HTTP status codes
 
 ### `RequestReset`
@@ -65,16 +78,3 @@ Success response body:
 ```json
 {"message": "password reset successfully"}
 ```
-
-## Behaviour
-
-Reset tokens are consumed (deleted) after successful use.
-
-!!! info "Email enumeration prevention"
-    `RequestReset` always returns HTTP 200 with a generic message, regardless of whether the email is registered.
-
-!!! note "Token cleanup on email delivery failure"
-    If `SendResetEmail` returns an error, `RequestReset` deletes the stored reset token to keep state consistent. The caller still receives the generic HTTP 200 success response; the failure is logged server-side via `slog.ErrorContext`.
-
-!!! tip "Scheduling cleanup"
-    Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation of expired tokens.

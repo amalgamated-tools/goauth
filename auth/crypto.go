@@ -54,8 +54,8 @@ func MustGenerateDummyBcryptHash(secret string) []byte {
 }
 
 // SecretEncrypter encrypts and decrypts sensitive values using AES-256-GCM.
-// The AES block cipher and the cipher.AEAD returned by cipher.NewGCM are
-// created once at construction time and reused across Encrypt/Decrypt calls.
+// The cipher.AEAD returned by cipher.NewGCM is created once at construction
+// time and reused across Encrypt/Decrypt calls.
 type SecretEncrypter struct {
 	gcm cipher.AEAD
 }

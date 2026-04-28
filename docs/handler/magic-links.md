@@ -44,3 +44,12 @@ GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → A
 ## Session tracking
 
 Session tracking and refresh token rotation work identically to `AuthHandler` — set `Sessions`, `RefreshTokenTTL`, and `RefreshCookieName` to enable them.
+
+## HTTP status codes
+
+| Endpoint | Success | Notable error codes |
+|---|---|---|
+| `RequestMagicLink` | 200 OK | 400 (email required), 503 (sender not configured) |
+| `VerifyMagicLink` | 200 OK | 400 (token required), 401 (invalid or expired token) |
+
+`RequestMagicLink` returns 200 whether or not the email is registered, preventing enumeration. When `Sender` is `nil` it returns 503 without touching the database.
