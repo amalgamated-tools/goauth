@@ -1040,7 +1040,7 @@ GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks 
 
 `SendVerification` silently skips already-verified addresses and returns the same success response whether or not the address is registered, preventing enumeration. Set `RequireVerification: true` on `AuthHandler` to gate login on email verification.
 
-When `SendEmail` is `nil`, verification tokens are still created and stored but no email is delivered. This is useful in testing environments where email delivery is not required.
+When `SendEmail` is `nil`, `SendVerification` returns HTTP 503 (`email verification sending is not configured`) before any database write. Configure `SendEmail` before mounting in production; supply a no-op function in tests instead of leaving the field nil.
 
 #### Response types
 
@@ -1067,10 +1067,11 @@ All `EmailVerificationHandler` endpoints return `{"error": "<message>"}` JSON on
 | Endpoint | Status | Condition |
 |---|---|---|
 | `SendVerification` | `400 Bad Request` | Invalid JSON body or `email` is empty |
+| `SendVerification` | `503 Service Unavailable` | `SendEmail` is `nil` (not configured) |
 | `VerifyEmail` | `400 Bad Request` | `token` query parameter is missing, or token is invalid or expired |
 | `VerifyEmail` | `500 Internal Server Error` | Store error consuming or applying the verification |
 
-> **Note:** Beyond the `400` cases, `SendVerification` always returns HTTP 200 — including when the user is not found, when the email is already verified, when token generation fails, when the store errors, and when email delivery fails. These failures are logged internally. This blanket 200 behaviour intentionally prevents leaking account existence.
+> **Note:** Beyond the `400` and `503` cases, `SendVerification` always returns HTTP 200 — including when the user is not found, when the email is already verified, when token generation fails, when the store errors, and when email delivery fails. These failures are logged internally. This blanket 200 behaviour intentionally prevents leaking account existence.
 
 ### PasswordResetHandler – email-based password reset
 
@@ -1089,7 +1090,7 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 
 Only accounts with a password hash (not OIDC-only accounts) can use the reset flow. `RequestReset` returns the same success response whether or not the email is registered. Reset tokens are consumed (deleted) after successful use. If `SendResetEmail` returns an error, the handler attempts to delete the orphaned token as a best-effort cleanup and still returns HTTP 200; deletion failures are only logged/ignored, so the token may remain in the store.
 
-When `SendResetEmail` is `nil`, reset tokens are still created and stored but no email is delivered. This is useful in testing environments where email delivery is not required.
+When `SendResetEmail` is `nil`, `RequestReset` returns HTTP 503 (`password reset sending is not configured`) before any database write. Configure `SendResetEmail` before mounting in production; supply a no-op function in tests instead of leaving the field nil.
 
 `RequestReset` expects `{"email": "<address>"}`. `ResetPassword` expects `{"token": "<raw token from email>", "newPassword": "<new password>"}` (same 8–72 byte password constraint as `AuthHandler`).
 
@@ -1123,6 +1124,7 @@ All `PasswordResetHandler` endpoints return `{"error": "<message>"}` JSON on fai
 |---|---|---|
 | `RequestReset` | `400 Bad Request` | Invalid JSON body or `email` is empty |
 | `RequestReset` | `429 Too Many Requests` | Rate limiter triggered (when `RateLimiter` is set) |
+| `RequestReset` | `503 Service Unavailable` | `SendResetEmail` is `nil` (not configured) |
 | `RequestReset` | `500 Internal Server Error` | Store error looking up user, generating token, or persisting token |
 | `ResetPassword` | `400 Bad Request` | Invalid JSON body, `token` missing, password outside 8–72 bytes, token invalid or expired, or account is OIDC-only (no password hash) |
 | `ResetPassword` | `500 Internal Server Error` | User lookup, bcrypt, or store error |

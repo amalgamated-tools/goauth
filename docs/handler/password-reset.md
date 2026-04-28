@@ -14,6 +14,9 @@ h := &handler.PasswordResetHandler{
 }
 ```
 
+!!! warning "SendResetEmail is required"
+    If `SendResetEmail` is `nil`, `RequestReset` returns HTTP 503 (`password reset sending is not configured`) without touching the database. Configure `SendResetEmail` before mounting this handler in production. To skip email delivery in tests, supply a no-op function instead of leaving the field nil.
+
 ## Routes
 
 ```
@@ -59,6 +62,7 @@ Reset tokens are consumed (deleted) after successful use.
 | `RequestReset` | 200 OK | `{"message": "if that email is registered, a reset link has been sent"}` (always, even if email is unregistered or account is OIDC-only) |
 | `RequestReset` | 400 Bad Request | Missing `email` field |
 | `RequestReset` | 429 Too Many Requests | Rate limit exceeded (only when `RateLimiter` is configured) |
+| `RequestReset` | 503 Service Unavailable | `SendResetEmail` is `nil` (not configured) |
 | `RequestReset` | 500 Internal Server Error | Store failure during user lookup, token creation, or token generation |
 | `ResetPassword` | 200 OK | `{"message": "password reset successfully"}` |
 | `ResetPassword` | 400 Bad Request | Missing `token` or `newPassword`; password outside 8–72 bytes; invalid or expired token; OIDC-only account (no password set) |
