@@ -58,6 +58,7 @@ To gate login on email verification, set `RequireVerification: true` on `AuthHan
 |---|---|---|
 | `SendVerification` | 200 OK | Always (even if email is unregistered or already verified) |
 | `SendVerification` | 400 Bad Request | Missing `email` field |
+| `SendVerification` | 503 Service Unavailable | `SendEmail` is `nil` (not configured) |
 | `VerifyEmail` | 200 OK | `{"message": "email verified"}` |
 | `VerifyEmail` | 400 Bad Request | Missing `token` query parameter; invalid or expired token |
 | `VerifyEmail` | 500 Internal Server Error | Unexpected store failure when consuming the verification token or marking the email as verified |
