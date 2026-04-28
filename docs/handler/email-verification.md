@@ -36,7 +36,7 @@ GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks 
 
 `SendVerification` silently skips already-verified addresses and returns the same success response whether or not the address is registered, preventing enumeration.
 
-`SendVerification` returns HTTP 400 for a missing `email` field or a malformed request body. For all valid requests it returns HTTP 200 regardless of whether the address is registered:
+`SendVerification` returns HTTP 400 for a missing `email` field or a malformed request body, and HTTP 503 when `SendEmail` is not configured. Beyond the `400` and `503` cases, it returns HTTP 200 regardless of whether the address is registered:
 
 ```json
 {"message": "if that address is registered, a verification email has been sent"}
@@ -56,8 +56,9 @@ To gate login on email verification, set `RequireVerification: true` on `AuthHan
 
 | Endpoint | Status | Condition |
 |---|---|---|
-| `SendVerification` | 200 OK | Always (even if email is unregistered or already verified) |
+| `SendVerification` | 200 OK | Always, except for 400 and 503 cases (even if email is unregistered or already verified) |
 | `SendVerification` | 400 Bad Request | Missing `email` field |
+| `SendVerification` | 503 Service Unavailable | `SendEmail` is `nil` (not configured) |
 | `VerifyEmail` | 200 OK | `{"message": "email verified"}` |
 | `VerifyEmail` | 400 Bad Request | Missing `token` query parameter; invalid or expired token |
 | `VerifyEmail` | 500 Internal Server Error | Unexpected store failure when consuming the verification token or marking the email as verified |
