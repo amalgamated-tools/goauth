@@ -149,6 +149,7 @@ func (h *PasskeyHandler) BeginRegistration(w http.ResponseWriter, r *http.Reques
 	userID := auth.UserIDFromContext(r.Context())
 	user, err := h.Users.FindByID(r.Context(), userID)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
 		return
 	}

@@ -116,6 +116,7 @@ func (h *APIKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusNotFound, "API key not found")
 			return
 		}
+		slog.ErrorContext(r.Context(), "failed to delete API key", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to delete API key")
 		return
 	}
