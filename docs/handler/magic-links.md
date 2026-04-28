@@ -1,6 +1,6 @@
 # MagicLinkHandler — Passwordless Login
 
-`MagicLinkHandler` provides passwordless authentication via one-time email links. Tokens expire after 15 minutes and are single-use. If no account exists for the email, one is auto-provisioned on verification.
+`MagicLinkHandler` provides passwordless authentication via one-time email links. Tokens expire after 15 minutes and are single-use. If no account exists for the email, one is auto-provisioned on verification. The new account uses the email address as the initial display name; users can update their display name afterwards via `AuthHandler.UpdateProfile`.
 
 ## Configuration
 

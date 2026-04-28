@@ -58,6 +58,9 @@ The callback performs PKCE verification and handles three cases automatically:
 
 Account linking uses a short-lived (5-minute) HMAC-signed state token to protect the integrity of the linking flow. The state value is signed, not encrypted, so any embedded user identifier should be treated as visible to the browser and other parties that can inspect the redirect URL or related cookies.
 
+!!! warning "In-memory nonce storage"
+    `OIDCHandler` stores pending link nonces in an in-memory map. In a **multi-instance deployment** (e.g. behind a load balancer), the nonce generated on one instance may not be present on the instance that handles the `/oidc/link?nonce=…` request, causing that request to fail with HTTP 401 `"invalid or expired nonce"`. Ensure sticky sessions or use a shared external store if you need account linking across multiple instances.
+
 ### Linking flow error redirects
 
 `handleLinkCallback` redirects to `/?oidc_link_error=<value>` on every failure. The redirect applies `url.QueryEscape` to the value, so the raw URL contains `+`/`%XX` encoding; normal query parsing returns the decoded string. The possible values are:

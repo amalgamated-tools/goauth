@@ -40,3 +40,6 @@ if !rl.Allow(r) {
 ```
 
 Stale visitor entries are swept lazily every 5 minutes.
+
+!!! warning "In-memory state"
+    `RateLimiter` tracks per-IP token buckets in an in-memory map. In a **multi-instance deployment** (e.g. behind a load balancer), each instance maintains its own independent state — a client can exceed the intended limit by spreading requests across instances. For stricter multi-instance enforcement, supplement with a shared external rate limiter (e.g. Redis).

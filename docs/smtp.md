@@ -32,3 +32,9 @@ if cfg.Enabled() {
 | `SMTP_PASSWORD` | | Auth password |
 | `SMTP_FROM` | *(required)* | Sender address, RFC 5322 format (`Name <addr>` or bare address) |
 | `SMTP_TLS` | `starttls` | TLS mode: `none`, `starttls`, or `tls` |
+
+## Security and timeouts
+
+- **TLS minimum version:** TLS 1.2 is enforced for both `tls` and `starttls` modes. Plain-text (`none`) disables TLS entirely and should only be used in trusted local environments.
+- **Connection dial timeout:** 10 seconds.
+- **Session timeout:** 30 seconds (measured from the moment the TCP connection is established). If the calling context has a shorter deadline, that deadline takes precedence.
