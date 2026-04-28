@@ -31,6 +31,7 @@ ciphertext, err := enc.Encrypt("sensitive value")
 plaintext, err  := enc.Decrypt(ciphertext)
 // Decrypt is a no-op if the value doesn't start with the "enc:v1:" prefix.
 // Encrypt and Decrypt return an error if called on a zero-value SecretEncrypter.
+// Encrypt returns ("", nil) when given an empty string — no ciphertext is stored.
 ```
 
 The encrypter is obtained from a `JWTManager` — see [JWT Manager](jwt.md#aes-256-gcm-encryption).

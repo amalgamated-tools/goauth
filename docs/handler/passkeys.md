@@ -43,7 +43,7 @@ DELETE /auth/passkey/credentials/{id}     → h.DeleteCredential      // 204 No 
 
 ## Registration and authentication flow
 
-Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client.
+Registration and authentication use server-side challenge storage (via `PasskeyStore`) instead of cookies, keeping the flow stateless on the client. Challenges expire after **5 minutes**; presenting a `session_id` whose challenge has expired returns HTTP 400 or 401.
 
 **Registration:**
 
@@ -70,6 +70,9 @@ When `Sessions` is set on `PasskeyHandler`:
 - Pass `auth.Config{CookieName: "session", Sessions: sessionStore}` to `Middleware` so that revoked sessions are rejected on every request.
 
 Session tracking and refresh token rotation work identically to `AuthHandler`. Refresh token rotation (via `AuthHandler.RefreshToken`) requires `AuthHandler` to be mounted — `PasskeyHandler` does not expose a dedicated refresh endpoint.
+
+!!! note "Credential counter updates"
+    After a successful authentication, `FinishAuthentication` updates the stored credential data (including the WebAuthn signature counter) via `PasskeyStore.UpdateCredentialData`. A failure to persist the counter is logged as a warning but **does not fail** the authentication. The counter is used to detect cloned authenticators — if the counter from the device is less than or equal to the stored value, the WebAuthn library flags it as a potential clone.
 
 `FinishRegistration` returns a single `PasskeyCredentialDTO` (HTTP 201); `ListCredentials` returns `[]PasskeyCredentialDTO` (HTTP 200):
 
