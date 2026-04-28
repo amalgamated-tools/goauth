@@ -61,6 +61,18 @@ Registration and authentication use server-side challenge storage (via `PasskeyS
 
 When `Sessions` is `nil`, `PasskeyHandler` issues an access JWT only. The token lifetime is determined by the configured `JWTManager`.
 
+## HTTP status codes
+
+| Endpoint | Success | Notable error codes |
+|---|---|---|
+| `Enabled` | 200 OK | — |
+| `BeginAuthentication` | 200 OK | 503 (passkeys not configured) |
+| `FinishAuthentication` | 200 OK | 400 (session_id missing), 401 (invalid or expired session, authentication failed), 503 (passkeys not configured) |
+| `BeginRegistration` | 200 OK | 400 (name missing or exceeds 100 chars), 503 (passkeys not configured) |
+| `FinishRegistration` | **201 Created** | 400 (session_id missing, invalid or expired session), 503 (passkeys not configured) |
+| `ListCredentials` | 200 OK | 401 (unauthenticated, from auth middleware) |
+| `DeleteCredential` | 204 No Content | 400 (credential ID missing), 404 (credential not found or not owned by user) |
+
 ## Session tracking and refresh tokens
 
 When `Sessions` is set on `PasskeyHandler`:
