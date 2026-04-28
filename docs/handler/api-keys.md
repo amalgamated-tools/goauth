@@ -58,8 +58,14 @@ The `Create` response also sets `Cache-Control: no-store` and `Pragma: no-cache`
 
 ## HTTP status codes
 
-| Endpoint | Success | Notable error codes |
+| Endpoint | Status | Condition |
 |---|---|---|
-| `List` | 200 OK | 401 (unauthenticated, from auth middleware), 500 (store failure) |
-| `Create` | **201 Created** | 400 (missing or empty `name`; name exceeds 100 characters), 500 (key generation or store failure) |
-| `Delete` | 204 No Content | 400 (missing key ID), 404 (key not found or owned by another user), 500 (store failure) |
+| `List` | 200 OK | Success |
+| `List` | 500 Internal Server Error | Store failure |
+| `Create` | 201 Created | Success |
+| `Create` | 400 Bad Request | Missing or empty `name`; `name` exceeds 100 characters |
+| `Create` | 500 Internal Server Error | API key generation failure or store failure |
+| `Delete` | 204 No Content | Success |
+| `Delete` | 400 Bad Request | Missing key ID |
+| `Delete` | 404 Not Found | API key not found or not owned by the authenticated user |
+| `Delete` | 500 Internal Server Error | Store failure |

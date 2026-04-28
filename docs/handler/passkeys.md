@@ -90,13 +90,28 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 
 ## HTTP status codes
 
-| Endpoint | Success | Notable error codes |
+| Endpoint | Status | Condition |
 |---|---|---|
-| `Enabled` | 200 OK | — |
-| `BeginRegistration` | 200 OK | 400 (missing `name`; name exceeds 100 chars), 401 (unauthenticated), 503 (`WebAuthn` is nil) |
-| `FinishRegistration` | **201 Created** | 400 (missing `session_id`), 401 (invalid/expired session or WebAuthn verification failure), 503 (`WebAuthn` is nil) |
-| `BeginAuthentication` | 200 OK | 503 (`WebAuthn` is nil) |
-| `FinishAuthentication` | 200 OK | 400 (missing `session_id`), 401 (invalid/expired session or WebAuthn verification failure), 503 (`WebAuthn` is nil) |
-| `ListCredentials` | 200 OK | 401 (unauthenticated), 500 (store failure) |
-| `DeleteCredential` | 204 No Content | 400 (missing credential ID), 401 (unauthenticated), 404 (credential not found or owned by another user), 500 (store failure) |
-
+| `Enabled` | 200 OK | Always |
+| `BeginRegistration` | 200 OK | `{session_id, options}` |
+| `BeginRegistration` | 400 Bad Request | Missing or empty `name`; `name` exceeds 100 characters |
+| `BeginRegistration` | 503 Service Unavailable | `WebAuthn` is `nil` (passkeys disabled) |
+| `BeginRegistration` | 500 Internal Server Error | Failed to fetch user, list credentials, begin WebAuthn ceremony, or store challenge |
+| `FinishRegistration` | 201 Created | `PasskeyCredentialDTO` |
+| `FinishRegistration` | 400 Bad Request | Missing `session_id`; invalid/expired session; registration verification failed |
+| `FinishRegistration` | 503 Service Unavailable | `WebAuthn` is `nil` |
+| `FinishRegistration` | 500 Internal Server Error | Failed to fetch user, list credentials, marshal credential, or store credential |
+| `BeginAuthentication` | 200 OK | `{session_id, options}` |
+| `BeginAuthentication` | 503 Service Unavailable | `WebAuthn` is `nil` |
+| `BeginAuthentication` | 500 Internal Server Error | Failed to begin WebAuthn ceremony or store challenge |
+| `FinishAuthentication` | 200 OK | `AuthResponse` |
+| `FinishAuthentication` | 400 Bad Request | Missing `session_id` |
+| `FinishAuthentication` | 401 Unauthorized | Invalid/expired session; WebAuthn verification failed |
+| `FinishAuthentication` | 503 Service Unavailable | `WebAuthn` is `nil` |
+| `FinishAuthentication` | 500 Internal Server Error | Store failure during authentication |
+| `ListCredentials` | 200 OK | `[]PasskeyCredentialDTO` |
+| `ListCredentials` | 500 Internal Server Error | Store failure |
+| `DeleteCredential` | 204 No Content | Success |
+| `DeleteCredential` | 400 Bad Request | Missing credential ID |
+| `DeleteCredential` | 404 Not Found | Credential not found or not owned by the authenticated user |
+| `DeleteCredential` | 500 Internal Server Error | Store failure |

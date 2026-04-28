@@ -24,7 +24,7 @@ import "github.com/amalgamated-tools/goauth/auth"
 | `auth.ErrExpiredToken` | Token has passed its `exp` claim |
 | `auth.ErrEmailExists` | `CreateUser` called with an already-registered email |
 | `auth.ErrEmailNotVerified` | A flow requires a verified email but the account's `EmailVerified` is false |
-| `auth.ErrSessionRevoked` | Reserved sentinel for store implementations to signal a revoked session. **The standard middleware does not check for this error** — store implementations that need revocation to return HTTP 401 must return `auth.ErrNotFound` instead; returning `ErrSessionRevoked` from `FindSessionByID` causes the middleware to respond with HTTP 500. |
+| `auth.ErrSessionRevoked` | Exported sentinel for store implementations that want to distinguish an explicitly revoked session. The built-in middleware does **not** special-case `ErrSessionRevoked`; stores used with that middleware should return or wrap `auth.ErrNotFound` for revoked sessions so they are handled as expected (401) rather than surfacing as a generic 500 error |
 | `auth.ErrNotFound` | Store method found no matching record |
 | `auth.ErrTOTPNotFound` | `GetTOTPSecret` called for a user who has not enrolled TOTP |
 | `auth.ErrInvalidTOTPCode` | TOTP code verification failed |

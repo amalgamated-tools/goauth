@@ -51,9 +51,13 @@ To gate login on email verification, set `RequireVerification: true` on `AuthHan
 
 ## HTTP status codes
 
-| Endpoint | Success | Notable error codes |
+| Endpoint | Status | Condition |
 |---|---|---|
-| `SendVerification` | 200 OK | 400 (email required) |
-| `VerifyEmail` | 200 OK | 400 (token required or invalid/expired token) |
+| `SendVerification` | 200 OK | Always (even if email is unregistered or already verified) |
+| `SendVerification` | 400 Bad Request | Missing `email` field |
+| `VerifyEmail` | 200 OK | `{"message": "email verified"}` |
+| `VerifyEmail` | 400 Bad Request | Missing `token` query parameter; invalid or expired token |
+| `VerifyEmail` | 500 Internal Server Error | Unexpected store failure when consuming the verification token or marking the email as verified |
 
-`SendVerification` always returns 200 whether or not the address is registered or already verified — this prevents email enumeration.
+!!! info "Silent success for unregistered / already-verified addresses"
+    `SendVerification` returns 200 for unregistered emails and already-verified addresses without storing a token or sending an email. Only the missing-`email` validation check surfaces as a non-200 error.

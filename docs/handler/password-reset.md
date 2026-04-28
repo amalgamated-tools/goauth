@@ -50,31 +50,12 @@ Reset tokens are consumed (deleted) after successful use.
 
 ## HTTP status codes
 
-### `RequestReset`
-
-`RequestReset` returns HTTP 200 when the request passes rate limiting and validation (non-empty `email`, valid JSON), regardless of whether the address is registered, to prevent email enumeration.
-
-| Status | Condition |
-|---|---|
-| **200 OK** | Success (generic message; address may or may not be registered) |
-| 400 Bad Request | Missing or malformed request body; `email` field is empty |
-| 429 Too Many Requests | Rate limit exceeded (when `RateLimiter` is set) |
-| 500 Internal Server Error | Token generation failure (`GenerateRandomBase64`) or store failure (non-ErrNotFound error from `FindByEmail` or `CreatePasswordResetToken`) |
-
-Success response body:
-```json
-{"message": "if that email is registered, a reset link has been sent"}
-```
-
-### `ResetPassword`
-
-| Status | Condition |
-|---|---|
-| **200 OK** | Password updated successfully |
-| 400 Bad Request | Missing or malformed request body; `token` is empty or invalid/expired; password fails validation |
-| 500 Internal Server Error | Store failure (`FindPasswordResetToken`, `FindByID`, or `UpdatePassword`) |
-
-Success response body:
-```json
-{"message": "password reset successfully"}
-```
+| Endpoint | Status | Condition |
+|---|---|---|
+| `RequestReset` | 200 OK | Always (even if email is unregistered or account is OIDC-only) |
+| `RequestReset` | 400 Bad Request | Missing `email` field |
+| `RequestReset` | 429 Too Many Requests | Rate limit exceeded (only when `RateLimiter` is configured) |
+| `RequestReset` | 500 Internal Server Error | Store failure during user lookup, token creation, or token generation |
+| `ResetPassword` | 200 OK | `{"message": "password reset successfully"}` |
+| `ResetPassword` | 400 Bad Request | Missing `token` or `newPassword`; password outside 8–72 bytes; invalid or expired token; OIDC-only account (no password set) |
+| `ResetPassword` | 500 Internal Server Error | Internal failure during token lookup, user lookup, password hashing, or password update |
