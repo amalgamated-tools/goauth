@@ -640,6 +640,6 @@ func TestCallback_sessionsWithoutRefreshCookieName_returns500(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 	var body map[string]string
-	_ = json.NewDecoder(w.Body).Decode(&body)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Contains(t, body["error"], "configuration")
 }
