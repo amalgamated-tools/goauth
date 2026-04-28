@@ -44,7 +44,7 @@ dto := handler.ToUserDTO(user)
 
 ### AuthResponse
 
-Returned by `Signup`, `Login`, `RefreshToken`, and `VerifyMagicLink`:
+Returned by `Signup`, `Login`, `RefreshToken`, `VerifyMagicLink`, and `PasskeyHandler.FinishAuthentication`:
 
 ```go
 type AuthResponse struct {
