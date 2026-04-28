@@ -51,6 +51,7 @@ func newEmailVerificationHandler(users auth.UserStore, store auth.EmailVerificat
 	return &EmailVerificationHandler{
 		Users:         users,
 		Verifications: store,
+		SendEmail:     func(_ context.Context, _, _ string) error { return nil },
 	}
 }
 
@@ -147,7 +148,6 @@ func TestSendVerification_storeError(t *testing.T) {
 		},
 	}
 	h := newEmailVerificationHandler(store, verStore)
-	h.SendEmail = func(_ context.Context, _, _ string) error { return nil }
 	w := postJSON(t, h.SendVerification, `{"email":"alice@test.com"}`)
 	require.Equal(t, http.StatusOK, w.Code)
 }
@@ -160,7 +160,6 @@ func TestSendVerification_userStoreError(t *testing.T) {
 	}
 	// Non-auth.ErrNotFound errors log and return 200 to avoid leaking info.
 	h := newEmailVerificationHandler(store, &mockEmailVerificationStore{})
-	h.SendEmail = func(_ context.Context, _, _ string) error { return nil }
 	w := postJSON(t, h.SendVerification, `{"email":"alice@test.com"}`)
 	require.Equal(t, http.StatusOK, w.Code)
 }
@@ -180,6 +179,7 @@ func TestSendVerification_noSendEmailFunc(t *testing.T) {
 	}
 	// SendEmail is nil — must return 503 and must not write to the DB.
 	h := newEmailVerificationHandler(store, verStore)
+	h.SendEmail = nil
 	w := postJSON(t, h.SendVerification, `{"email":"alice@test.com"}`)
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 	require.False(t, createCalled, "CreateEmailVerification must not be called when SendEmail is nil")
