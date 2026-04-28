@@ -24,7 +24,7 @@ import "github.com/amalgamated-tools/goauth/auth"
 | `auth.ErrExpiredToken` | Token has passed its `exp` claim |
 | `auth.ErrEmailExists` | `CreateUser` called with an already-registered email |
 | `auth.ErrEmailNotVerified` | A flow requires a verified email but the account's `EmailVerified` is false |
-| `auth.ErrSessionRevoked` | Middleware finds the JWT `jti` in the store but the session is revoked |
+| `auth.ErrSessionRevoked` | Exported sentinel for store implementations to signal an explicitly revoked session; the library middleware uses `ErrNotFound` when a session lookup fails |
 | `auth.ErrNotFound` | Store method found no matching record |
 | `auth.ErrTOTPNotFound` | `GetTOTPSecret` called for a user who has not enrolled TOTP |
 | `auth.ErrInvalidTOTPCode` | TOTP code verification failed |
