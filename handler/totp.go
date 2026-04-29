@@ -9,6 +9,11 @@ import (
 	"github.com/amalgamated-tools/goauth/auth"
 )
 
+// totpHandlerEncoding is precomputed once to avoid allocating a new
+// base32.Encoding value on each Enroll call. This mirrors the totpEncoding
+// var in the auth package and keeps the handler consistent with that pattern.
+var totpHandlerEncoding = base32.StdEncoding.WithPadding(base32.NoPadding)
+
 // TOTPHandler provides HTTP handlers for TOTP/MFA enrollment and verification.
 //
 // Enrollment flow:
@@ -124,7 +129,7 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secretBytes, decErr := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(req.Secret)
+	secretBytes, decErr := totpHandlerEncoding.DecodeString(req.Secret)
 	if decErr != nil || len(secretBytes) < 20 {
 		writeError(r.Context(), w, http.StatusBadRequest, "invalid TOTP secret")
 		return

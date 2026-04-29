@@ -21,8 +21,10 @@ const (
 )
 
 var (
-	totpFormat   = fmt.Sprintf("%%0%dd", totpDigits)
-	totpEncoding = base32.StdEncoding.WithPadding(base32.NoPadding) // precomputed once; avoids per-call heap alloc on the hot path
+	totpFormat     = fmt.Sprintf("%%0%dd", totpDigits)
+	totpEncoding   = base32.StdEncoding.WithPadding(base32.NoPadding) // precomputed once; avoids per-call heap alloc on the hot path
+	totpDigitsStr  = strconv.Itoa(totpDigits)                         // precomputed; avoids a per-call alloc in TOTPProvisioningURI
+	totpPeriodStr  = strconv.Itoa(totpPeriod)                         // precomputed; avoids a per-call alloc in TOTPProvisioningURI
 )
 
 // GenerateTOTPSecret generates a cryptographically random 20-byte secret and
@@ -48,8 +50,8 @@ func TOTPProvisioningURI(secret, accountName, issuer string) string {
 	params.Set("secret", secret)
 	params.Set("issuer", issuer)
 	params.Set("algorithm", "SHA1")
-	params.Set("digits", strconv.Itoa(totpDigits))
-	params.Set("period", strconv.Itoa(totpPeriod))
+	params.Set("digits", totpDigitsStr)
+	params.Set("period", totpPeriodStr)
 	return "otpauth://totp/" + label + "?" + params.Encode()
 }
 
