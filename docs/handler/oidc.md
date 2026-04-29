@@ -46,7 +46,7 @@ GET  /auth/oidc/link?nonce=<nonce>     → h.Link               // start link fl
 The callback performs PKCE verification and handles three cases automatically:
 
 - **Existing OIDC subject** → log in
-- **Existing email** → link subject and log in
+- **Existing email** → link subject and log in (best-effort: if `LinkOIDCSubject` fails, the failure is logged as a warning and login still succeeds)
 - **New user** → create account
 
 `Callback` does **not** return JSON. On success it sets the JWT in an `HttpOnly` session cookie and redirects the browser to `/?oidc_login=1` (HTTP 302) so that single-page applications can detect a completed OIDC login via the query parameter.
