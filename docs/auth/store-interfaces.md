@@ -21,6 +21,8 @@ type UserStore interface {
 
 Return `auth.ErrEmailExists` from `CreateUser` when a duplicate email is detected.
 
+Return `auth.ErrEmailExists` from `CreateOIDCUser` when the given email is already registered. `OIDCHandler` relies on this to handle a race condition where two concurrent first-time OIDC logins for the same email both attempt to create an account simultaneously: when `CreateOIDCUser` returns `ErrEmailExists`, the handler retries by looking up the now-existing user instead.
+
 ### User struct
 
 ```go
