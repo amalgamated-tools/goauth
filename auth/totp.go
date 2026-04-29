@@ -69,10 +69,6 @@ func ValidateTOTP(secret, code string) (bool, error) {
 	if len(code) != totpDigits {
 		return false, nil
 	}
-	// Create the HMAC once and reuse it for all three time-step checks via
-	// hotpCodeWithMAC (which calls mac.Reset() on each invocation). This avoids
-	// two unnecessary hmac.New allocations (~300-350 bytes each) per ValidateTOTP
-	// call on the authentication hot path.
 	mac := hmac.New(sha1.New, keyBytes) //nolint:gosec // required by RFC 6238
 	step := time.Now().Unix() / totpPeriod
 	for delta := int64(-totpSkew); delta <= int64(totpSkew); delta++ {
@@ -95,9 +91,8 @@ func GenerateTOTPCode(secret string, t time.Time) (string, error) {
 }
 
 // hotpCodeWithMAC computes a single HOTP value per RFC 4226 §5.3 using a
-// pre-created, resettable HMAC. mac.Reset() is called first so the same HMAC
-// can be reused across multiple counter values (as in ValidateTOTP) without
-// re-allocating the underlying SHA1 hash state each time.
+// caller-provided HMAC. mac.Reset() is called first, allowing the same MAC to
+// be reused across multiple counter values.
 func hotpCodeWithMAC(mac hash.Hash, counter uint64) string {
 	mac.Reset()
 	var msg [8]byte
@@ -116,8 +111,6 @@ func hotpCodeWithMAC(mac hash.Hash, counter uint64) string {
 }
 
 // hotpCode computes a single HOTP value per RFC 4226 §5.3.
-// For callers that need multiple counter values with the same key, prefer
-// creating the HMAC once and calling hotpCodeWithMAC directly.
 func hotpCode(key []byte, counter uint64) string {
 	mac := hmac.New(sha1.New, key) //nolint:gosec // required by RFC 6238
 	return hotpCodeWithMAC(mac, counter)
