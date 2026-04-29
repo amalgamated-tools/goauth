@@ -96,6 +96,9 @@ type PasskeyChallenge struct {
 // UserStore defines data access for user operations.
 type UserStore interface {
 	CreateUser(ctx context.Context, name, email, passwordHash string) (*User, error)
+	// CreateOIDCUser creates a new user identified by an OIDC subject.
+	// Returns ErrEmailExists when the email is already registered (used by
+	// OIDCHandler to handle concurrent first-time OIDC login races).
 	CreateOIDCUser(ctx context.Context, name, email, oidcSubject string) (*User, error)
 	// FindByEmail returns ErrNotFound when no user matches the given email.
 	FindByEmail(ctx context.Context, email string) (*User, error)
