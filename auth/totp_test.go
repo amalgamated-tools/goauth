@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/hmac"
+	"crypto/sha1" //nolint:gosec // used in test to validate hotpCodeWithMAC HMAC-reuse behaviour
 	"encoding/base32"
 	"math"
 	"strings"
@@ -226,4 +228,22 @@ func TestHOTPCode_outputLengthMatchesDigits(t *testing.T) {
 	}
 	require.True(t, foundLeftPadded,
 		"test must include at least one HOTP value requiring left-padding to catch format-width drift")
+}
+
+// ---------------------------------------------------------------------------
+// hotpCodeWithMAC — HMAC reuse correctness
+// ---------------------------------------------------------------------------
+
+// TestHOTPCodeWithMAC_reuseMatchesFresh verifies that calling hotpCodeWithMAC
+// with a reused (Reset) HMAC produces identical output to calling hotpCode
+// (which creates a fresh HMAC each time). This is the correctness guarantee
+// that underpins the ValidateTOTP allocation optimisation.
+func TestHOTPCodeWithMAC_reuseMatchesFresh(t *testing.T) {
+	key := []byte("12345678901234567890")
+	mac := hmac.New(sha1.New, key)
+	for counter := uint64(0); counter < 10; counter++ {
+		want := hotpCode(key, counter)
+		got := hotpCodeWithMAC(mac, counter)
+		require.Equalf(t, want, got, "counter=%d: hotpCodeWithMAC result differs from hotpCode", counter)
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/base32"
 	"encoding/binary"
 	"fmt"
+	"hash"
 	"net/url"
 	"strconv"
 	"time"
@@ -68,9 +69,14 @@ func ValidateTOTP(secret, code string) (bool, error) {
 	if len(code) != totpDigits {
 		return false, nil
 	}
+	// Create the HMAC once and reuse it for all three time-step checks via
+	// hotpCodeWithMAC (which calls mac.Reset() on each invocation). This avoids
+	// two unnecessary hmac.New allocations (~300-350 bytes each) per ValidateTOTP
+	// call on the authentication hot path.
+	mac := hmac.New(sha1.New, keyBytes) //nolint:gosec // required by RFC 6238
 	step := time.Now().Unix() / totpPeriod
 	for delta := int64(-totpSkew); delta <= int64(totpSkew); delta++ {
-		if hotpCode(keyBytes, uint64(step+delta)) == code {
+		if hotpCodeWithMAC(mac, uint64(step+delta)) == code {
 			return true, nil
 		}
 	}
@@ -88,14 +94,14 @@ func GenerateTOTPCode(secret string, t time.Time) (string, error) {
 	return hotpCode(keyBytes, step), nil
 }
 
-// hotpCode computes a single HOTP value per RFC 4226 §5.3.
-func hotpCode(key []byte, counter uint64) string {
-	// Use a fixed-size array to avoid potential heap allocation from make([]byte, 8)
-	// depending on escape analysis outcomes.
+// hotpCodeWithMAC computes a single HOTP value per RFC 4226 §5.3 using a
+// pre-created, resettable HMAC. mac.Reset() is called first so the same HMAC
+// can be reused across multiple counter values (as in ValidateTOTP) without
+// re-allocating the underlying SHA1 hash state each time.
+func hotpCodeWithMAC(mac hash.Hash, counter uint64) string {
+	mac.Reset()
 	var msg [8]byte
 	binary.BigEndian.PutUint64(msg[:], counter)
-
-	mac := hmac.New(sha1.New, key) //nolint:gosec // required by RFC 6238
 	_, _ = mac.Write(msg[:])
 	h := mac.Sum(nil)
 
@@ -107,4 +113,12 @@ func hotpCode(key []byte, counter uint64) string {
 
 	otp := truncated % totpModulo
 	return fmt.Sprintf(totpFormat, otp)
+}
+
+// hotpCode computes a single HOTP value per RFC 4226 §5.3.
+// For callers that need multiple counter values with the same key, prefer
+// creating the HMAC once and calling hotpCodeWithMAC directly.
+func hotpCode(key []byte, counter uint64) string {
+	mac := hmac.New(sha1.New, key) //nolint:gosec // required by RFC 6238
+	return hotpCodeWithMAC(mac, counter)
 }
