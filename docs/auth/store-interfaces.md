@@ -136,7 +136,7 @@ type PasswordResetStore interface {
 }
 ```
 
-`FindPasswordResetToken` returns `auth.ErrInvalidToken` when no matching record exists. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
+`FindPasswordResetToken` returns `auth.ErrInvalidToken` when no matching record exists. Implementations may also return `auth.ErrExpiredToken` when a record is found but has already expired — `PasswordResetHandler.ResetPassword` treats both as a `400 Bad Request` with an `"invalid or expired reset token"` message. Expiry checking in the handler provides a second layer of validation, so returning `auth.ErrInvalidToken` for all failure cases is also acceptable. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
 
 ## RBACUserStore
 

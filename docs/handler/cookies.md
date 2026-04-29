@@ -16,4 +16,8 @@ handler.SetRefreshCookie(w, token, cookieName, secure, maxAge) // HttpOnly, Same
 handler.ClearRefreshCookie(w, cookieName, secure)
 ```
 
-All cookies are set with `HttpOnly` and `SameSite=Strict`. Pass `secure: true` in production to also set the `Secure` flag.
+Auth and refresh cookies are set with `HttpOnly` and `SameSite=Strict`. Pass `secure: true` in production to also set the `Secure` flag.
+
+## OIDC flow cookies
+
+The OIDC flow uses two short-lived state cookies (`oidc_state` and `oidc_verifier`) that are set with `SameSite=Lax` instead of `Strict`. `SameSite=Lax` is required here because the OIDC provider redirects the browser back to your callback URL as a top-level cross-site navigation, which `SameSite=Strict` cookies would block. These cookies are `HttpOnly`, expire after 5 minutes, and are cleared immediately inside the callback handler.
