@@ -73,3 +73,4 @@ The HTTP status code reflects the error category:
 | `409 Conflict` | Duplicate resource (e.g. email already registered) |
 | `429 Too Many Requests` | Rate limit exceeded (see [Rate limiting](../auth/rate-limiting.md)) |
 | `500 Internal Server Error` | Unexpected server-side failure |
+| `503 Service Unavailable` | A required dependency is not configured (e.g. `SendEmail`, `Sender`, `SendResetEmail`, or `WebAuthn` is `nil`) |
