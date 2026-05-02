@@ -5,6 +5,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -125,12 +126,14 @@ func decodeJSON(r *http.Request, w http.ResponseWriter, v any) bool {
 const (
 	minPasswordLength = 8
 	maxPasswordLength = 72
+)
 
-	// errPasswordTooShort and errPasswordTooLong are precomputed from the
-	// minPasswordLength/maxPasswordLength constants so that validatePassword
-	// never allocates on the error path.
-	errPasswordTooShort = "password must be at least 8 bytes"
-	errPasswordTooLong  = "password must be at most 72 bytes"
+// errPasswordTooShort and errPasswordTooLong are derived from the length
+// constants at init time, avoiding per-call fmt.Sprintf allocations in
+// validatePassword.
+var (
+	errPasswordTooShort = fmt.Sprintf("password must be at least %d bytes", minPasswordLength)
+	errPasswordTooLong  = fmt.Sprintf("password must be at most %d bytes", maxPasswordLength)
 )
 
 func validatePassword(ctx context.Context, w http.ResponseWriter, password string) bool {
