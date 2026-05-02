@@ -22,7 +22,7 @@
 - ValidateTOTP now creates HMAC once and reuses via hotpCodeWithMAC + mac.Reset() — merged as PR #162.
 - auth/totp.go: totpDigitsStr + totpPeriodStr precomputed vars added (PR #170 submitted).
 - handler/totp.go: totpHandlerEncoding precomputed var added (PR #170 submitted).
-- handler/helpers.go validatePassword: fmt.Sprintf replaced with const strings; fmt import removed (PR #172 submitted).
+- handler/helpers.go validatePassword: error strings now const (not var); fmt import removed (PR #172 fixed 2026-05-02).
 
 ## Optimisation Backlog
 | Priority | Focus Area | Opportunity | Estimated Impact | Status |
@@ -38,12 +38,12 @@
 | MEDIUM | Code-Level | All handler success responses: 15x map[string]string/bool -> structs | Save ~264 bytes × 15 response paths | MERGED PR #137 |
 | MEDIUM | Code-Level | ValidateTOTP: reuse HMAC via hotpCodeWithMAC + mac.Reset() | Save ~600-700 bytes (2 hmac allocs) per TOTP auth attempt | MERGED PR #162 |
 | LOW | Code-Level | handler/totp.go Enroll + auth/totp.go TOTPProvisioningURI: precompute base32 encoding + strconv.Itoa constants | Save 3 allocs (~320 bytes) per TOTP enrollment | PR #170 open |
-| LOW | Code-Level | handler/helpers.go validatePassword: fmt.Sprintf -> const strings | Save 1 alloc (~40 bytes) per failed password validation; removes fmt import | PR #172 open |
+| LOW | Code-Level | handler/helpers.go validatePassword: fmt.Sprintf -> const strings | Save 1 alloc (~40 bytes) per failed password validation; removes fmt import | PR #172 open (fixed to use const 2026-05-02) |
 | LOW | Data | No benchmarks for any code paths — measurement infrastructure gap | Enables future evidence-based optimisation |
 
 ## Work In Progress
 - PR #170 (branch: efficiency/precompute-totp-enrollment-exprs-6ee5a7a64d7afc46): precompute totpDigitsStr, totpPeriodStr in auth/totp.go + totpHandlerEncoding in handler/totp.go; CI green; awaiting maintainer review
-- PR #172 (branch: efficiency/precompute-password-error-strings-746f7beb9208abb3): replace fmt.Sprintf in validatePassword with const strings; remove fmt import from handler/helpers.go; CI green; awaiting maintainer review
+- PR #172 (branch: efficiency/precompute-password-error-strings-746f7beb9208abb3): fixed to use const strings + removed fmt import (commit 2026-05-02); awaiting CI re-run + maintainer review
 
 ## Completed Work
 - PR #39: MERGED 2026-04-20 — replace math.Pow10 with totpModulo=1_000_000 integer constant
@@ -60,12 +60,12 @@
 ## Backlog Cursor
 - Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-01)
 - Major hot-path optimisations exhausted; remaining items are low-priority/rare-path
-- Last tasks run: Task 4 (both PRs CI green), Task 2 (fresh scan, no new opps), Task 7 (closed April #163, created May issue)
-- Last run: 2026-05-01
+- Last tasks run: Task 4 (fixed PR #172 to use const + removed fmt; PR #170 unchanged/CI green), Task 7 (updated May issue)
+- Last run: 2026-05-02
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED 2026-05-01)
-- May 2026: Issue created 2026-05-01 (number TBD — check open issues)
+- May 2026: Issue #174 (open)
 
 ## Last Run
-- 2026-05-01: Task 4 — verified PR #170 and PR #172 both have all CI checks passing (CodeQL + Analyze all green); no fixes needed. Task 2 — full codebase rescan; no new significant efficiency opportunities found. Task 7 — closed April issue #163; created new May 2026 monthly activity issue.
+- 2026-05-02: Task 4 — fixed PR #172: converted errPasswordTooShort/errPasswordTooLong from var (fmt.Sprintf) to const strings and removed fmt import, addressing Greptile review feedback. PR #170 CI green, no changes needed. Task 7 — updated May 2026 monthly activity issue #174.
