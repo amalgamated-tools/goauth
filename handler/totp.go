@@ -123,7 +123,7 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secretBytes, decErr := auth.TOTPEncoding.DecodeString(req.Secret)
+	secretBytes, decErr := auth.TOTPEncoding().DecodeString(req.Secret)
 	if decErr != nil || len(secretBytes) < 20 {
 		writeError(r.Context(), w, http.StatusBadRequest, "invalid TOTP secret")
 		return

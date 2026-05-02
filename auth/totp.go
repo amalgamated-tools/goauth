@@ -22,10 +22,13 @@ const (
 
 var (
 	totpFormat    = fmt.Sprintf("%%0%dd", totpDigits)
-	TOTPEncoding  = base32.StdEncoding.WithPadding(base32.NoPadding) // precomputed once; avoids per-call heap alloc on the hot path
+	totpEncoding  = base32.StdEncoding.WithPadding(base32.NoPadding) // precomputed once; avoids per-call heap alloc on the hot path
 	totpDigitsStr = strconv.Itoa(totpDigits)                         // precomputed; avoids a per-call alloc in TOTPProvisioningURI
 	totpPeriodStr = strconv.Itoa(totpPeriod)                         // precomputed; avoids a per-call alloc in TOTPProvisioningURI
 )
+
+// TOTPEncoding returns the base32 encoding used for all TOTP secrets.
+func TOTPEncoding() *base32.Encoding { return totpEncoding }
 
 // GenerateTOTPSecret generates a cryptographically random 20-byte secret and
 // returns it as an unpadded base32 string, which is the format expected by
@@ -35,7 +38,7 @@ func GenerateTOTPSecret() (string, error) {
 	if _, err := rand.Read(secret); err != nil {
 		return "", fmt.Errorf("generate TOTP secret: %w", err)
 	}
-	return TOTPEncoding.EncodeToString(secret), nil
+	return totpEncoding.EncodeToString(secret), nil
 }
 
 // TOTPProvisioningURI returns an otpauth:// URI suitable for encoding into a
@@ -64,7 +67,7 @@ func TOTPProvisioningURI(secret, accountName, issuer string) string {
 // that require replay protection must record and reject used codes within that
 // window themselves.
 func ValidateTOTP(secret, code string) (bool, error) {
-	keyBytes, err := TOTPEncoding.DecodeString(secret)
+	keyBytes, err := totpEncoding.DecodeString(secret)
 	if err != nil {
 		return false, fmt.Errorf("decode TOTP secret: %w", err)
 	}
@@ -84,7 +87,7 @@ func ValidateTOTP(secret, code string) (bool, error) {
 // GenerateTOTPCode returns the TOTP code for secret at time t. It is provided
 // for testing and tooling; applications should call ValidateTOTP instead.
 func GenerateTOTPCode(secret string, t time.Time) (string, error) {
-	keyBytes, err := TOTPEncoding.DecodeString(secret)
+	keyBytes, err := totpEncoding.DecodeString(secret)
 	if err != nil {
 		return "", fmt.Errorf("decode TOTP secret: %w", err)
 	}
