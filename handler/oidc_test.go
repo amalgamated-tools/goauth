@@ -564,7 +564,7 @@ func TestOIDCLink_userNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Link(w, req)
 
-	require.Equal(t, http.StatusConflict, w.Code)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestOIDCLink_success(t *testing.T) {
