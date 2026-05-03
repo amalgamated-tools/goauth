@@ -587,11 +587,12 @@ func TestOIDCLink_userNotFound(t *testing.T) {
 	require.Equal(t, http.StatusConflict, w.Code)
 }
 
-func TestOIDCLink_storeError(t *testing.T) {
+func TestOIDCLink_userStoreError(t *testing.T) {
 	h := newOIDCHandlerWithConfig()
 
 	nonce := "store-error-nonce"
-	h.linkNonces[nonce] = linkNonce{UserID: "user-1", ExpiresAt: time.Now().Add(time.Minute)}
+	_, err := h.LinkNonces.CreateLinkNonce(context.Background(), "user-1", auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	require.NoError(t, err)
 
 	h.Users = &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
