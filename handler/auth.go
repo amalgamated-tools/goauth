@@ -33,8 +33,9 @@ type AuthHandler struct {
 	// DefaultRefreshTokenTTL when Sessions is non-nil.
 	RefreshTokenTTL time.Duration
 	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. When empty the refresh token is only returned in the
-	// response body.
+	// refresh token. Must be non-empty when Sessions is set; if Sessions is
+	// non-nil and RefreshCookieName is empty, token issuance fails with
+	// HTTP 500 "server misconfiguration".
 	RefreshCookieName   string
 	CookieName          string
 	SecureCookies       bool
