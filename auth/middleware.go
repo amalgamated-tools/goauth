@@ -289,7 +289,7 @@ func authenticate(w http.ResponseWriter, r *http.Request, jwtMgr *JWTManager, ap
 	if cfg.Sessions != nil && sessionID != "" {
 		sess, serr := cfg.Sessions.FindSessionByID(r.Context(), sessionID)
 		if serr != nil {
-			if errors.Is(serr, ErrNotFound) {
+			if errors.Is(serr, ErrNotFound) || errors.Is(serr, ErrSessionRevoked) {
 				jsonError(w, http.StatusUnauthorized, "session expired or revoked")
 			} else {
 				slog.ErrorContext(r.Context(), "failed to look up session", slog.Any("error", serr))
