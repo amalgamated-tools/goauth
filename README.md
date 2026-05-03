@@ -817,7 +817,7 @@ Account linking follows the same pattern as `OIDCHandler`:
 | `Link` | `400 Bad Request` | `nonce` query parameter missing |
 | `Link` | `401 Unauthorized` | Nonce invalid or expired |
 | `Link` | `409 Conflict` | User not found or account already linked |
-| `Link` | `500 Internal Server Error` | Failed to generate CSRF state |
+| `Link` | `500 Internal Server Error` | Nonce store error or failed to initiate redirect |
 
 ### APIKeyHandler
 
