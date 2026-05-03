@@ -27,8 +27,18 @@ token, err := jwtMgr.CreateTokenWithSession(ctx, userID, sessionID)
 
 ```go
 claims, err := jwtMgr.ValidateToken(ctx, tokenString)
-// claims.UserID contains the subject (sub); claims.ID contains the session ID (jti)
 ```
+
+`ValidateToken` returns a `*auth.Claims` value:
+
+```go
+type Claims struct {
+    UserID string `json:"sub"` // subject — the authenticated user's ID
+    jwt.RegisteredClaims       // embeds standard JWT fields; ID field holds the jti (session ID)
+}
+```
+
+`claims.UserID` contains the user ID; `claims.ID` (from `jwt.RegisteredClaims`) contains the session ID embedded as the `jti` claim when `CreateTokenWithSession` was used.
 
 ### Parsing without time checks
 
