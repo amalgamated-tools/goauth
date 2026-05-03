@@ -179,12 +179,14 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusNotFound, "TOTP not configured")
 			return
 		}
+		slog.ErrorContext(r.Context(), "failed to fetch TOTP secret", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch TOTP secret")
 		return
 	}
 
 	ok, err := auth.ValidateTOTP(stored.Secret, req.Code)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to validate TOTP code", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to validate TOTP code")
 		return
 	}

@@ -253,11 +253,13 @@ func (h *PasskeyHandler) BeginAuthentication(w http.ResponseWriter, r *http.Requ
 	}
 	options, sd, err := h.WebAuthn.BeginDiscoverableLogin()
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to begin login", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to begin login")
 		return
 	}
 	sessionID, err := h.storeChallenge(r.Context(), nil, sd, "")
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to store challenge", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store challenge")
 		return
 	}
@@ -309,6 +311,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 	updatedCred, _, err := h.WebAuthn.FinishPasskeyLogin(handler, challengeData.SessionData, r)
 	if err != nil {
 		if listCredsErr != nil {
+			slog.ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", listCredsErr))
 			writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
 		} else {
 			writeError(r.Context(), w, http.StatusUnauthorized, "authentication failed")
