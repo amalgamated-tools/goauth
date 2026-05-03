@@ -95,6 +95,8 @@ If your application requires precise `last_used_at` timestamps, implement `Touch
 
 When `Sessions` is set, the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. It also rejects requests where the session's stored `UserID` does not match the `sub` claim in the JWT — this protects against session fixation scenarios where a session ID from one user is embedded in another user's token. API key requests bypass the session check.
 
+Session revocation is implemented by **deleting the session row** from the store (e.g. via `SessionStore.DeleteSession`). On the next request, `FindSessionByID` returns `auth.ErrNotFound`, which the middleware interprets as a revoked or expired session and responds with `401 Unauthorized`. Note that the exported sentinel `auth.ErrSessionRevoked` is **not** currently checked by the middleware; returning it from `FindSessionByID` produces a `500 Internal Server Error` rather than a `401`.
+
 ## Observability
 
 All four middleware functions — `Middleware`, `AdminMiddleware`, `RequireRole`, and `RequirePermission` — share the same authentication path and emit structured log events via the standard library's `log/slog` package, propagating the request context for trace correlation.
