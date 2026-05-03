@@ -40,7 +40,7 @@ authHandler := &handler.AuthHandler{
     SecureCookies:     true,
     Sessions:          sessionStore,      // enables server-side sessions + refresh tokens
     RefreshTokenTTL:   7 * 24 * time.Hour,
-    RefreshCookieName: "refresh",         // optional: deliver refresh token via cookie
+    RefreshCookieName: "refresh",         // required when Sessions is set
 }
 apiKeyHandler := &handler.APIKeyHandler{
     APIKeys:      apiKeyStore,
