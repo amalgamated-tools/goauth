@@ -85,6 +85,7 @@ func issueTokens(
 	var err error
 	accessToken, err = jwtMgr.CreateToken(r.Context(), userID)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to create token", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create token")
 		return "", "", false
 	}
