@@ -587,7 +587,7 @@ func TestOIDCLink_userNotFound(t *testing.T) {
 	require.Equal(t, http.StatusConflict, w.Code)
 }
 
-func TestOIDCLink_userStoreError(t *testing.T) {
+func TestOIDCLink_dbErrorOnFindByID(t *testing.T) {
 	h := newOIDCHandlerWithConfig()
 
 	nonce := "store-error-nonce"

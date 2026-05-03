@@ -447,6 +447,18 @@ type PasswordResetStore interface {
 
 `FindPasswordResetToken` returns `auth.ErrInvalidToken` when no matching record exists. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
 
+#### OIDCLinkNonceStore
+
+```go
+type OIDCLinkNonceStore interface {
+    CreateLinkNonce(ctx, userID, nonceHash string, expiresAt time.Time) (*OIDCLinkNonce, error)
+    ConsumeAndDeleteLinkNonce(ctx, nonceHash string) (*OIDCLinkNonce, error)
+    DeleteExpiredLinkNonces(ctx) error
+}
+```
+
+Required when using the OIDC account-linking flow. Only the SHA-256 hash of the raw nonce is stored. `ConsumeAndDeleteLinkNonce` must atomically retrieve and remove the record; return `auth.ErrNotFound` when none matches. The returned record may be expired — callers check `ExpiresAt`. Schedule `DeleteExpiredLinkNonces` via `maintenance.StartCleanup` to prevent unbounded accumulation.
+
 #### RBACUserStore
 
 ```go

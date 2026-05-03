@@ -73,14 +73,14 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token to protect
 
 | `oidc_link_error` value | Cause |
 |-------------------------|-------|
-| `User not found` | `FindByID` returned `ErrNotFound` for the `linkUserID` encoded in the state. |
+| `User not found` | `FindByID` returned `ErrNotFound` for the `linkUserID` encoded in the state — the user no longer exists. |
 | `Already linked` | The account already has an OIDC subject attached. |
 | `SSO identity linked to another account` | The incoming OIDC subject is already associated with a different account. |
-| `Link verification failed` | A database error was returned by `FindByID` (non-`ErrNotFound`) or by `FindByOIDCSubject` while checking for an existing subject association. The link is **not** performed. |
+| `Link verification failed` | The user store returned an unexpected error (e.g. a database timeout) while looking up the linking user (`FindByID`) or checking for an existing subject association (`FindByOIDCSubject`). The link is **not** performed. |
 | `Failed to link` | `LinkOIDCSubject` returned an error after the duplicate-link check passed. |
 
-!!! warning "DB errors never bypass the duplicate-link guard"
-    A transient database error from `FindByOIDCSubject` redirects with `Link verification failed` and returns before `LinkOIDCSubject` is called. This prevents a single OIDC identity from being silently linked to multiple accounts under database pressure. The error is also logged server-side via `slog.ErrorContext`.
+!!! warning "DB errors never bypass the link guards"
+    A transient database error from `FindByID` (user lookup) or `FindByOIDCSubject` (duplicate-subject check) redirects with `Link verification failed` and returns before any linking operation is attempted. This prevents a single OIDC identity from being silently linked to the wrong account under database pressure. Both error paths are logged server-side via `slog.ErrorContext`.
 
 On success the browser is redirected to `/?oidc_linked=true`.
 
@@ -112,8 +112,8 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | `Link` | 302 Found | Redirects to OIDC provider to start the linking flow |
 | `Link` | 400 Bad Request | Missing nonce |
 | `Link` | 401 Unauthorized | Invalid or expired nonce |
-| `Link` | 409 Conflict | Account is already linked to an OIDC identity, or resolving the current user (`Users.FindByID`) fails |
-| `Link` | 500 Internal Server Error | Failed to initiate OIDC redirect or nonce store error |
+| `Link` | 409 Conflict | Account is already linked to an OIDC identity, or user not found (`ErrNotFound` from `Users.FindByID`) |
+| `Link` | 500 Internal Server Error | Failed to initiate OIDC redirect, nonce store error, or DB error when looking up user by ID |
 | `Link` | 503 Service Unavailable | `LinkNonces` is `nil` |
 
 !!! info "Link-callback redirects"

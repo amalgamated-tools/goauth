@@ -208,10 +208,6 @@ func (h *OIDCHandler) handleLinkCallback(w http.ResponseWriter, r *http.Request,
 	handleLinkCallback(w, r, h.Users, linkUserID, subject, "/?oidc_linked=true", "oidc_link_error")
 }
 
-func (h *OIDCHandler) linkOIDCSubjectBestEffort(ctx context.Context, userID, subject, path string) {
-	linkSubjectBestEffort(ctx, h.Users, userID, subject, path)
-}
-
 func (h *OIDCHandler) findOrCreateUser(ctx context.Context, subject, email, name string) (*auth.User, error) {
 	return findOrCreateUser(ctx, h.Users, subject, email, name)
 }

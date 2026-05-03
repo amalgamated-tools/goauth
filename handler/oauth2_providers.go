@@ -67,7 +67,7 @@ func (p *GitHubProvider) fetchGitHubUser(ctx context.Context, token *oauth2.Toke
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GitHub /user returned HTTP %d", resp.StatusCode)
 	}
@@ -96,7 +96,7 @@ func (p *GitHubProvider) fetchGitHubPrimaryEmail(ctx context.Context, token *oau
 	if err != nil {
 		return "", false, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", false, fmt.Errorf("GitHub /user/emails returned HTTP %d", resp.StatusCode)
 	}
@@ -150,9 +150,9 @@ func (p *GoogleOAuth2Provider) FetchUserInfo(ctx context.Context, token *oauth2.
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Google userinfo returned HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("google userinfo returned HTTP %d", resp.StatusCode)
 	}
 	var u googleUserInfo
 	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {

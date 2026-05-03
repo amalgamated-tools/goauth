@@ -23,6 +23,8 @@ Return `auth.ErrEmailExists` from `CreateUser` when a duplicate email is detecte
 
 Return `auth.ErrEmailExists` from `CreateOIDCUser` when the given email is already registered. `OIDCHandler` relies on this to handle a race condition where two concurrent first-time OIDC logins for the same email both attempt to create an account simultaneously: when `CreateOIDCUser` returns `ErrEmailExists`, the handler retries by looking up the now-existing user instead.
 
+Implement `LinkOIDCSubject` as an idempotent upsert: return `nil` when the given OIDC subject is already associated with the specified user (i.e., the link is already in place). The interactive link callback treats any non-nil return value from `LinkOIDCSubject` as a failure, so returning `auth.ErrOIDCSubjectAlreadyLinked` here will cause a "Failed to link" redirect error on benign re-link attempts. The best-effort login path (`linkOIDCSubjectBestEffort`) does suppress `ErrOIDCSubjectAlreadyLinked` specifically, but an upsert returning `nil` is equally safe and avoids the callback-path failure. Return any other non-nil error for genuine failures (e.g. database errors).
+
 ### User struct
 
 ```go
@@ -85,7 +87,11 @@ type SessionStore interface {
 
 Each session is bound to one refresh token hash. Only the SHA-256 hash of the refresh token is persisted.
 
-Return `auth.ErrNotFound` from `FindSessionByID`, `FindSessionByRefreshTokenHash`, and `DeleteSession` when the record is not found. `FindSessionByID` may also return `auth.ErrSessionRevoked` when a session exists in a revoked state; the middleware treats both as a `401` response.
+Return `auth.ErrNotFound` from `FindSessionByID`, `FindSessionByRefreshTokenHash`, and `DeleteSession` when the record is not found.
+
+**Session revocation**: have `FindSessionByID` return `auth.ErrNotFound` or `auth.ErrSessionRevoked` for sessions that are no longer valid; the middleware treats both as a `401 Unauthorized`. Hard-deleting the row (e.g. via `DeleteSession`) is the common approach, but soft-delete or audit-preserving schemes work equally well as long as `FindSessionByID` returns (or wraps) one of these sentinels for revoked sessions.
+
+`FindSessionByRefreshTokenHash` may also return `auth.ErrSessionRevoked` when the session has been explicitly revoked; `RefreshToken` treats both `ErrNotFound` and `ErrSessionRevoked` as a `401 Unauthorized` with an `"invalid or expired refresh token"` message.
 
 ### Session struct
 
@@ -240,6 +246,32 @@ type PasswordResetToken struct {
 ```
 
 `FindPasswordResetToken` returns `auth.ErrInvalidToken` when no matching record exists. Implementations may also return `auth.ErrExpiredToken` when a record is found but has already expired — `PasswordResetHandler.ResetPassword` treats both as a `400 Bad Request` with an `"invalid or expired reset token"` message. Expiry checking in the handler provides a second layer of validation, so returning `auth.ErrInvalidToken` for all failure cases is also acceptable. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
+
+## OIDCLinkNonceStore
+
+```go
+type OIDCLinkNonceStore interface {
+    CreateLinkNonce(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*OIDCLinkNonce, error)
+    ConsumeAndDeleteLinkNonce(ctx context.Context, nonceHash string) (*OIDCLinkNonce, error)
+    DeleteExpiredLinkNonces(ctx context.Context) error
+}
+```
+
+Required when using the OIDC account-linking flow (`OIDCHandler.CreateLinkNonce` and `OIDCHandler.Link`). When `OIDCHandler.LinkNonces` is `nil`, both endpoints return HTTP 503 `"account linking not configured"`. Only the SHA-256 hash of the raw nonce is stored.
+
+`ConsumeAndDeleteLinkNonce` must atomically retrieve and remove the record matching `nonceHash`. Return `auth.ErrNotFound` when no matching record exists. The returned record **may be expired**; callers are responsible for checking `ExpiresAt`. Schedule `DeleteExpiredLinkNonces` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
+
+### OIDCLinkNonce struct
+
+```go
+type OIDCLinkNonce struct {
+    ID        string
+    UserID    string
+    NonceHash string
+    ExpiresAt time.Time
+    CreatedAt time.Time
+}
+```
 
 ## RBACUserStore
 
