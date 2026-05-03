@@ -127,7 +127,7 @@ type PasskeyCredential struct {
     UserID         string
     Name           string
     CredentialID   string // base64url-encoded WebAuthn credential ID
-    CredentialData string // serialised credential public key and metadata
+    CredentialData string // JSON-marshaled webauthn.Credential
     AAGUID         string
     CreatedAt      time.Time
 }
@@ -139,7 +139,7 @@ type PasskeyCredential struct {
 type PasskeyChallenge struct {
     ID          string
     UserID      *string   // nil for authentication challenges; non-nil for registration
-    SessionData string    // serialised WebAuthn session data
+    SessionData string    // JSON-marshaled passkeyChallengeData{session_data, name}; written and read exclusively by PasskeyHandler
     ExpiresAt   time.Time
     CreatedAt   time.Time
 }
@@ -211,7 +211,7 @@ type TOTPStore interface {
 type TOTPSecret struct {
     ID        string
     UserID    string
-    Secret    string // unpadded base32-encoded TOTP secret; may be stored encrypted
+    Secret    string // base32-encoded secret; applications may store it encrypted
     CreatedAt time.Time
 }
 ```
