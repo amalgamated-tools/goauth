@@ -30,7 +30,7 @@ jobs:
           cache: 'pip'
 
       - name: Install mkdocs-material
-        run: pip install mkdocs-material==9.6.14
+        run: pip install -r requirements.txt
 
       - name: Configure Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b
