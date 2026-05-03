@@ -607,6 +607,7 @@ func TestMiddleware_revokedSession(t *testing.T) {
 	w := makeMiddlewareRequest(mgr, cfg, nil, req)
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, w.Body.String(), "session expired or revoked")
 }
 
 func TestMiddleware_revokedSessionSentinel(t *testing.T) {
@@ -627,6 +628,7 @@ func TestMiddleware_revokedSessionSentinel(t *testing.T) {
 	w := makeMiddlewareRequest(mgr, cfg, nil, req)
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, w.Body.String(), "session expired or revoked")
 }
 
 func TestMiddleware_expiredSession(t *testing.T) {
