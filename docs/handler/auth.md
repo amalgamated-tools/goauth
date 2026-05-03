@@ -54,7 +54,7 @@ When `Sessions` is set on `AuthHandler`:
 - Pass `auth.Config{Sessions: sessionStore}` to `Middleware` so that revoked sessions are rejected on every request.
 
 !!! warning "Sessions requires RefreshCookieName"
-    When `Sessions` is set, `RefreshCookieName` must also be non-empty. Unlike `OIDCHandler`, `AuthHandler` does not expose a `Validate()` method; the library catches this misconfiguration at request time and returns HTTP 500 `"server misconfiguration"` on any `Signup`, `Login`, or `RefreshToken` call. Look for the `slog` message `"issueTokens: Sessions is set but RefreshCookieName is empty"` to diagnose this in production.
+    When `Sessions` is set, `RefreshCookieName` must also be non-empty. Unlike `OIDCHandler`, `AuthHandler` does not expose a `Validate()` method; the library catches this misconfiguration when a `Signup`, `Login`, or `RefreshToken` call reaches token issuance and returns HTTP 500 `"server misconfiguration"`. Earlier validation or authentication failures still return their normal 4xx responses. Look for the `slog` message `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` to diagnose this in production.
 
 ## HTTP status codes
 
