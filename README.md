@@ -713,7 +713,7 @@ OIDC endpoints use `{"error": "<message>"}` JSON for non-redirect failure respon
 
 ### OAuth2Handler – generic OAuth2 login
 
-Use `OAuth2Handler` for providers that issue access tokens but not OIDC `id_token`s — GitHub, Discord, Slack, or any custom OAuth2 service. If your provider supports OpenID Connect (Google, Microsoft, Okta, Auth0, Keycloak, etc.), prefer `OIDCHandler` instead.
+Use `OAuth2Handler` for providers that issue access tokens but not OIDC `id_token`s — GitHub, Discord, Slack, or any custom OAuth2 service. If your provider supports OpenID Connect (Microsoft, Okta, Auth0, Keycloak, etc.), prefer `OIDCHandler` instead. Google is available via the built-in `GoogleOAuth2Provider` for existing integrations, but new Google integrations should also prefer `OIDCHandler`.
 
 ```go
 h := &handler.OAuth2Handler{
@@ -764,6 +764,7 @@ Implement the `OAuth2IdentityProvider` interface for any other provider:
 
 ```go
 type OAuth2IdentityProvider interface {
+    // FetchUserInfo must return a non-nil *OAuth2UserInfo when err is nil.
     FetchUserInfo(ctx context.Context, token *oauth2.Token) (*OAuth2UserInfo, error)
 }
 
