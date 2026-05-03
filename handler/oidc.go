@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
@@ -22,11 +21,6 @@ const (
 	oidcVerifierCookieName = "oidc_verifier"
 	oidcStateCookieTTL     = 5 * time.Minute
 )
-
-type linkNonce struct {
-	UserID    string
-	ExpiresAt time.Time
-}
 
 // nonceBody is used instead of map[string]string to avoid a map allocation
 // on the OIDC nonce response path.
@@ -50,8 +44,9 @@ type OIDCHandler struct {
 	// refresh token. Must be non-empty when Sessions is set; call Validate at
 	// startup to catch this misconfiguration early.
 	RefreshCookieName string
-	linkNonces        map[string]linkNonce
-	linkNoncesMu      sync.Mutex
+	// LinkNonces is the store used to persist single-use account-linking nonces.
+	// When nil, CreateLinkNonce and Link return HTTP 503.
+	LinkNonces auth.OIDCLinkNonceStore
 }
 
 // NewOIDCHandler creates an OIDCHandler by performing OIDC discovery.
@@ -68,7 +63,6 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 			Scopes: []string{oidc.ScopeOpenID, "email", "profile"},
 		},
 		CookieName: cookieName, SecureCookies: secureCookies,
-		linkNonces: make(map[string]linkNonce),
 	}, nil
 }
 
@@ -283,6 +277,10 @@ func (h *OIDCHandler) findOrCreateUser(ctx context.Context, subject, email, name
 
 // CreateLinkNonce issues a nonce for OIDC account linking.
 func (h *OIDCHandler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
+	if h.LinkNonces == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
+		return
+	}
 	userID := auth.UserIDFromContext(r.Context())
 	nonce, err := generateOIDCState()
 	if err != nil {
@@ -290,29 +288,35 @@ func (h *OIDCHandler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.linkNoncesMu.Lock()
-	now := time.Now()
-	for k, v := range h.linkNonces {
-		if now.After(v.ExpiresAt) {
-			delete(h.linkNonces, k)
-		}
+	nonceHash := auth.HashHighEntropyToken(nonce)
+	if _, err := h.LinkNonces.CreateLinkNonce(r.Context(), userID, nonceHash, time.Now().UTC().Add(oidcStateCookieTTL)); err != nil {
+		slog.ErrorContext(r.Context(), "failed to store link nonce", slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store nonce")
+		return
 	}
-	h.linkNonces[nonce] = linkNonce{UserID: userID, ExpiresAt: now.Add(oidcStateCookieTTL)}
-	h.linkNoncesMu.Unlock()
 
 	writeJSON(r.Context(), w, http.StatusOK, nonceBody{Nonce: nonce})
 }
 
 // Link validates the nonce and redirects for account linking.
 func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
+	if h.LinkNonces == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
+		return
+	}
 	nonceStr := r.URL.Query().Get("nonce")
 	if nonceStr == "" {
 		writeError(r.Context(), w, http.StatusBadRequest, "missing nonce")
 		return
 	}
-	userID := h.consumeLinkNonce(nonceStr)
-	if userID == "" {
-		writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired nonce")
+	userID, err := h.consumeLinkNonce(r.Context(), nonceStr)
+	if err != nil {
+		if errors.Is(err, auth.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired nonce")
+		} else {
+			slog.ErrorContext(r.Context(), "failed to consume link nonce", slog.Any("error", err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "failed to validate nonce")
+		}
 		return
 	}
 	u, err := h.Users.FindByID(r.Context(), userID)
@@ -347,18 +351,16 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(signedState, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
 }
 
-func (h *OIDCHandler) consumeLinkNonce(nonce string) string {
-	h.linkNoncesMu.Lock()
-	defer h.linkNoncesMu.Unlock()
-	entry, ok := h.linkNonces[nonce]
-	if !ok {
-		return ""
+func (h *OIDCHandler) consumeLinkNonce(ctx context.Context, nonce string) (string, error) {
+	nonceHash := auth.HashHighEntropyToken(nonce)
+	entry, err := h.LinkNonces.ConsumeAndDeleteLinkNonce(ctx, nonceHash)
+	if err != nil {
+		return "", err
 	}
-	delete(h.linkNonces, nonce)
-	if time.Now().After(entry.ExpiresAt) {
-		return ""
+	if time.Now().UTC().After(entry.ExpiresAt) {
+		return "", auth.ErrNotFound
 	}
-	return entry.UserID
+	return entry.UserID, nil
 }
 
 func (h *OIDCHandler) signLinkState(randomState, userID string) string {

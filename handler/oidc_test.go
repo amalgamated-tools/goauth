@@ -20,7 +20,7 @@ func newTestOIDCHandler() *OIDCHandler {
 		JWT:           newTestJWT(),
 		CookieName:    "auth",
 		SecureCookies: false,
-		linkNonces:    make(map[string]linkNonce),
+		LinkNonces:    &mockOIDCLinkNonceStore{},
 	}
 }
 
@@ -67,7 +67,7 @@ func TestParseLinkState_wrongKey(t *testing.T) {
 	h1 := newTestOIDCHandler()
 	h2 := &OIDCHandler{
 		JWT:        newTestJWT(), // same secret, different derived key...
-		linkNonces: make(map[string]linkNonce),
+		LinkNonces: &mockOIDCLinkNonceStore{},
 	}
 	// Give h2 a different JWT manager (different secret).
 	mgr2, _ := auth.NewJWTManager("different-secret-32bytes-here!!!!", time.Hour, "test")
@@ -85,27 +85,45 @@ func TestConsumeLinkNonce_deletesEntry(t *testing.T) {
 	h := newTestOIDCHandler()
 
 	nonce := "test-nonce-123"
-	h.linkNonces[nonce] = linkNonce{UserID: "user-1", ExpiresAt: time.Now().Add(time.Minute)}
+	nonceHash := auth.HashHighEntropyToken(nonce)
+	consumed := false
+	h.LinkNonces = &mockOIDCLinkNonceStore{
+		consumeAndDeleteFunc: func(_ context.Context, hash string) (*auth.OIDCLinkNonce, error) {
+			if consumed || hash != nonceHash {
+				return nil, auth.ErrNotFound
+			}
+			consumed = true
+			return &auth.OIDCLinkNonce{UserID: "user-1", ExpiresAt: time.Now().Add(time.Minute)}, nil
+		},
+	}
 
-	got := h.consumeLinkNonce(nonce)
+	got, err := h.consumeLinkNonce(context.Background(), nonce)
+	require.NoError(t, err)
 	require.Equal(t, "user-1", got)
 
-	// Second consumption of the same nonce should return empty.
-	require.Empty(t, h.consumeLinkNonce(nonce))
+	// Second consumption of the same nonce should return ErrNotFound.
+	_, err = h.consumeLinkNonce(context.Background(), nonce)
+	require.ErrorIs(t, err, auth.ErrNotFound)
 }
 
 func TestConsumeLinkNonce_expired(t *testing.T) {
 	h := newTestOIDCHandler()
 
 	nonce := "expired-nonce"
-	h.linkNonces[nonce] = linkNonce{UserID: "user-1", ExpiresAt: time.Now().Add(-time.Second)}
+	h.LinkNonces = &mockOIDCLinkNonceStore{
+		consumeAndDeleteFunc: func(_ context.Context, _ string) (*auth.OIDCLinkNonce, error) {
+			return &auth.OIDCLinkNonce{UserID: "user-1", ExpiresAt: time.Now().Add(-time.Second)}, nil
+		},
+	}
 
-	require.Empty(t, h.consumeLinkNonce(nonce))
+	_, err := h.consumeLinkNonce(context.Background(), nonce)
+	require.ErrorIs(t, err, auth.ErrNotFound)
 }
 
 func TestConsumeLinkNonce_notFound(t *testing.T) {
 	h := newTestOIDCHandler()
-	require.Empty(t, h.consumeLinkNonce("does-not-exist"))
+	_, err := h.consumeLinkNonce(context.Background(), "does-not-exist")
+	require.ErrorIs(t, err, auth.ErrNotFound)
 }
 
 func TestCreateLinkNonce_returnsNonce(t *testing.T) {
@@ -122,28 +140,38 @@ func TestCreateLinkNonce_returnsNonce(t *testing.T) {
 	nonce := resp["nonce"]
 	require.NotEmpty(t, nonce)
 
-	// The nonce should be consumable.
-	got := h.consumeLinkNonce(nonce)
+	// The nonce should be consumable exactly once.
+	got, err := h.consumeLinkNonce(context.Background(), nonce)
+	require.NoError(t, err)
 	require.Equal(t, "user-42", got)
 }
 
-func TestCreateLinkNonce_cleansUpExpiredEntries(t *testing.T) {
+func TestCreateLinkNonce_nilStoreReturns503(t *testing.T) {
 	h := newTestOIDCHandler()
-
-	// Pre-populate with an expired entry.
-	h.linkNonces["old-nonce"] = linkNonce{UserID: "old-user", ExpiresAt: time.Now().Add(-time.Minute)}
+	h.LinkNonces = nil
 
 	req := httptest.NewRequest(http.MethodGet, "/link-nonce", nil)
 	req = withUserID(req, "user-42")
 	w := httptest.NewRecorder()
 	h.CreateLinkNonce(w, req)
 
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
 
-	h.linkNoncesMu.Lock()
-	_, exists := h.linkNonces["old-nonce"]
-	h.linkNoncesMu.Unlock()
-	require.False(t, exists)
+func TestCreateLinkNonce_storeError(t *testing.T) {
+	h := newTestOIDCHandler()
+	h.LinkNonces = &mockOIDCLinkNonceStore{
+		createFunc: func(_ context.Context, _, _ string, _ time.Time) (*auth.OIDCLinkNonce, error) {
+			return nil, errors.New("db error")
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/link-nonce", nil)
+	req = withUserID(req, "user-42")
+	w := httptest.NewRecorder()
+	h.CreateLinkNonce(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -501,7 +529,8 @@ func TestOIDCLink_alreadyLinked(t *testing.T) {
 
 	// Create a valid nonce for user-1.
 	nonce := "test-link-nonce"
-	h.linkNonces[nonce] = linkNonce{UserID: "user-1", ExpiresAt: time.Now().Add(time.Minute)}
+	_, err := h.LinkNonces.CreateLinkNonce(context.Background(), "user-1", auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	require.NoError(t, err)
 
 	// User already has an OIDC subject linked.
 	sub := "existing-sub"
@@ -522,7 +551,8 @@ func TestOIDCLink_userNotFound(t *testing.T) {
 	h := newOIDCHandlerWithConfig()
 
 	nonce := "notfound-nonce"
-	h.linkNonces[nonce] = linkNonce{UserID: "missing-user", ExpiresAt: time.Now().Add(time.Minute)}
+	_, err := h.LinkNonces.CreateLinkNonce(context.Background(), "missing-user", auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	require.NoError(t, err)
 
 	h.Users = &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -541,7 +571,8 @@ func TestOIDCLink_success(t *testing.T) {
 	h := newOIDCHandlerWithConfig()
 
 	nonce := "success-link-nonce"
-	h.linkNonces[nonce] = linkNonce{UserID: "user-ok", ExpiresAt: time.Now().Add(time.Minute)}
+	_, err := h.LinkNonces.CreateLinkNonce(context.Background(), "user-ok", auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	require.NoError(t, err)
 
 	h.Users = &mockUserStore{
 		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
@@ -558,6 +589,32 @@ func TestOIDCLink_success(t *testing.T) {
 	require.Equal(t, http.StatusFound, w.Code)
 	loc := w.Header().Get("Location")
 	require.Contains(t, loc, "https://example.com/authorize")
+}
+
+func TestOIDCLink_nilStoreReturns503(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+	h.LinkNonces = nil
+
+	req := httptest.NewRequest(http.MethodGet, "/link?nonce=test", nil)
+	w := httptest.NewRecorder()
+	h.Link(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestOIDCLink_storeError(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+	h.LinkNonces = &mockOIDCLinkNonceStore{
+		consumeAndDeleteFunc: func(_ context.Context, _ string) (*auth.OIDCLinkNonce, error) {
+			return nil, errors.New("db error")
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/link?nonce=some-nonce", nil)
+	w := httptest.NewRecorder()
+	h.Link(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ---------------------------------------------------------------------------

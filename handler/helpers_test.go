@@ -215,6 +215,47 @@ func (m *mockMagicLinkStore) DeleteExpiredMagicLinks(ctx context.Context) error 
 	return nil
 }
 
+type mockOIDCLinkNonceStore struct {
+	nonces               map[string]*auth.OIDCLinkNonce
+	createFunc           func(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*auth.OIDCLinkNonce, error)
+	consumeAndDeleteFunc func(ctx context.Context, nonceHash string) (*auth.OIDCLinkNonce, error)
+	deleteExpiredFunc    func(ctx context.Context) error
+}
+
+func (m *mockOIDCLinkNonceStore) CreateLinkNonce(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*auth.OIDCLinkNonce, error) {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, userID, nonceHash, expiresAt)
+	}
+	n := &auth.OIDCLinkNonce{ID: "nonce-id", UserID: userID, NonceHash: nonceHash, ExpiresAt: expiresAt}
+	if m.nonces == nil {
+		m.nonces = make(map[string]*auth.OIDCLinkNonce)
+	}
+	m.nonces[nonceHash] = n
+	return n, nil
+}
+
+func (m *mockOIDCLinkNonceStore) ConsumeAndDeleteLinkNonce(ctx context.Context, nonceHash string) (*auth.OIDCLinkNonce, error) {
+	if m.consumeAndDeleteFunc != nil {
+		return m.consumeAndDeleteFunc(ctx, nonceHash)
+	}
+	if m.nonces == nil {
+		return nil, auth.ErrNotFound
+	}
+	n, ok := m.nonces[nonceHash]
+	if !ok {
+		return nil, auth.ErrNotFound
+	}
+	delete(m.nonces, nonceHash)
+	return n, nil
+}
+
+func (m *mockOIDCLinkNonceStore) DeleteExpiredLinkNonces(ctx context.Context) error {
+	if m.deleteExpiredFunc != nil {
+		return m.deleteExpiredFunc(ctx)
+	}
+	return nil
+}
+
 type mockPasswordResetStore struct {
 	createFunc        func(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*auth.PasswordResetToken, error)
 	findFunc          func(ctx context.Context, tokenHash string) (*auth.PasswordResetToken, error)
