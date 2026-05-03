@@ -529,7 +529,8 @@ func TestOIDCLink_alreadyLinked(t *testing.T) {
 
 	// Create a valid nonce for user-1.
 	nonce := "test-link-nonce"
-	h.LinkNonces.CreateLinkNonce(context.Background(), "user-1", auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	_, err := h.LinkNonces.CreateLinkNonce(context.Background(), "user-1", auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	require.NoError(t, err)
 
 	// User already has an OIDC subject linked.
 	sub := "existing-sub"
@@ -550,7 +551,8 @@ func TestOIDCLink_userNotFound(t *testing.T) {
 	h := newOIDCHandlerWithConfig()
 
 	nonce := "notfound-nonce"
-	h.LinkNonces.CreateLinkNonce(context.Background(), "missing-user", auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	_, err := h.LinkNonces.CreateLinkNonce(context.Background(), "missing-user", auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	require.NoError(t, err)
 
 	h.Users = &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
@@ -569,7 +571,8 @@ func TestOIDCLink_success(t *testing.T) {
 	h := newOIDCHandlerWithConfig()
 
 	nonce := "success-link-nonce"
-	h.LinkNonces.CreateLinkNonce(context.Background(), "user-ok", auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	_, err := h.LinkNonces.CreateLinkNonce(context.Background(), "user-ok", auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	require.NoError(t, err)
 
 	h.Users = &mockUserStore{
 		findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
