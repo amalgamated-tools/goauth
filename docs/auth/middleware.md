@@ -95,7 +95,7 @@ If your application requires precise `last_used_at` timestamps, implement `Touch
 
 When `Sessions` is set, the middleware validates the JWT `jti` claim against the store and rejects requests whose session has been revoked or expired server-side. It also rejects requests where the session's stored `UserID` does not match the `sub` claim in the JWT — this protects against session fixation scenarios where a session ID from one user is embedded in another user's token. API key requests bypass the session check.
 
-The middleware's only requirement is that `FindSessionByID` returns (or wraps) `auth.ErrNotFound` for sessions that are no longer valid. The middleware interprets that as a revoked or expired session and responds with `401 Unauthorized`. How your store achieves that is an implementation detail — hard-deleting the row via `SessionStore.DeleteSession` is the common approach, but soft-delete or audit-preserving schemes work equally well as long as `FindSessionByID` returns `auth.ErrNotFound` (or a wrapped error) for those sessions. Note that the exported sentinel `auth.ErrSessionRevoked` is **not** currently checked by the middleware; returning it from `FindSessionByID` produces a `500 Internal Server Error` rather than a `401`.
+Session revocation works by having `FindSessionByID` return `auth.ErrNotFound` or `auth.ErrSessionRevoked` for sessions that are no longer valid; the middleware treats both as a `401 Unauthorized`. How your store achieves that is an implementation detail — hard-deleting the row via `SessionStore.DeleteSession` is the common approach, but soft-delete or audit-preserving schemes work equally well as long as `FindSessionByID` returns (or wraps) one of these sentinels for revoked sessions.
 
 ## Observability
 
@@ -108,7 +108,7 @@ All four middleware functions — `Middleware`, `AdminMiddleware`, `RequireRole`
 | Unexpected error from `resolveUser` | `ERROR` | `"failed to resolve user"` |
 | Unexpected error from `FindSessionByID` | `ERROR` | `"failed to look up session"` |
 
-`ErrInvalidToken` and `ErrExpiredToken` are **not** logged — they are treated as expected conditions and produce a `401` response with no log noise.
+`ErrInvalidToken`, `ErrExpiredToken`, `ErrNotFound`, and `ErrSessionRevoked` are **not** logged — they are treated as expected conditions and produce a `401` response with no log noise.
 
 goauth never sets or replaces the global `slog` handler. Configure your own handler before starting the server to control log destination, format, and minimum level.
 

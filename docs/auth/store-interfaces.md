@@ -23,7 +23,7 @@ Return `auth.ErrEmailExists` from `CreateUser` when a duplicate email is detecte
 
 Return `auth.ErrEmailExists` from `CreateOIDCUser` when the given email is already registered. `OIDCHandler` relies on this to handle a race condition where two concurrent first-time OIDC logins for the same email both attempt to create an account simultaneously: when `CreateOIDCUser` returns `ErrEmailExists`, the handler retries by looking up the now-existing user instead.
 
-Return `auth.ErrOIDCSubjectAlreadyLinked` from `LinkOIDCSubject` when the given OIDC subject is already associated with the specified user (i.e., the link is already in place). The handling differs by call site: in the best-effort path (`linkOIDCSubjectBestEffort`, used during login/callback flows), this sentinel is treated as a benign no-op and suppressed. In the interactive link callback, any non-nil error from `LinkOIDCSubject` — including this sentinel — is treated as a failure, logged, and surfaced as a redirect error to the user. Return any other non-nil error for genuine failures (e.g. database errors).
+Implement `LinkOIDCSubject` as an idempotent upsert: return `nil` when the given OIDC subject is already associated with the specified user (i.e., the link is already in place). The interactive link callback treats any non-nil return value from `LinkOIDCSubject` as a failure, so returning `auth.ErrOIDCSubjectAlreadyLinked` here will cause a "Failed to link" redirect error on benign re-link attempts. The best-effort login path (`linkOIDCSubjectBestEffort`) does suppress `ErrOIDCSubjectAlreadyLinked` specifically, but an upsert returning `nil` is equally safe and avoids the callback-path failure. Return any other non-nil error for genuine failures (e.g. database errors).
 
 ### User struct
 
@@ -89,7 +89,7 @@ Each session is bound to one refresh token hash. Only the SHA-256 hash of the re
 
 Return `auth.ErrNotFound` from `FindSessionByID`, `FindSessionByRefreshTokenHash`, and `DeleteSession` when the record is not found.
 
-**Session revocation**: the middleware's only requirement is that `FindSessionByID` returns (or wraps) `auth.ErrNotFound` for sessions that are no longer valid. Hard-deleting the row (e.g. via `DeleteSession`) is the common approach, but soft-delete or audit-preserving schemes work equally well as long as `FindSessionByID` returns `ErrNotFound` for those sessions. The exported sentinel `auth.ErrSessionRevoked` is **not** currently checked by the middleware — returning it from `FindSessionByID` produces a `500 Internal Server Error`, not a `401`.
+**Session revocation**: have `FindSessionByID` return `auth.ErrNotFound` or `auth.ErrSessionRevoked` for sessions that are no longer valid; the middleware treats both as a `401 Unauthorized`. Hard-deleting the row (e.g. via `DeleteSession`) is the common approach, but soft-delete or audit-preserving schemes work equally well as long as `FindSessionByID` returns (or wraps) one of these sentinels for revoked sessions.
 
 ### Session struct
 
