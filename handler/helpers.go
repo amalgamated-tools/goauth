@@ -128,13 +128,21 @@ const (
 	maxPasswordLength = 72
 )
 
+// errPasswordTooShort and errPasswordTooLong are derived from the length
+// constants at init time, avoiding per-call fmt.Sprintf allocations in
+// validatePassword.
+var (
+	errPasswordTooShort = fmt.Sprintf("password must be at least %d bytes", minPasswordLength)
+	errPasswordTooLong  = fmt.Sprintf("password must be at most %d bytes", maxPasswordLength)
+)
+
 func validatePassword(ctx context.Context, w http.ResponseWriter, password string) bool {
 	if len(password) < minPasswordLength {
-		writeError(ctx, w, http.StatusBadRequest, fmt.Sprintf("password must be at least %d bytes", minPasswordLength))
+		writeError(ctx, w, http.StatusBadRequest, errPasswordTooShort)
 		return false
 	}
 	if len(password) > maxPasswordLength {
-		writeError(ctx, w, http.StatusBadRequest, fmt.Sprintf("password must be at most %d bytes", maxPasswordLength))
+		writeError(ctx, w, http.StatusBadRequest, errPasswordTooLong)
 		return false
 	}
 	return true

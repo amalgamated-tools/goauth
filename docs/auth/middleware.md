@@ -22,7 +22,9 @@ r.Use(auth.Middleware(jwtMgr, cfg, apiKeyStore))
 
 ## Admin middleware
 
-Require admin status (checked via `AdminChecker.IsAdmin`, cached 5 seconds per user):
+Require admin status (checked via `AdminChecker.IsAdmin`, cached for 5 seconds per user).
+
+`AdminChecker` is a single-method interface:
 
 ```go
 type AdminChecker interface {
