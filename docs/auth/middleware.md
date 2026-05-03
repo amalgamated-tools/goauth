@@ -22,24 +22,7 @@ r.Use(auth.Middleware(jwtMgr, cfg, apiKeyStore))
 
 ## Admin middleware
 
-Require admin status (checked via `AdminChecker.IsAdmin`, cached 5 seconds per user):
-
-```go
-type AdminChecker interface {
-    IsAdmin(ctx context.Context, userID string) (bool, error)
-}
-```
-
-`auth.UserStore` satisfies `AdminChecker` directly. For RBAC-based setups, use `auth.NewAdminCheckerFromRoleChecker` to adapt a `RoleChecker`:
-
-```go
-// The second argument is an auth.AdminChecker; UserStore satisfies this interface.
-r.Use(auth.AdminMiddleware(jwtMgr, userStore, cfg, apiKeyStore))
-
-// Or adapt a RoleChecker (treats RoleAdmin as admin):
-adminChecker := auth.NewAdminCheckerFromRoleChecker(roleChecker)
-r.Use(auth.AdminMiddleware(jwtMgr, adminChecker, cfg, apiKeyStore))
-```
+Require admin status (checked via `AdminChecker.IsAdmin`, cached for 5 seconds per user).
 
 `AdminChecker` is a single-method interface:
 
@@ -49,7 +32,16 @@ type AdminChecker interface {
 }
 ```
 
-`auth.UserStore` satisfies `AdminChecker` directly. To derive an `AdminChecker` from a `RoleChecker`, use `auth.NewAdminCheckerFromRoleChecker` (see [RBAC](rbac.md)).
+`auth.UserStore` satisfies `AdminChecker` directly. For RBAC-based setups, use `auth.NewAdminCheckerFromRoleChecker` to adapt a `RoleChecker` (see [RBAC](rbac.md)):
+
+```go
+// The second argument is an auth.AdminChecker; UserStore satisfies this interface.
+r.Use(auth.AdminMiddleware(jwtMgr, userStore, cfg, apiKeyStore))
+
+// Or adapt a RoleChecker (treats RoleAdmin as admin):
+adminChecker := auth.NewAdminCheckerFromRoleChecker(roleChecker)
+r.Use(auth.AdminMiddleware(jwtMgr, adminChecker, cfg, apiKeyStore))
+```
 
 The internal admin cache has a **4,096-entry FIFO size cap** and sweeps expired entries at most once per minute during writes. Oldest-inserted entries are evicted first when the cap is reached.
 
