@@ -105,8 +105,8 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | `Link` | 302 Found | Redirects to OIDC provider to start the linking flow |
 | `Link` | 400 Bad Request | Missing nonce |
 | `Link` | 401 Unauthorized | Invalid or expired nonce |
-| `Link` | 409 Conflict | Account is already linked to an OIDC identity, or resolving the current user (`Users.FindByID`) fails |
-| `Link` | 500 Internal Server Error | Failed to initiate OIDC redirect |
+| `Link` | 409 Conflict | Account is already linked to an OIDC identity |
+| `Link` | 500 Internal Server Error | `Users.FindByID` fails when fetching the linking user; or failed to initiate OIDC redirect |
 
 !!! info "Link-callback redirects"
     After the OIDC provider returns to `Callback` during a link flow, all outcomes (success and failure) are communicated via redirect query parameters (`oidc_linked=true` or `oidc_link_error=<value>`), never via JSON error responses. See [Linking flow error redirects](#linking-flow-error-redirects) for the possible `oidc_link_error` values.

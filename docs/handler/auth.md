@@ -19,7 +19,7 @@ h := &handler.AuthHandler{
 }
 ```
 
-Password constraints: 8–72 bytes. Bcrypt cost 12.
+Password constraints: 8–72 bytes (bcrypt cost 12). A password shorter than 8 bytes returns `{"error": "password must be at least 8 bytes"}`; a password longer than 72 bytes returns `{"error": "password must be at most 72 bytes"}`.
 
 ## Routes
 

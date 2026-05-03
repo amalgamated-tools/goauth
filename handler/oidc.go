@@ -228,6 +228,7 @@ func (h *OIDCHandler) handleLinkCallback(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if err := h.Users.LinkOIDCSubject(r.Context(), linkUserID, subject); err != nil {
+		slog.ErrorContext(r.Context(), "failed to link OIDC subject", slog.Any("error", err))
 		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Failed to link"), http.StatusFound)
 		return
 	}
@@ -308,7 +309,13 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired nonce")
 		return
 	}
-	if u, err := h.Users.FindByID(r.Context(), userID); err != nil || u.OIDCSubject != nil {
+	u, err := h.Users.FindByID(r.Context(), userID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to fetch user for OIDC link", slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	if u.OIDCSubject != nil {
 		writeError(r.Context(), w, http.StatusConflict, "cannot link account")
 		return
 	}
