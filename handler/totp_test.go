@@ -142,6 +142,21 @@ func TestTOTP_generate_success(t *testing.T) {
 func TestTOTP_generate_userNotFound(t *testing.T) {
 	users := &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+	}
+	h := newTOTPHandler(&mockTOTPStore{}, users)
+	req := httptest.NewRequest(http.MethodPost, "/totp/generate", nil)
+	req = withUserID(req, "u1")
+	w := httptest.NewRecorder()
+	h.Generate(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestTOTP_generate_userStoreError(t *testing.T) {
+	users := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, errors.New("db error")
 		},
 	}
