@@ -20,7 +20,7 @@ h.RefreshTokenTTL   = handler.DefaultRefreshTokenTTL // default 7 days
 h.RefreshCookieName = "refresh"
 
 // Validate configuration at startup (returns an error if Sessions is set
-// without RefreshCookieName, or any other required field is missing).
+// without RefreshCookieName).
 if err := h.Validate(); err != nil {
     log.Fatal(err)
 }

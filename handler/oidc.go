@@ -79,7 +79,7 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 // moment the first real user attempts to log in.
 func (h *OIDCHandler) Validate() error {
 	if h.Sessions != nil && h.RefreshCookieName == "" {
-		return fmt.Errorf("OIDCHandler misconfigured: Sessions requires RefreshCookieName")
+		return errors.New("OIDCHandler misconfigured: Sessions requires RefreshCookieName")
 	}
 	return nil
 }
