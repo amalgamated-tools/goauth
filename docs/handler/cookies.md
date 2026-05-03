@@ -21,3 +21,7 @@ Auth and refresh cookies are set with `HttpOnly` and `SameSite=Strict`. Pass `se
 ## OIDC flow cookies
 
 The OIDC flow uses two short-lived state cookies (`oidc_state` and `oidc_verifier`) that are set with `SameSite=Lax` instead of `Strict`. `SameSite=Lax` is required here because the OIDC provider redirects the browser back to your callback URL as a top-level cross-site navigation, which `SameSite=Strict` cookies would block. These cookies are `HttpOnly`, expire after 5 minutes, and are cleared immediately inside the callback handler.
+
+## OAuth2 flow cookies
+
+The generic OAuth2 flow uses the same pattern: two short-lived state cookies (`oauth2_state` and `oauth2_verifier`) are set with `SameSite=Lax`, `HttpOnly`, and a 5-minute TTL. The rationale is identical — the OAuth2 provider redirects the browser back as a top-level cross-site navigation, which `SameSite=Strict` would block. Both cookies are cleared immediately inside the callback handler once the CSRF state and PKCE verifier have been validated.
