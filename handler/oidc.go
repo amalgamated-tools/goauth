@@ -283,6 +283,7 @@ func (h *OIDCHandler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
 
 	nonceHash := auth.HashHighEntropyToken(nonce)
 	if _, err := h.LinkNonces.CreateLinkNonce(r.Context(), userID, nonceHash, time.Now().UTC().Add(oidcStateCookieTTL)); err != nil {
+		slog.ErrorContext(r.Context(), "failed to store link nonce", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store nonce")
 		return
 	}
@@ -306,6 +307,7 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired nonce")
 		} else {
+			slog.ErrorContext(r.Context(), "failed to consume link nonce", slog.Any("error", err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "failed to validate nonce")
 		}
 		return
@@ -342,7 +344,7 @@ func (h *OIDCHandler) consumeLinkNonce(ctx context.Context, nonce string) (strin
 	if err != nil {
 		return "", err
 	}
-	if time.Now().After(entry.ExpiresAt) {
+	if time.Now().UTC().After(entry.ExpiresAt) {
 		return "", auth.ErrNotFound
 	}
 	return entry.UserID, nil

@@ -199,7 +199,8 @@ type OIDCLinkNonceStore interface {
 	// CreateLinkNonce stores a hashed nonce for userID, expiring at expiresAt.
 	CreateLinkNonce(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*OIDCLinkNonce, error)
 	// ConsumeAndDeleteLinkNonce atomically retrieves and removes the record
-	// matching nonceHash. Returns ErrNotFound when not found.
+	// matching nonceHash. Returns ErrNotFound when not found. The returned
+	// record may be expired; callers must check ExpiresAt themselves.
 	ConsumeAndDeleteLinkNonce(ctx context.Context, nonceHash string) (*OIDCLinkNonce, error)
 	// DeleteExpiredLinkNonces removes all records whose ExpiresAt is in the past.
 	DeleteExpiredLinkNonces(ctx context.Context) error
