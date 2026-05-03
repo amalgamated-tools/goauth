@@ -14,6 +14,7 @@ import "github.com/amalgamated-tools/goauth/handler"
 |---|---|
 | [AuthHandler](auth.md) | Email/password signup, login, logout, refresh tokens, profile |
 | [OIDCHandler](oidc.md) | SSO / OpenID Connect login and account linking |
+| [OAuth2Handler](oauth2.md) | Generic OAuth2 login (GitHub, Discord, Slack, …) |
 | [APIKeyHandler](api-keys.md) | API key creation, listing, and deletion |
 | [SessionHandler](sessions.md) | Server-side session listing and revocation |
 | [PasskeyHandler](passkeys.md) | WebAuthn passkey registration and authentication |

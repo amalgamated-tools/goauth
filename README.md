@@ -711,6 +711,114 @@ OIDC endpoints use `{"error": "<message>"}` JSON for non-redirect failure respon
 | `Link` | `409 Conflict` | User lookup failed or user not found; account already has an OIDC subject linked |
 | `Link` | `500 Internal Server Error` | Failed to generate OAuth state |
 
+### OAuth2Handler – generic OAuth2 login
+
+Use `OAuth2Handler` for providers that issue access tokens but not OIDC `id_token`s — GitHub, Discord, Slack, or any custom OAuth2 service. If your provider supports OpenID Connect (Google, Microsoft, Okta, Auth0, Keycloak, etc.), prefer `OIDCHandler` instead.
+
+```go
+h := &handler.OAuth2Handler{
+    Users:    userStore,
+    JWT:      jwtMgr,
+    Provider: &handler.GitHubProvider{}, // or GoogleOAuth2Provider, or your own implementation
+    OAuthConfig: oauth2.Config{
+        ClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+        ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+        RedirectURL:  "https://myapp.example.com/auth/github/callback",
+        Endpoint:     github.Endpoint, // from golang.org/x/oauth2/github
+        Scopes:       []string{"read:user", "user:email"},
+    },
+    CookieName:    "session",
+    SecureCookies: true,
+    LoginRedirect: "github_login=1", // redirects to /?github_login=1 on success; defaults to "oauth2_login=1"
+}
+
+// Optional: enable server-side session tracking and refresh token rotation.
+// When Sessions is set, RefreshCookieName must also be set.
+h.Sessions          = sessionStore
+h.RefreshCookieName = "refresh"
+h.RefreshTokenTTL   = 7 * 24 * time.Hour
+
+// Optional: enable account linking (requires OIDCLinkNonceStore).
+h.LinkNonces = linkNonceStore
+
+// Validate at startup to catch misconfiguration early.
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
+
+// Routes
+GET  /auth/github/login                  → h.Login              // redirect to provider
+GET  /auth/github/callback               → h.Callback           // handle provider redirect
+POST /auth/github/link-nonce             → h.CreateLinkNonce    // issue nonce (requires auth)
+GET  /auth/github/link?nonce=<nonce>     → h.Link               // start link flow (requires auth)
+```
+
+#### Built-in providers
+
+| Provider | Type | Notes |
+|---|---|---|
+| `handler.GitHubProvider` | GitHub | Calls `GET /user` and `GET /user/emails`. Subjects are prefixed `github:<id>`. Required scopes: `read:user`, `user:email`. |
+| `handler.GoogleOAuth2Provider` | Google | Calls the Google userinfo endpoint. Use as a fallback for existing integrations; new Google integrations should prefer `OIDCHandler`. Required scope: `https://www.googleapis.com/auth/userinfo.email`. |
+
+Implement the `OAuth2IdentityProvider` interface for any other provider:
+
+```go
+type OAuth2IdentityProvider interface {
+    FetchUserInfo(ctx context.Context, token *oauth2.Token) (*OAuth2UserInfo, error)
+}
+
+type OAuth2UserInfo struct {
+    Subject       string // stable unique ID; use a provider prefix e.g. "github:12345"
+    Email         string
+    Name          string
+    EmailVerified bool
+}
+```
+
+Use a provider-specific prefix in `Subject` to avoid collisions across providers and with OIDC subjects (e.g. `"github:42"` vs `"discord:42"`).
+
+#### Callback behaviour
+
+The callback validates the CSRF state and PKCE verifier cookies, exchanges the authorisation code, and calls `Provider.FetchUserInfo`. It then:
+
+1. Rejects logins where `EmailVerified` is `false` (link flows skip this check).
+2. Looks up an existing user by `Subject` via `FindByOIDCSubject`; logs in on a match.
+3. Falls back to `FindByEmail`; links the subject to that account (best-effort) and logs in.
+4. Creates a new user via `CreateOIDCUser` if no existing account is found.
+
+On success, `Callback` sets JWT/refresh cookies and redirects to `/?<LoginRedirect>`.
+
+#### Account linking
+
+Account linking follows the same pattern as `OIDCHandler`:
+
+1. Call `CreateLinkNonce` (authenticated) to get a short-lived nonce.
+2. Redirect the user to `Link?nonce=<nonce>` to start the provider flow.
+3. After the provider redirects back to `Callback`, outcomes are communicated via redirect query parameters:
+
+| Outcome | Redirect |
+|---|---|
+| Success | `/?oauth2_linked=true` |
+| User not found or already linked | `/?oauth2_link_error=…` |
+
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Login` | `500 Internal Server Error` | Failed to generate CSRF state |
+| `Callback` | `400 Bad Request` | Missing/invalid state or PKCE cookie; missing authorization code; empty subject or email |
+| `Callback` | `401 Unauthorized` | Provider error; code exchange failure; `FetchUserInfo` error; unverified email |
+| `Callback` | `500 Internal Server Error` | `Sessions` set but `RefreshCookieName` empty; user resolution or JWT creation failure |
+| `Callback` (link flow) | Redirect `/?oauth2_link_error=…` | User not found; account already linked; link store error |
+| `Callback` (link flow) | Redirect `/?oauth2_linked=true` | Account linking succeeded |
+| `CreateLinkNonce` | `503 Service Unavailable` | `LinkNonces` is `nil` |
+| `CreateLinkNonce` | `500 Internal Server Error` | Nonce generation or store failure |
+| `Link` | `503 Service Unavailable` | `LinkNonces` is `nil` |
+| `Link` | `400 Bad Request` | `nonce` query parameter missing |
+| `Link` | `401 Unauthorized` | Nonce invalid or expired |
+| `Link` | `409 Conflict` | User not found or account already linked |
+| `Link` | `500 Internal Server Error` | Failed to generate CSRF state |
+
 ### APIKeyHandler
 
 ```go
