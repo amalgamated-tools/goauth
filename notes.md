@@ -12,7 +12,7 @@
 ## Efficiency Notes
 - No benchmarks exist in the codebase (confirmed by grep).
 - hotpCode (auth/totp.go) is called 3× per ValidateTOTP on every login. Critical path.
-- RateLimiter cleanup: lazy, once per 5-minute window — efficient.
+- RateLimiter cleanup: lazy, once per 5-minute window — efficient BUT visitors map unbounded between cleanups (DoS risk / GC concern).
 - cachingRoleChecker / cachingAdminChecker: well-designed with FIFO eviction and sweep.
 - TOTPUsedCodeCache: uses sync.Map with totpCacheKey struct (no string alloc per call).
 - cipher.AEAD (GCM) cached in SecretEncrypter — safe for concurrent use after init.
@@ -20,9 +20,10 @@
 - jsonError (auth/http.go) and writeError (handler/helpers.go): use structs instead of map[string]string (merged PR #128).
 - All handler success responses now use structs instead of map[string]string/map[string]bool (merged PR #137).
 - ValidateTOTP now creates HMAC once and reuses via hotpCodeWithMAC + mac.Reset() — merged as PR #162.
-- auth/totp.go: totpDigitsStr + totpPeriodStr precomputed vars added (PR #170 submitted).
-- handler/totp.go: totpHandlerEncoding precomputed var added (PR #170 submitted).
-- handler/helpers.go validatePassword: error strings now const (not var); fmt import removed (PR #172 fixed 2026-05-02).
+- auth/totp.go: totpDigitsStr + totpPeriodStr precomputed vars added (PR #170 MERGED 2026-05-03).
+- handler/totp.go: totpHandlerEncoding precomputed var added (PR #170 MERGED 2026-05-03).
+- handler/helpers.go validatePassword: errPasswordTooShort/errPasswordTooLong now const (not var+fmt.Sprintf); fmt import removed (PR #211 submitted 2026-05-03).
+- New OAuth2Handler (PR #203): login is unavoidably sequential (external API calls); no hot-path efficiency opportunities found.
 
 ## Optimisation Backlog
 | Priority | Focus Area | Opportunity | Estimated Impact | Status |
@@ -37,13 +38,13 @@
 | MEDIUM | Code-Level | jsonError/writeError: map[string]string{"error":msg} -> struct | Save ~264 bytes per error response in middleware+handlers | MERGED PR #128 |
 | MEDIUM | Code-Level | All handler success responses: 15x map[string]string/bool -> structs | Save ~264 bytes × 15 response paths | MERGED PR #137 |
 | MEDIUM | Code-Level | ValidateTOTP: reuse HMAC via hotpCodeWithMAC + mac.Reset() | Save ~600-700 bytes (2 hmac allocs) per TOTP auth attempt | MERGED PR #162 |
-| LOW | Code-Level | handler/totp.go Enroll + auth/totp.go TOTPProvisioningURI: precompute base32 encoding + strconv.Itoa constants | Save 3 allocs (~320 bytes) per TOTP enrollment | PR #170 open |
-| LOW | Code-Level | handler/helpers.go validatePassword: fmt.Sprintf -> const strings | Save 1 alloc (~40 bytes) per failed password validation; removes fmt import | PR #172 open (fixed to use const 2026-05-02) |
-| LOW | Data | No benchmarks for any code paths — measurement infrastructure gap | Enables future evidence-based optimisation |
+| LOW | Code-Level | handler/totp.go Enroll + auth/totp.go TOTPProvisioningURI: precompute base32 encoding + strconv.Itoa constants | Save 3 allocs (~320 bytes) per TOTP enrollment | MERGED PR #170 |
+| LOW | Code-Level | handler/helpers.go validatePassword: var+fmt.Sprintf -> const strings + remove fmt import | Compile-time const literals; remove fmt init overhead | PR #211 open |
+| LOW | Data | No benchmarks for any code paths — measurement infrastructure gap | Enables future evidence-based optimisation | OPEN |
+| LOW | Code-Level | auth/ratelimit.go: visitors map unbounded between 5-min cleanups | Memory+GC under IP flood; add maxVisitors FIFO cap | OPEN (primarily reliability) |
 
 ## Work In Progress
-- PR #170 (branch: efficiency/precompute-totp-enrollment-exprs-6ee5a7a64d7afc46): precompute totpDigitsStr, totpPeriodStr in auth/totp.go + totpHandlerEncoding in handler/totp.go; CI green; awaiting maintainer review
-- PR #172 (branch: efficiency/precompute-password-error-strings-746f7beb9208abb3): fixed to use const strings + removed fmt import (commit 2026-05-02); awaiting CI re-run + maintainer review
+- PR #211 (branch: efficiency/password-error-consts): convert errPasswordTooShort/errPasswordTooLong from var+fmt.Sprintf to const; remove fmt import from handler/helpers.go; submitted 2026-05-03
 
 ## Completed Work
 - PR #39: MERGED 2026-04-20 — replace math.Pow10 with totpModulo=1_000_000 integer constant
@@ -56,16 +57,16 @@
 - PR #128: MERGED (confirmed 2026-04-27) — replace map[string]string error body with struct (jsonError + writeError)
 - PR #137: MERGED 2026-04-28 — replace 15x single-key map[string]string/bool success response literals with typed structs
 - PR #162: MERGED 2026-04-29 — reuse HMAC in ValidateTOTP via hotpCodeWithMAC + mac.Reset()
+- PR #170: MERGED 2026-05-03 by veverkap — precompute totpDigitsStr, totpPeriodStr, totpHandlerEncoding
+- PR #172: MERGED 2026-05-03 by veverkap — password error strings as var+fmt.Sprintf (not full const; follow-up is PR #211)
 
 ## Backlog Cursor
-- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-01)
+- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-03)
+- New OAuth2Handler (PR #203) scanned — no significant efficiency opportunities found
 - Major hot-path optimisations exhausted; remaining items are low-priority/rare-path
-- Last tasks run: Task 4 (fixed PR #172 to use const + removed fmt; PR #170 unchanged/CI green), Task 7 (updated May issue)
-- Last run: 2026-05-02
+- Last tasks run: Task 3 (PR #211: const fix for password errors), Task 7 (created new May 2026 issue)
+- Last run: 2026-05-03
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED 2026-05-01)
-- May 2026: Issue #174 (open)
-
-## Last Run
-- 2026-05-02: Task 4 — fixed PR #172: converted errPasswordTooShort/errPasswordTooLong from var (fmt.Sprintf) to const strings and removed fmt import, addressing Greptile review feedback. PR #170 CI green, no changes needed. Task 7 — updated May 2026 monthly activity issue #174.
+- May 2026: Issue #174 (CLOSED by veverkap 2026-05-03); new issue pending creation this run
