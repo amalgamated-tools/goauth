@@ -622,24 +622,27 @@ func TestOIDCCallback_missingCode(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Callback — config validation
+// Validate
 // ---------------------------------------------------------------------------
 
-func TestCallback_sessionsWithoutRefreshCookieName_returns500(t *testing.T) {
-	// When Sessions is configured but RefreshCookieName is empty, Callback must
-	// refuse with 500 rather than silently dropping the refresh token.
+func TestValidate_sessionsWithoutRefreshCookieName_returnsError(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Sessions = &mockSessionStore{}
 	// h.RefreshCookieName is "" (zero value)
 
-	req := httptest.NewRequest(http.MethodGet, "/callback?state=abc&code=xyz", nil)
-	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "abc"})
-	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "verifier"})
-	w := httptest.NewRecorder()
-	h.Callback(w, req)
+	require.Error(t, h.Validate())
+}
 
-	require.Equal(t, http.StatusInternalServerError, w.Code)
-	var body map[string]string
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
-	require.Contains(t, body["error"], "configuration")
+func TestValidate_sessionsWithRefreshCookieName_ok(t *testing.T) {
+	h := newTestOIDCHandler()
+	h.Sessions = &mockSessionStore{}
+	h.RefreshCookieName = "refresh"
+
+	require.NoError(t, h.Validate())
+}
+
+func TestValidate_noSessions_ok(t *testing.T) {
+	h := newTestOIDCHandler()
+	// Sessions is nil — RefreshCookieName is not required.
+	require.NoError(t, h.Validate())
 }
