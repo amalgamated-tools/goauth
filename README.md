@@ -1,6 +1,6 @@
 # goauth
 
-**goauth** is a router-agnostic Go library that provides complete authentication infrastructure for web applications. It covers JWT session management, email/password auth, OIDC (SSO) login, WebAuthn passkeys, API key authentication, magic link (passwordless) login, TOTP/MFA, email verification, password reset, RBAC, rate limiting, AES-256-GCM encryption, and SMTP email delivery.
+**goauth** is a router-agnostic Go library that provides complete authentication infrastructure for web applications. It covers JWT session management, email/password auth, OIDC (SSO) login, generic OAuth2 login (GitHub, Discord, Slack, and any custom provider), WebAuthn passkeys, API key authentication, magic link (passwordless) login, TOTP/MFA, email verification, password reset, RBAC, rate limiting, AES-256-GCM encryption, and SMTP email delivery.
 
 ## Packages
 
@@ -710,6 +710,99 @@ OIDC endpoints use `{"error": "<message>"}` JSON for non-redirect failure respon
 | `Link` | `401 Unauthorized` | Nonce is invalid or expired |
 | `Link` | `409 Conflict` | User lookup failed or user not found; account already has an OIDC subject linked |
 | `Link` | `500 Internal Server Error` | Failed to generate OAuth state |
+
+### OAuth2Handler – Generic OAuth2 login
+
+`OAuth2Handler` provides login and account linking for any OAuth2-based provider (GitHub, Discord, Slack, or a custom service). Unlike `OIDCHandler`, it does not require OIDC discovery or `id_token` verification; identity is resolved by a pluggable `OAuth2IdentityProvider` that you implement (or use a built-in).
+
+> **When to use `OIDCHandler` instead:** if your provider supports OpenID Connect (Google, Microsoft, Okta, Auth0, Keycloak, etc.), prefer `OIDCHandler`. Use `OAuth2Handler` only for providers that do not issue OIDC `id_token`s (e.g. GitHub, Discord).
+
+```go
+h := &handler.OAuth2Handler{
+    Users: userStore,
+    JWT:   jwtMgr,
+    OAuthConfig: oauth2.Config{
+        ClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+        ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+        RedirectURL:  "https://myapp.example.com/auth/github/callback",
+        Endpoint:     github.Endpoint, // from golang.org/x/oauth2/github
+        Scopes:       []string{"read:user", "user:email"},
+    },
+    Provider:      &handler.GitHubProvider{},  // built-in; or implement your own
+    CookieName:    "session",
+    SecureCookies: true,
+
+    // Optional: enable server-side sessions and refresh-token rotation.
+    Sessions:          sessionStore,
+    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL,
+    RefreshCookieName: "refresh",
+
+    // Optional: customise post-login redirect query parameter.
+    LoginRedirect: "github_login=1", // redirects to /?github_login=1
+}
+
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
+
+// Routes
+GET  /auth/github/login               → h.Login           // redirect to provider
+GET  /auth/github/callback            → h.Callback        // handle provider redirect
+POST /auth/github/link-nonce          → h.CreateLinkNonce // issue nonce (requires auth)
+GET  /auth/github/link?nonce=<nonce>  → h.Link            // start link flow (requires auth)
+```
+
+#### OAuth2IdentityProvider interface
+
+```go
+type OAuth2IdentityProvider interface {
+    FetchUserInfo(ctx context.Context, token *oauth2.Token) (*OAuth2UserInfo, error)
+}
+
+type OAuth2UserInfo struct {
+    Subject       string // stable unique ID — use a provider prefix, e.g. "github:12345"
+    Email         string // must be non-empty
+    Name          string // falls back to Email if empty
+    EmailVerified bool   // login is rejected when false (link flows are exempt)
+}
+```
+
+Two ready-to-use implementations are included:
+
+- **`GitHubProvider`** — calls `GET /user` and `GET /user/emails`; requires OAuth2 scopes `read:user` and `user:email`; subjects are prefixed `github:<id>`.
+- **`GoogleOAuth2Provider`** — calls Google's userinfo endpoint; requires scope `https://www.googleapis.com/auth/userinfo.email`; subjects are prefixed `google:<sub>`. For new Google integrations prefer `OIDCHandler` with `https://accounts.google.com`.
+
+Use a provider-specific subject prefix (e.g. `"github:12345"`, `"discord:987654321"`) to prevent cross-provider subject collisions.
+
+#### Callback behaviour
+
+The callback validates CSRF state and PKCE verifier cookies, exchanges the authorisation code, calls `Provider.FetchUserInfo`, then resolves the user through the same ordered steps as `OIDCHandler`:
+
+1. **Existing subject** → log the user in immediately.
+2. **Existing email** → best-effort link the subject to that account and log in.
+3. **New user** → create an account via `UserStore.CreateOIDCUser` and log in.
+4. **Concurrent-creation race** → retry lookup when `CreateOIDCUser` returns `ErrEmailExists`.
+
+On success, `Callback` redirects to `/?<LoginRedirect>` (default `/?oauth2_login=1`).
+
+For link flows, post-linking outcomes are communicated via redirect query parameters (`oauth2_linked=true` / `oauth2_link_error=<message>`).
+
+#### Error responses
+
+| Endpoint | Status | Condition |
+|---|---|---|
+| `Login` | `500 Internal Server Error` | Failed to generate random state |
+| `Callback` | `302 Found` | Success — redirect to `/?<LoginRedirect>` |
+| `Callback` | `400 Bad Request` | Missing/invalid state or PKCE cookie, missing `code` |
+| `Callback` | `401 Unauthorized` | Provider error; code exchange failure; `FetchUserInfo` error; unverified email |
+| `Callback` | `500 Internal Server Error` | Failed to resolve/create user or issue tokens |
+| `CreateLinkNonce` | `200 OK` | `{"nonce": "..."}` |
+| `CreateLinkNonce` | `503 Service Unavailable` | `LinkNonces` is `nil` |
+| `Link` | `302 Found` | Redirect to OAuth2 provider |
+| `Link` | `400 Bad Request` | `nonce` query parameter is missing |
+| `Link` | `401 Unauthorized` | Nonce is invalid or expired |
+| `Link` | `409 Conflict` | Account already linked, or user not found |
+| `Link` | `503 Service Unavailable` | `LinkNonces` is `nil` |
 
 ### APIKeyHandler
 
