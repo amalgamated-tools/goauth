@@ -115,10 +115,9 @@ func handleLinkCallback(
 	linkUserID, subject string,
 	successURL, errorParam string,
 ) {
-	errRedirect := func(logMsg, redirectMsg string, logErr ...any) {
-		if logMsg != "" {
-			args := append([]any{"error"}, logErr...)
-			slog.ErrorContext(r.Context(), logMsg, args...)
+	errRedirect := func(logMsg, redirectMsg string, logErr error) {
+		if logMsg != "" && logErr != nil {
+			slog.ErrorContext(r.Context(), logMsg, slog.Any("error", logErr))
 		}
 		http.Redirect(w, r, "/?"+errorParam+"="+url.QueryEscape(redirectMsg), http.StatusFound)
 	}
@@ -126,19 +125,19 @@ func handleLinkCallback(
 	user, err := users.FindByID(r.Context(), linkUserID)
 	if err != nil {
 		if errors.Is(err, auth.ErrNotFound) {
-			errRedirect("", "User not found")
+			errRedirect("", "User not found", nil)
 		} else {
 			errRedirect("failed to look up user during link", "Link verification failed", err)
 		}
 		return
 	}
 	if user.OIDCSubject != nil {
-		errRedirect("", "Already linked")
+		errRedirect("", "Already linked", nil)
 		return
 	}
 	if existing, err := users.FindByOIDCSubject(r.Context(), subject); err == nil {
 		if existing.ID != linkUserID {
-			errRedirect("", "SSO identity linked to another account")
+			errRedirect("", "SSO identity linked to another account", nil)
 			return
 		}
 	} else if !errors.Is(err, auth.ErrNotFound) {

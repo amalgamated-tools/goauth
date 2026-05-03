@@ -146,7 +146,7 @@ On failure the browser is redirected to `/?oauth2_link_error=<value>`:
 | `User not found` | `FindByID` returned `ErrNotFound` for the link user |
 | `Already linked` | The account already has an OIDC subject attached |
 | `SSO identity linked to another account` | The incoming subject is already associated with a different account |
-| `Link verification failed` | A database error occurred while checking for an existing subject association |
+| `Link verification failed` | A database error was returned by `FindByID` (non-`ErrNotFound`) or by `FindByOIDCSubject` while checking for an existing subject association |
 | `Failed to link` | `LinkOIDCSubject` returned an error after the duplicate-link check passed |
 
 ## Session tracking and refresh tokens
@@ -175,7 +175,7 @@ When `Sessions` is `nil`, only a stateless access JWT is issued. Token lifetime 
 | `Link` | 302 Found | Redirects to OAuth2 provider to start the linking flow |
 | `Link` | 400 Bad Request | Missing nonce |
 | `Link` | 401 Unauthorized | Invalid or expired nonce |
-| `Link` | 409 Conflict | Account is already linked, or `Users.FindByID` fails |
+| `Link` | 409 Conflict | Account is already linked, or `Users.FindByID` returns `ErrNotFound` |
 | `Link` | 500 Internal Server Error | Nonce store error or failed to initiate redirect |
 | `Link` | 503 Service Unavailable | `LinkNonces` is `nil` |
 

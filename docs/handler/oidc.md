@@ -73,10 +73,10 @@ Account linking uses a short-lived (5-minute) HMAC-signed state token to protect
 
 | `oidc_link_error` value | Cause |
 |-------------------------|-------|
-| `User not found` | `FindByID` returned an error for the `linkUserID` encoded in the state (user not found **or** any store error such as a DB timeout). |
+| `User not found` | `FindByID` returned `ErrNotFound` for the `linkUserID` encoded in the state. |
 | `Already linked` | The account already has an OIDC subject attached. |
 | `SSO identity linked to another account` | The incoming OIDC subject is already associated with a different account. |
-| `Link verification failed` | The user store returned an unexpected error (e.g. a database timeout) while checking for an existing subject association. The link is **not** performed. |
+| `Link verification failed` | A database error was returned by `FindByID` (non-`ErrNotFound`) or by `FindByOIDCSubject` while checking for an existing subject association. The link is **not** performed. |
 | `Failed to link` | `LinkOIDCSubject` returned an error after the duplicate-link check passed. |
 
 !!! warning "DB errors never bypass the duplicate-link guard"
