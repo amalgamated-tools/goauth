@@ -24,4 +24,4 @@ The OIDC flow uses two short-lived state cookies (`oidc_state` and `oidc_verifie
 
 ## OAuth2 flow cookies
 
-The generic OAuth2 flow uses the same pattern: two short-lived state cookies (`oauth2_state` and `oauth2_verifier`) are set with `SameSite=Lax`, `HttpOnly`, and a 5-minute TTL. The rationale is identical — the OAuth2 provider redirects the browser back as a top-level cross-site navigation, which `SameSite=Strict` would block. Both cookies are cleared immediately inside the callback handler once the CSRF state and PKCE verifier have been validated.
+The generic OAuth2 flow uses the same pattern: two short-lived state cookies (`oauth2_state` and `oauth2_verifier`) are set with `SameSite=Lax`, `HttpOnly`, and a 5-minute TTL. The rationale is identical — the OAuth2 provider redirects the browser back as a top-level cross-site navigation, which `SameSite=Strict` would block. Both cookies are cleared inside the callback handler after the CSRF state is validated and the verifier value has been read; the PKCE challenge is then verified server-side during the code exchange.
