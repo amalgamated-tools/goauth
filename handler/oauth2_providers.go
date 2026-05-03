@@ -159,7 +159,7 @@ func (p *GoogleOAuth2Provider) FetchUserInfo(ctx context.Context, token *oauth2.
 		return nil, fmt.Errorf("decode Google userinfo: %w", err)
 	}
 	return &OAuth2UserInfo{
-		Subject:       u.Sub,
+		Subject:       "google:" + u.Sub,
 		Email:         u.Email,
 		Name:          u.Name,
 		EmailVerified: u.EmailVerified,

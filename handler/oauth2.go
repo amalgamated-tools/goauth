@@ -79,6 +79,15 @@ type OAuth2Handler struct {
 // server startup, after setting all optional fields, so that misconfiguration
 // is caught immediately rather than at the first user login attempt.
 func (h *OAuth2Handler) Validate() error {
+	if h.Provider == nil {
+		return errors.New("OAuth2Handler misconfigured: Provider is required")
+	}
+	if h.Users == nil {
+		return errors.New("OAuth2Handler misconfigured: Users is required")
+	}
+	if h.JWT == nil {
+		return errors.New("OAuth2Handler misconfigured: JWT is required")
+	}
 	if h.Sessions != nil && h.RefreshCookieName == "" {
 		return errors.New("OAuth2Handler misconfigured: Sessions requires RefreshCookieName")
 	}

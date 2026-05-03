@@ -180,4 +180,4 @@ When `Sessions` is `nil`, only a stateless access JWT is issued. Token lifetime 
 | `Link` | 503 Service Unavailable | `LinkNonces` is `nil` |
 
 !!! info "Link-callback redirects"
-    After the provider returns to `Callback` during a link flow, all outcomes are communicated via redirect query parameters, never via JSON error responses.
+    After the provider returns to `Callback` during a link flow, outcomes that depend on the linking logic (duplicate subject check, `LinkOIDCSubject`) are communicated via redirect query parameters (`oauth2_link_error` / `oauth2_linked=true`). Early failures before identity is confirmed — such as missing cookies, a failed code exchange, or a `FetchUserInfo` error — still return JSON error responses.
