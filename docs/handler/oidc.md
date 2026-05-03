@@ -58,8 +58,8 @@ The callback performs PKCE verification and handles three cases automatically:
 
 Account linking uses a short-lived (5-minute) HMAC-signed state token to protect the integrity of the linking flow. The state value is signed, not encrypted, so any embedded user identifier should be treated as visible to the browser and other parties that can inspect the redirect URL or related cookies.
 
-!!! warning "In-memory nonce storage"
-    `OIDCHandler` stores pending link nonces in an in-memory map. In a **multi-instance deployment** (e.g. behind a load balancer), the nonce generated on one instance may not be present on the instance that handles the `/oidc/link?nonce=…` request, causing that request to fail with HTTP 401 `"invalid or expired nonce"`. Ensure sticky sessions or use a shared external store if you need account linking across multiple instances.
+!!! info "Shared nonce storage"
+    `OIDCHandler` requires a `LinkNonces auth.OIDCLinkNonceStore` field backed by a **shared external store** (e.g. a database table) for account-linking nonces. In a multi-instance deployment (behind a load balancer), nonces must be readable from every instance that may handle the `/oidc/link?nonce=…` request. When `LinkNonces` is `nil`, `CreateLinkNonce` and `Link` return HTTP 503 `"account linking not configured"`. Register `linkNonceStore.DeleteExpiredLinkNonces` with `maintenance.StartCleanup` to prune stale entries.
 
 ### Linking flow error redirects
 
@@ -101,12 +101,14 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | `Callback` | 401 Unauthorized | Provider authentication failed; invalid token exchange; invalid `id_token`; unverified OIDC email |
 | `Callback` | 500 Internal Server Error | `Sessions != nil && RefreshCookieName == ""`; failed to parse claims, resolve/create user, or issue tokens/session (e.g. refresh token generation, session store creation, or JWT creation) |
 | `CreateLinkNonce` | 200 OK | `{"nonce": "..."}` |
-| `CreateLinkNonce` | 500 Internal Server Error | Failed to generate nonce |
+| `CreateLinkNonce` | 500 Internal Server Error | Failed to generate nonce or store it |
+| `CreateLinkNonce` | 503 Service Unavailable | `LinkNonces` is `nil` |
 | `Link` | 302 Found | Redirects to OIDC provider to start the linking flow |
 | `Link` | 400 Bad Request | Missing nonce |
 | `Link` | 401 Unauthorized | Invalid or expired nonce |
 | `Link` | 409 Conflict | Account is already linked to an OIDC identity, or resolving the current user (`Users.FindByID`) fails |
-| `Link` | 500 Internal Server Error | Failed to initiate OIDC redirect |
+| `Link` | 500 Internal Server Error | Failed to initiate OIDC redirect or nonce store error |
+| `Link` | 503 Service Unavailable | `LinkNonces` is `nil` |
 
 !!! info "Link-callback redirects"
     After the OIDC provider returns to `Callback` during a link flow, all outcomes (success and failure) are communicated via redirect query parameters (`oidc_linked=true` or `oidc_link_error=<value>`), never via JSON error responses. See [Linking flow error redirects](#linking-flow-error-redirects) for the possible `oidc_link_error` values.

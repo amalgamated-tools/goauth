@@ -184,6 +184,27 @@ type MagicLinkStore interface {
 	DeleteExpiredMagicLinks(ctx context.Context) error
 }
 
+// OIDCLinkNonce represents a short-lived, single-use token authorising OIDC
+// account linking.
+type OIDCLinkNonce struct {
+	ID        string
+	UserID    string
+	NonceHash string
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+// OIDCLinkNonceStore defines data access for OIDC account-linking nonces.
+type OIDCLinkNonceStore interface {
+	// CreateLinkNonce stores a hashed nonce for userID, expiring at expiresAt.
+	CreateLinkNonce(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*OIDCLinkNonce, error)
+	// ConsumeAndDeleteLinkNonce atomically retrieves and removes the record
+	// matching nonceHash. Returns ErrNotFound when not found.
+	ConsumeAndDeleteLinkNonce(ctx context.Context, nonceHash string) (*OIDCLinkNonce, error)
+	// DeleteExpiredLinkNonces removes all records whose ExpiresAt is in the past.
+	DeleteExpiredLinkNonces(ctx context.Context) error
+}
+
 // EmailVerificationStore defines data access for email verification tokens.
 type EmailVerificationStore interface {
 	// CreateEmailVerification stores a new hashed token for the given user.
