@@ -228,6 +228,7 @@ func (h *OIDCHandler) handleLinkCallback(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if err := h.Users.LinkOIDCSubject(r.Context(), linkUserID, subject); err != nil {
+		slog.ErrorContext(r.Context(), "failed to link OIDC subject", slog.Any("error", err))
 		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Failed to link"), http.StatusFound)
 		return
 	}
