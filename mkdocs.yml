@@ -60,7 +60,7 @@ nav:
     - handler/index.md
     - Email / Password: handler/auth.md
     - OIDC / SSO: handler/oidc.md
-    - OAuth2 Login: handler/oauth2.md
+    - Generic OAuth2: handler/oauth2.md
     - API Keys: handler/api-keys.md
     - Sessions: handler/sessions.md
     - Passkeys (WebAuthn): handler/passkeys.md
