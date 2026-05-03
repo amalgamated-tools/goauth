@@ -129,7 +129,7 @@ Sentinel errors: `auth.ErrInvalidToken`, `auth.ErrExpiredToken`, `auth.ErrNotFou
 | `auth.ErrExpiredToken` | Token has passed its `exp` claim |
 | `auth.ErrEmailExists` | `CreateUser` called with an already-registered email |
 | `auth.ErrEmailNotVerified` | Provided for consuming applications and custom middleware; not returned by built-in handlers (which write HTTP 403 directly) |
-| `auth.ErrSessionRevoked` | Provided for consuming applications and custom middleware; not returned by the built-in `Middleware`, which handles the HTTP response directly |
+| `auth.ErrSessionRevoked` | Returned by `SessionStore.FindSessionByID` when a session has been explicitly revoked; middleware treats this identically to `ErrNotFound` (HTTP 401) |
 | `auth.ErrNotFound` | Store method found no matching record |
 | `auth.ErrTOTPNotFound` | `GetTOTPSecret` called for a user who has not enrolled TOTP |
 | `auth.ErrInvalidTOTPCode` | TOTP code verification failed |

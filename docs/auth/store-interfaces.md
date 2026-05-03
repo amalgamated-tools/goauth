@@ -85,7 +85,7 @@ type SessionStore interface {
 
 Each session is bound to one refresh token hash. Only the SHA-256 hash of the refresh token is persisted.
 
-Return `auth.ErrNotFound` from `FindSessionByID`, `FindSessionByRefreshTokenHash`, and `DeleteSession` when the record is not found.
+Return `auth.ErrNotFound` from `FindSessionByID`, `FindSessionByRefreshTokenHash`, and `DeleteSession` when the record is not found. `FindSessionByID` may also return `auth.ErrSessionRevoked` when a session exists in a revoked state; the middleware treats both as a `401` response.
 
 ### Session struct
 

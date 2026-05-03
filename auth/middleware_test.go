@@ -607,6 +607,28 @@ func TestMiddleware_revokedSession(t *testing.T) {
 	w := makeMiddlewareRequest(mgr, cfg, nil, req)
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, w.Body.String(), "session expired or revoked")
+}
+
+func TestMiddleware_revokedSessionSentinel(t *testing.T) {
+	ctx := context.Background()
+	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
+	token, _ := mgr.CreateTokenWithSession(ctx, "user-revoked", "sess-revoked")
+
+	store := &mockSessionStore{
+		// Store explicitly signals ErrSessionRevoked.
+		findByIDFunc: func(_ context.Context, _ string) (*Session, error) {
+			return nil, ErrSessionRevoked
+		},
+	}
+
+	cfg := Config{CookieName: "auth", Sessions: store}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := makeMiddlewareRequest(mgr, cfg, nil, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, w.Body.String(), "session expired or revoked")
 }
 
 func TestMiddleware_expiredSession(t *testing.T) {
