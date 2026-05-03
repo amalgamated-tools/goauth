@@ -2,13 +2,10 @@ package handler
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
@@ -208,76 +205,15 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *OIDCHandler) handleLinkCallback(w http.ResponseWriter, r *http.Request, linkUserID, subject string) {
-	user, err := h.Users.FindByID(r.Context(), linkUserID)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("User not found"), http.StatusFound)
-		} else {
-			slog.ErrorContext(r.Context(), "failed to look up user during OIDC link", slog.Any("error", err))
-			http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Link verification failed"), http.StatusFound)
-		}
-		return
-	}
-	if user.OIDCSubject != nil {
-		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Already linked"), http.StatusFound)
-		return
-	}
-	if existing, err := h.Users.FindByOIDCSubject(r.Context(), subject); err == nil {
-		if existing.ID != linkUserID {
-			http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("SSO identity linked to another account"), http.StatusFound)
-			return
-		}
-	} else if !errors.Is(err, auth.ErrNotFound) {
-		slog.ErrorContext(r.Context(), "failed to look up OIDC subject during link", slog.Any("error", err))
-		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Link verification failed"), http.StatusFound)
-		return
-	}
-	if err := h.Users.LinkOIDCSubject(r.Context(), linkUserID, subject); err != nil {
-		slog.ErrorContext(r.Context(), "failed to link OIDC subject", slog.Any("error", err))
-		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Failed to link"), http.StatusFound)
-		return
-	}
-	http.Redirect(w, r, "/?oidc_linked=true", http.StatusFound)
+	handleLinkCallback(w, r, h.Users, linkUserID, subject, "/?oidc_linked=true", "oidc_link_error")
 }
 
 func (h *OIDCHandler) linkOIDCSubjectBestEffort(ctx context.Context, userID, subject, path string) {
-	err := h.Users.LinkOIDCSubject(ctx, userID, subject)
-	if err != nil && !errors.Is(err, auth.ErrOIDCSubjectAlreadyLinked) {
-		slog.WarnContext(ctx, "failed to link OIDC subject to email-matched user",
-			slog.String("user_id", userID),
-			slog.String("path", path),
-			slog.Any("error", err),
-		)
-	}
+	linkSubjectBestEffort(ctx, h.Users, userID, subject, path)
 }
 
 func (h *OIDCHandler) findOrCreateUser(ctx context.Context, subject, email, name string) (*auth.User, error) {
-	if user, err := h.Users.FindByOIDCSubject(ctx, subject); err == nil {
-		return user, nil
-	} else if !errors.Is(err, auth.ErrNotFound) {
-		return nil, err
-	}
-	if user, err := h.Users.FindByEmail(ctx, email); err == nil {
-		h.linkOIDCSubjectBestEffort(ctx, user.ID, subject, "email_match")
-		return user, nil
-	} else if !errors.Is(err, auth.ErrNotFound) {
-		return nil, err
-	}
-	if user, err := h.Users.CreateOIDCUser(ctx, name, email, subject); err == nil {
-		return user, nil
-	} else if !errors.Is(err, auth.ErrEmailExists) {
-		return nil, fmt.Errorf("create OIDC user: %w", err)
-	}
-	// Race retry: ErrEmailExists means another request already created the user
-	// concurrently, so look them up instead.
-	if u, err := h.Users.FindByOIDCSubject(ctx, subject); err == nil {
-		return u, nil
-	}
-	if u, err := h.Users.FindByEmail(ctx, email); err == nil {
-		h.linkOIDCSubjectBestEffort(ctx, u.ID, subject, "race_retry")
-		return u, nil
-	}
-	return nil, fmt.Errorf("failed to resolve OIDC user")
+	return findOrCreateUser(ctx, h.Users, subject, email, name)
 }
 
 // CreateLinkNonce issues a nonce for OIDC account linking.
@@ -361,39 +297,13 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *OIDCHandler) consumeLinkNonce(ctx context.Context, nonce string) (string, error) {
-	nonceHash := auth.HashHighEntropyToken(nonce)
-	entry, err := h.LinkNonces.ConsumeAndDeleteLinkNonce(ctx, nonceHash)
-	if err != nil {
-		return "", err
-	}
-	if time.Now().UTC().After(entry.ExpiresAt) {
-		return "", auth.ErrNotFound
-	}
-	return entry.UserID, nil
+	return consumeLinkNonce(ctx, h.LinkNonces, nonce)
 }
 
 func (h *OIDCHandler) signLinkState(randomState, userID string) string {
-	payload := randomState + "|" + userID
-	sig := h.JWT.HMACSign([]byte(payload))
-	return randomState + "." + base64.RawURLEncoding.EncodeToString([]byte(userID)) + "." + base64.RawURLEncoding.EncodeToString(sig)
+	return signLinkState(h.JWT, randomState, userID)
 }
 
 func (h *OIDCHandler) parseLinkState(state string) string {
-	parts := strings.SplitN(state, ".", 3)
-	if len(parts) != 3 {
-		return ""
-	}
-	uidBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return ""
-	}
-	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
-	if err != nil {
-		return ""
-	}
-	userID := string(uidBytes)
-	if !h.JWT.HMACVerify([]byte(parts[0]+"|"+userID), sig) {
-		return ""
-	}
-	return userID
+	return parseLinkState(h.JWT, state)
 }
