@@ -47,8 +47,8 @@ type OIDCHandler struct {
 	// DefaultRefreshTokenTTL when Sessions is non-nil.
 	RefreshTokenTTL time.Duration
 	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. Must be non-empty when Sessions is set; Callback returns
-	// 500 if this constraint is violated.
+	// refresh token. Must be non-empty when Sessions is set; call Validate at
+	// startup to catch this misconfiguration early.
 	RefreshCookieName string
 	linkNonces        map[string]linkNonce
 	linkNoncesMu      sync.Mutex
@@ -70,6 +70,18 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 		CookieName: cookieName, SecureCookies: secureCookies,
 		linkNonces: make(map[string]linkNonce),
 	}, nil
+}
+
+// Validate checks that the handler is correctly configured and returns an error
+// if any required fields are missing or incompatible. Call Validate once at
+// server startup, after setting all optional fields (Sessions, RefreshCookieName,
+// etc.), so that misconfiguration is caught immediately rather than at the
+// moment the first real user attempts to log in.
+func (h *OIDCHandler) Validate() error {
+	if h.Sessions != nil && h.RefreshCookieName == "" {
+		return errors.New("OIDCHandler misconfigured: Sessions requires RefreshCookieName")
+	}
+	return nil
 }
 
 // issueTokens delegates to the package-level issueTokens helper.
@@ -105,12 +117,6 @@ func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Callback handles the OIDC provider redirect.
 func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
-	if h.Sessions != nil && h.RefreshCookieName == "" {
-		slog.ErrorContext(r.Context(), "OIDCHandler misconfigured: Sessions requires RefreshCookieName")
-		writeError(r.Context(), w, http.StatusInternalServerError, "server configuration error")
-		return
-	}
-
 	cookie, err := r.Cookie(oidcStateCookieName)
 	if err != nil || cookie.Value == "" {
 		writeError(r.Context(), w, http.StatusBadRequest, "missing state cookie")

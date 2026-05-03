@@ -18,10 +18,16 @@ h, err := handler.NewOIDCHandler(
 h.Sessions          = sessionStore
 h.RefreshTokenTTL   = handler.DefaultRefreshTokenTTL // default 7 days
 h.RefreshCookieName = "refresh"
+
+// Validate configuration at startup (returns an error if Sessions is set
+// without RefreshCookieName).
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
 ```
 
 !!! warning "Sessions requires RefreshCookieName"
-    When `Sessions` is set, `RefreshCookieName` must also be non-empty. Because `Callback` issues tokens via an HTTP redirect (no response body), the refresh token can only be delivered via an `HttpOnly` cookie. `Callback` returns HTTP 500 and logs an error if `Sessions != nil && RefreshCookieName == ""`.
+    When `Sessions` is set, `RefreshCookieName` must also be non-empty. Because `Callback` issues tokens via an HTTP redirect (no response body), the refresh token can only be delivered via an `HttpOnly` cookie. Call `h.Validate()` at server startup (after setting all optional fields) to catch this misconfiguration early — before any users attempt to log in.
 
 ## Routes
 
@@ -99,7 +105,7 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | `Callback` | 302 Found | Success — redirects to `/?oidc_login=1` |
 | `Callback` | 400 Bad Request | Missing/invalid state cookie, PKCE verifier, or authorization code; missing `sub`/`email` claims |
 | `Callback` | 401 Unauthorized | Provider authentication failed; invalid token exchange; invalid `id_token`; unverified OIDC email |
-| `Callback` | 500 Internal Server Error | `Sessions != nil && RefreshCookieName == ""`; failed to parse claims, resolve/create user, or issue tokens/session (e.g. refresh token generation, session store creation, or JWT creation) |
+| `Callback` | 500 Internal Server Error | Failed to parse claims, resolve/create user, or issue tokens/session (e.g. refresh token generation, session store creation, or JWT creation) |
 | `CreateLinkNonce` | 200 OK | `{"nonce": "..."}` |
 | `CreateLinkNonce` | 500 Internal Server Error | Failed to generate nonce |
 | `Link` | 302 Found | Redirects to OIDC provider to start the linking flow |
