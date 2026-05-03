@@ -31,7 +31,7 @@ if cfg.Enabled() {
 | `From` | Bare email address (e.g. `sender@example.com`) | SMTP envelope (`MAIL FROM`) — handled internally by `smtp.Send` |
 | `FromHeader` | RFC 5322-formatted address string | `From:` header in the outgoing message |
 
-`FromHeader` is the value to place in the `From:` header of each message you build. When `SMTP_FROM` includes a display name (e.g. `My App <sender@example.com>`), `FromHeader` is the properly quoted or MIME-encoded string produced by `mail.Address.String()` (e.g. `"My App" <sender@example.com>`). When no display name is present, `FromHeader` is identical to `From`.
+`FromHeader` is the value to place in the `From:` header of each message you build. When `SMTP_FROM` includes a display name (e.g. `My App <sender@example.com>`), `FromHeader` is the string produced by `mail.Address.String()`: the display name is quoted per RFC 5322 and RFC 2047-encoded when it contains non-ASCII characters (e.g. `"My App" <sender@example.com>`). When no display name is present, `FromHeader` is identical to `From`.
 
 ```go
 params, err := cfg.Validate()
@@ -45,6 +45,7 @@ msg := "From: " + params.FromHeader + "\r\n" +
     "Message body.\r\n"
 
 err = smtp.Send(ctx, params, "recipient@example.com", []byte(msg))
+if err != nil { /* ... */ }
 ```
 
 ## Environment variables
