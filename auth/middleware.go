@@ -289,7 +289,7 @@ func authenticate(w http.ResponseWriter, r *http.Request, jwtMgr *JWTManager, ap
 	if cfg.Sessions != nil && sessionID != "" {
 		sess, serr := cfg.Sessions.FindSessionByID(r.Context(), sessionID)
 		if serr != nil {
-			if errors.Is(serr, ErrNotFound) {
+			if errors.Is(serr, ErrNotFound) || errors.Is(serr, ErrSessionRevoked) {
 				jsonError(w, http.StatusUnauthorized, "session expired or revoked")
 			} else {
 				slog.ErrorContext(r.Context(), "failed to look up session", slog.Any("error", serr))
@@ -318,6 +318,7 @@ func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKe
 
 			isAdmin, err := cachedChecker.IsAdmin(r.Context(), userID)
 			if err != nil {
+				slog.ErrorContext(r.Context(), "failed to verify admin status", slog.Any("error", err))
 				jsonError(w, http.StatusInternalServerError, "failed to verify permissions")
 				return
 			}
@@ -346,6 +347,7 @@ func RequireRole(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiKeys AP
 
 			hasRole, err := cachedChecker.HasRole(r.Context(), userID, role)
 			if err != nil {
+				slog.ErrorContext(r.Context(), "failed to verify role", slog.Any("error", err))
 				jsonError(w, http.StatusInternalServerError, "failed to verify role")
 				return
 			}
@@ -375,6 +377,7 @@ func RequirePermission(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiK
 
 			hasPerm, err := cachedChecker.HasPermission(r.Context(), userID, perm)
 			if err != nil {
+				slog.ErrorContext(r.Context(), "failed to verify permission", slog.Any("error", err))
 				jsonError(w, http.StatusInternalServerError, "failed to verify permission")
 				return
 			}

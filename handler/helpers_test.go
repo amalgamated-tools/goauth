@@ -215,6 +215,47 @@ func (m *mockMagicLinkStore) DeleteExpiredMagicLinks(ctx context.Context) error 
 	return nil
 }
 
+type mockOIDCLinkNonceStore struct {
+	nonces               map[string]*auth.OIDCLinkNonce
+	createFunc           func(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*auth.OIDCLinkNonce, error)
+	consumeAndDeleteFunc func(ctx context.Context, nonceHash string) (*auth.OIDCLinkNonce, error)
+	deleteExpiredFunc    func(ctx context.Context) error
+}
+
+func (m *mockOIDCLinkNonceStore) CreateLinkNonce(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*auth.OIDCLinkNonce, error) {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, userID, nonceHash, expiresAt)
+	}
+	n := &auth.OIDCLinkNonce{ID: "nonce-id", UserID: userID, NonceHash: nonceHash, ExpiresAt: expiresAt}
+	if m.nonces == nil {
+		m.nonces = make(map[string]*auth.OIDCLinkNonce)
+	}
+	m.nonces[nonceHash] = n
+	return n, nil
+}
+
+func (m *mockOIDCLinkNonceStore) ConsumeAndDeleteLinkNonce(ctx context.Context, nonceHash string) (*auth.OIDCLinkNonce, error) {
+	if m.consumeAndDeleteFunc != nil {
+		return m.consumeAndDeleteFunc(ctx, nonceHash)
+	}
+	if m.nonces == nil {
+		return nil, auth.ErrNotFound
+	}
+	n, ok := m.nonces[nonceHash]
+	if !ok {
+		return nil, auth.ErrNotFound
+	}
+	delete(m.nonces, nonceHash)
+	return n, nil
+}
+
+func (m *mockOIDCLinkNonceStore) DeleteExpiredLinkNonces(ctx context.Context) error {
+	if m.deleteExpiredFunc != nil {
+		return m.deleteExpiredFunc(ctx)
+	}
+	return nil
+}
+
 type mockPasswordResetStore struct {
 	createFunc        func(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*auth.PasswordResetToken, error)
 	findFunc          func(ctx context.Context, tokenHash string) (*auth.PasswordResetToken, error)
@@ -269,11 +310,12 @@ func (m *mockTokenCreator) CreateTokenWithSession(ctx context.Context, userID, s
 
 func newAuthHandlerWithSessions(store auth.UserStore, sessions auth.SessionStore) *AuthHandler {
 	return &AuthHandler{
-		Users:         store,
-		JWT:           newTestJWT(),
-		Sessions:      sessions,
-		CookieName:    "auth",
-		SecureCookies: false,
+		Users:             store,
+		JWT:               newTestJWT(),
+		Sessions:          sessions,
+		CookieName:        "auth",
+		RefreshCookieName: "refresh",
+		SecureCookies:     false,
 	}
 }
 
@@ -486,20 +528,17 @@ func TestIssueTokens_withSessions_refreshCookie(t *testing.T) {
 }
 
 func TestIssueTokens_withSessions_noRefreshCookieName(t *testing.T) {
-	// When Sessions is set but RefreshCookieName is empty, refresh token is
-	// returned but not set as a cookie (caller must deliver it another way).
+	// When Sessions is set but RefreshCookieName is empty, issueTokens fails
+	// fast to prevent silent session leaks. Callers must set RefreshCookieName
+	// when using session tracking.
 	sessions := &mockSessionStore{}
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	w := httptest.NewRecorder()
 
 	access, refresh, ok := issueTokens(w, req, "user-1", sessions, newTestJWT(), "auth", false, "", time.Hour)
 
-	require.True(t, ok)
-	require.NotEmpty(t, access)
-	require.NotEmpty(t, refresh)
-
-	// No refresh cookie set.
-	for _, c := range w.Result().Cookies() {
-		require.Equal(t, "auth", c.Name, "unexpected cookie %q", c.Name)
-	}
+	require.False(t, ok)
+	require.Empty(t, access)
+	require.Empty(t, refresh)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }

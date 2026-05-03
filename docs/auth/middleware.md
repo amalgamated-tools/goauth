@@ -108,7 +108,7 @@ All four middleware functions — `Middleware`, `AdminMiddleware`, `RequireRole`
 | Unexpected error from `resolveUser` | `ERROR` | `"failed to resolve user"` |
 | Unexpected error from `FindSessionByID` | `ERROR` | `"failed to look up session"` |
 
-`ErrInvalidToken` and `ErrExpiredToken` are **not** logged — they are treated as expected conditions and produce a `401` response with no log noise.
+`ErrInvalidToken`, `ErrExpiredToken`, `ErrNotFound`, and `ErrSessionRevoked` are **not** logged — they are treated as expected conditions and produce a `401` response with no log noise.
 
 goauth never sets or replaces the global `slog` handler. Configure your own handler before starting the server to control log destination, format, and minimum level.
 

@@ -87,7 +87,7 @@ type SessionStore interface {
 
 Each session is bound to one refresh token hash. Only the SHA-256 hash of the refresh token is persisted.
 
-Return `auth.ErrNotFound` from `FindSessionByID`, `FindSessionByRefreshTokenHash`, and `DeleteSession` when the record is not found.
+Return `auth.ErrNotFound` from `FindSessionByID`, `FindSessionByRefreshTokenHash`, and `DeleteSession` when the record is not found. `FindSessionByID` may also return `auth.ErrSessionRevoked` when a session exists in a revoked state; the middleware treats both as a `401` response.
 
 **Session revocation**: the middleware's only requirement is that `FindSessionByID` returns (or wraps) `auth.ErrNotFound` for sessions that are no longer valid. Hard-deleting the row (e.g. via `DeleteSession`) is the common approach, but soft-delete or audit-preserving schemes work equally well as long as `FindSessionByID` returns `ErrNotFound` for those sessions. The exported sentinel `auth.ErrSessionRevoked` is **not** currently checked by the middleware — returning it from `FindSessionByID` produces a `500 Internal Server Error`, not a `401`.
 

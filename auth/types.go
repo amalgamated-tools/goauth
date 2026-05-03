@@ -18,7 +18,10 @@ var (
 	ErrExpiredToken     = errors.New("token expired")
 	ErrEmailExists      = errors.New("email already exists")
 	ErrEmailNotVerified = errors.New("email not verified")
-	ErrSessionRevoked   = errors.New("session revoked")
+	// ErrSessionRevoked is returned by SessionStore.FindSessionByID when a
+	// session has been explicitly revoked. The middleware treats this the same
+	// as ErrNotFound and returns HTTP 401 "session expired or revoked".
+	ErrSessionRevoked = errors.New("session revoked")
 	// ErrNotFound is returned by store methods when the requested record does
 	// not exist. Implementations must return this (or wrap it) instead of
 	// driver-specific errors such as sql.ErrNoRows.
@@ -137,7 +140,9 @@ type Session struct {
 type SessionStore interface {
 	// CreateSession persists a new session and returns it.
 	CreateSession(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error)
-	// FindSessionByID returns a session by its ID. Returns ErrNotFound when not found.
+	// FindSessionByID returns a session by its ID. Returns ErrNotFound when not
+	// found. Implementations may also return ErrSessionRevoked when a session
+	// exists in a revoked state; the middleware treats both as 401.
 	FindSessionByID(ctx context.Context, id string) (*Session, error)
 	// FindSessionByRefreshTokenHash returns a session by its refresh token hash. Returns ErrNotFound when not found.
 	FindSessionByRefreshTokenHash(ctx context.Context, refreshTokenHash string) (*Session, error)
@@ -182,6 +187,28 @@ type MagicLinkStore interface {
 	FindAndDeleteMagicLink(ctx context.Context, tokenHash string) (*MagicLink, error)
 	// DeleteExpiredMagicLinks removes all records whose ExpiresAt is in the past.
 	DeleteExpiredMagicLinks(ctx context.Context) error
+}
+
+// OIDCLinkNonce represents a short-lived, single-use token authorising OIDC
+// account linking.
+type OIDCLinkNonce struct {
+	ID        string
+	UserID    string
+	NonceHash string
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+// OIDCLinkNonceStore defines data access for OIDC account-linking nonces.
+type OIDCLinkNonceStore interface {
+	// CreateLinkNonce stores a hashed nonce for userID, expiring at expiresAt.
+	CreateLinkNonce(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*OIDCLinkNonce, error)
+	// ConsumeAndDeleteLinkNonce atomically retrieves and removes the record
+	// matching nonceHash. Returns ErrNotFound when not found. The returned
+	// record may be expired; callers must check ExpiresAt themselves.
+	ConsumeAndDeleteLinkNonce(ctx context.Context, nonceHash string) (*OIDCLinkNonce, error)
+	// DeleteExpiredLinkNonces removes all records whose ExpiresAt is in the past.
+	DeleteExpiredLinkNonces(ctx context.Context) error
 }
 
 // EmailVerificationStore defines data access for email verification tokens.

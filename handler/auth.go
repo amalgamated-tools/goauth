@@ -247,7 +247,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	hash := auth.HashHighEntropyToken(rawRefresh)
 	sess, err := h.Sessions.FindSessionByRefreshTokenHash(r.Context(), hash)
 	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
+		if errors.Is(err, auth.ErrNotFound) || errors.Is(err, auth.ErrSessionRevoked) {
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired refresh token")
 			return
 		}

@@ -129,7 +129,7 @@ Sentinel errors: `auth.ErrInvalidToken`, `auth.ErrExpiredToken`, `auth.ErrNotFou
 | `auth.ErrExpiredToken` | Token has passed its `exp` claim |
 | `auth.ErrEmailExists` | `CreateUser` called with an already-registered email |
 | `auth.ErrEmailNotVerified` | Provided for consuming applications and custom middleware; not returned by built-in handlers (which write HTTP 403 directly) |
-| `auth.ErrSessionRevoked` | Provided for consuming applications and custom middleware; not returned by the built-in `Middleware`, which handles the HTTP response directly |
+| `auth.ErrSessionRevoked` | Returned by `SessionStore.FindSessionByID` when a session has been explicitly revoked; middleware treats this identically to `ErrNotFound` (HTTP 401) |
 | `auth.ErrNotFound` | Store method found no matching record |
 | `auth.ErrTOTPNotFound` | `GetTOTPSecret` called for a user who has not enrolled TOTP |
 | `auth.ErrInvalidTOTPCode` | TOTP code verification failed |
@@ -520,7 +520,7 @@ PUT    /auth/me              → h.UpdateProfile  // update display name (requir
 POST   /auth/password        → h.ChangePassword // change password (requires auth) → {"message":"password updated"}
 ```
 
-Password constraints: 8–72 bytes. Bcrypt cost 12.
+Password constraints: 8–72 bytes (bcrypt cost 12). A password shorter than 8 bytes returns `{"error": "password must be at least 8 bytes"}`; a password longer than 72 bytes returns `{"error": "password must be at most 72 bytes"}`.
 
 #### Response types
 
@@ -1092,7 +1092,7 @@ Only accounts with a password hash (not OIDC-only accounts) can use the reset fl
 
 When `SendResetEmail` is `nil`, `RequestReset` returns HTTP 503 (`password reset sending is not configured`) before any database write. Configure `SendResetEmail` before mounting in production; supply a no-op function in tests instead of leaving the field nil.
 
-`RequestReset` expects `{"email": "<address>"}`. `ResetPassword` expects `{"token": "<raw token from email>", "newPassword": "<new password>"}` (same 8–72 byte password constraint as `AuthHandler`).
+`RequestReset` expects `{"email": "<address>"}`. `ResetPassword` expects `{"token": "<raw token from email>", "newPassword": "<new password>"}`. Password constraints: 8–72 bytes. A password shorter than 8 bytes returns `{"error": "password must be at least 8 bytes"}`; a password longer than 72 bytes returns `{"error": "password must be at most 72 bytes"}`.
 
 #### Response types
 

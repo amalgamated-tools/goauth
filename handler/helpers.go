@@ -35,6 +35,11 @@ func issueTokens(
 	refreshCookieName string,
 	refreshTokenTTL time.Duration,
 ) (accessToken, refreshToken string, ok bool) {
+	if sessions != nil && refreshCookieName == "" {
+		slog.ErrorContext(r.Context(), "issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup")
+		writeError(r.Context(), w, http.StatusInternalServerError, "server misconfiguration")
+		return "", "", false
+	}
 	if sessions != nil {
 		rawRefresh, err := auth.GenerateRandomHex(32)
 		if err != nil {
@@ -80,6 +85,7 @@ func issueTokens(
 	var err error
 	accessToken, err = jwtMgr.CreateToken(r.Context(), userID)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to create token", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create token")
 		return "", "", false
 	}

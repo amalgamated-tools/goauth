@@ -16,6 +16,7 @@ stop := maintenance.StartCleanup(ctx, 10*time.Minute,
     magicLinkStore.DeleteExpiredMagicLinks,
     passkeyStore.DeleteExpiredChallenges,
     passwordResetStore.DeleteExpiredPasswordResetTokens,
+    linkNonceStore.DeleteExpiredLinkNonces,
 )
 defer stop() // blocks until the goroutine exits
 ```
