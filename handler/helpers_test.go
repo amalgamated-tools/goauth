@@ -216,10 +216,10 @@ func (m *mockMagicLinkStore) DeleteExpiredMagicLinks(ctx context.Context) error 
 }
 
 type mockOIDCLinkNonceStore struct {
-	nonces              map[string]*auth.OIDCLinkNonce
-	createFunc          func(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*auth.OIDCLinkNonce, error)
+	nonces               map[string]*auth.OIDCLinkNonce
+	createFunc           func(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*auth.OIDCLinkNonce, error)
 	consumeAndDeleteFunc func(ctx context.Context, nonceHash string) (*auth.OIDCLinkNonce, error)
-	deleteExpiredFunc   func(ctx context.Context) error
+	deleteExpiredFunc    func(ctx context.Context) error
 }
 
 func (m *mockOIDCLinkNonceStore) CreateLinkNonce(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*auth.OIDCLinkNonce, error) {
