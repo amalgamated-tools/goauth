@@ -70,7 +70,7 @@ When `Sessions` is set on `AuthHandler`:
 | `Logout` | 200 OK | `{"message": "logged out"}` |
 | `RefreshToken` | 200 OK | Success |
 | `RefreshToken` | 400 Bad Request | Missing refresh token |
-| `RefreshToken` | 401 Unauthorized | Invalid or expired refresh token; user not found |
+| `RefreshToken` | 401 Unauthorized | Invalid, expired, or revoked refresh token; user not found |
 | `RefreshToken` | 404 Not Found | Sessions not enabled (`Sessions` is `nil`) |
 | `RefreshToken` | 500 Internal Server Error | Store failure or token/session issuance failure |
 | `Me` | 200 OK | `UserDTO` |

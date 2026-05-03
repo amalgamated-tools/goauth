@@ -144,7 +144,10 @@ type SessionStore interface {
 	// found. Implementations may also return ErrSessionRevoked when a session
 	// exists in a revoked state; the middleware treats both as 401.
 	FindSessionByID(ctx context.Context, id string) (*Session, error)
-	// FindSessionByRefreshTokenHash returns a session by its refresh token hash. Returns ErrNotFound when not found.
+	// FindSessionByRefreshTokenHash returns a session by its refresh token hash.
+	// Returns ErrNotFound when not found. Implementations may also return
+	// ErrSessionRevoked when the session has been explicitly revoked; RefreshToken
+	// treats both as 401 Unauthorized.
 	FindSessionByRefreshTokenHash(ctx context.Context, refreshTokenHash string) (*Session, error)
 	// ListSessionsByUser returns all sessions belonging to a user.
 	ListSessionsByUser(ctx context.Context, userID string) ([]Session, error)
