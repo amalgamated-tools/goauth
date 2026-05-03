@@ -406,6 +406,26 @@ func TestHandleLinkCallback_userNotFound(t *testing.T) {
 	require.NotEqual(t, "/?oidc_linked=true", loc)
 }
 
+func TestHandleLinkCallback_dbErrorOnFindByID(t *testing.T) {
+	dbErr := errors.New("connection timeout")
+	store := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, dbErr
+		},
+	}
+	h := newTestOIDCHandler()
+	h.Users = store
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	h.handleLinkCallback(w, req, "user-1", "oidc-sub")
+
+	require.Equal(t, http.StatusFound, w.Code)
+	loc := w.Header().Get("Location")
+	require.Contains(t, loc, "oidc_link_error=")
+	require.Contains(t, loc, "Link+verification+failed")
+}
+
 func TestHandleLinkCallback_dbErrorOnFindByOIDCSubject(t *testing.T) {
 	dbErr := errors.New("connection timeout")
 	linkCalled := false
@@ -557,6 +577,25 @@ func TestOIDCLink_userNotFound(t *testing.T) {
 	h.Users = &mockUserStore{
 		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, auth.ErrNotFound
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/link?nonce="+nonce, nil)
+	w := httptest.NewRecorder()
+	h.Link(w, req)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestOIDCLink_storeError(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	nonce := "store-error-nonce"
+	h.linkNonces[nonce] = linkNonce{UserID: "user-1", ExpiresAt: time.Now().Add(time.Minute)}
+
+	h.Users = &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, errors.New("transient store error")
 		},
 	}
 

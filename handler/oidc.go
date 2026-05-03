@@ -210,7 +210,12 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 func (h *OIDCHandler) handleLinkCallback(w http.ResponseWriter, r *http.Request, linkUserID, subject string) {
 	user, err := h.Users.FindByID(r.Context(), linkUserID)
 	if err != nil {
-		http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("User not found"), http.StatusFound)
+		if errors.Is(err, auth.ErrNotFound) {
+			http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("User not found"), http.StatusFound)
+		} else {
+			slog.ErrorContext(r.Context(), "failed to look up user during OIDC link", slog.Any("error", err))
+			http.Redirect(w, r, "/?oidc_link_error="+url.QueryEscape("Link verification failed"), http.StatusFound)
+		}
 		return
 	}
 	if user.OIDCSubject != nil {
@@ -321,8 +326,12 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 	}
 	u, err := h.Users.FindByID(r.Context(), userID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to fetch user for OIDC link", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
+		if errors.Is(err, auth.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusConflict, "cannot link account")
+		} else {
+			slog.ErrorContext(r.Context(), "failed to look up user during OIDC link", slog.Any("error", err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "server error")
+		}
 		return
 	}
 	if u.OIDCSubject != nil {
