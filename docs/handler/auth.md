@@ -15,9 +15,11 @@ h := &handler.AuthHandler{
     RefreshTokenTTL:     handler.DefaultRefreshTokenTTL, // defaults to 7 days when Sessions is set
     RefreshCookieName:   "refresh",  // optional; stores refresh token in an HttpOnly cookie
     RequireVerification: true,       // optional; rejects login for unverified email addresses
-    Verifications:       verificationStore, // required when EmailVerificationHandler is mounted
 }
 ```
+
+!!! note "`AuthHandler.Verifications` field"
+    `AuthHandler` declares a `Verifications auth.EmailVerificationStore` field on its struct, but no `AuthHandler` method reads it. Email verification is handled by a separate [`EmailVerificationHandler`](email-verification.md) which has its own `Verifications` field. Setting `AuthHandler.Verifications` has no effect; you can safely omit it.
 
 Password constraints: 8–72 bytes (bcrypt cost 12). A password shorter than 8 bytes returns `{"error": "password must be at least 8 bytes"}`; a password longer than 72 bytes returns `{"error": "password must be at most 72 bytes"}`.
 
