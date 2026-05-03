@@ -36,7 +36,7 @@ POST /password-reset/confirm   → h.ResetPassword   // validate token and set n
 {"token": "<raw-token>", "newPassword": "newpassword123"}
 ```
 
-Password constraints: 8–72 bytes.
+Password constraints: 8–72 bytes. A password shorter than 8 bytes returns `{"error": "password must be at least 8 bytes"}`; a password longer than 72 bytes returns `{"error": "password must be at most 72 bytes"}`.
 
 ## Behaviour
 
