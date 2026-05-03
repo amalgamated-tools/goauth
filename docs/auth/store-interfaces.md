@@ -91,6 +91,8 @@ Return `auth.ErrNotFound` from `FindSessionByID`, `FindSessionByRefreshTokenHash
 
 **Session revocation**: have `FindSessionByID` return `auth.ErrNotFound` or `auth.ErrSessionRevoked` for sessions that are no longer valid; the middleware treats both as a `401 Unauthorized`. Hard-deleting the row (e.g. via `DeleteSession`) is the common approach, but soft-delete or audit-preserving schemes work equally well as long as `FindSessionByID` returns (or wraps) one of these sentinels for revoked sessions.
 
+`FindSessionByRefreshTokenHash` may also return `auth.ErrSessionRevoked` when the session has been explicitly revoked; `RefreshToken` treats both `ErrNotFound` and `ErrSessionRevoked` as a `401 Unauthorized` with an `"invalid or expired refresh token"` message.
+
 ### Session struct
 
 ```go
@@ -244,6 +246,32 @@ type PasswordResetToken struct {
 ```
 
 `FindPasswordResetToken` returns `auth.ErrInvalidToken` when no matching record exists. Implementations may also return `auth.ErrExpiredToken` when a record is found but has already expired — `PasswordResetHandler.ResetPassword` treats both as a `400 Bad Request` with an `"invalid or expired reset token"` message. Expiry checking in the handler provides a second layer of validation, so returning `auth.ErrInvalidToken` for all failure cases is also acceptable. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
+
+## OIDCLinkNonceStore
+
+```go
+type OIDCLinkNonceStore interface {
+    CreateLinkNonce(ctx context.Context, userID, nonceHash string, expiresAt time.Time) (*OIDCLinkNonce, error)
+    ConsumeAndDeleteLinkNonce(ctx context.Context, nonceHash string) (*OIDCLinkNonce, error)
+    DeleteExpiredLinkNonces(ctx context.Context) error
+}
+```
+
+Required when using the OIDC account-linking flow (`OIDCHandler.CreateLinkNonce` and `OIDCHandler.Link`). When `OIDCHandler.LinkNonces` is `nil`, both endpoints return HTTP 503 `"account linking not configured"`. Only the SHA-256 hash of the raw nonce is stored.
+
+`ConsumeAndDeleteLinkNonce` must atomically retrieve and remove the record matching `nonceHash`. Return `auth.ErrNotFound` when no matching record exists. The returned record **may be expired**; callers are responsible for checking `ExpiresAt`. Schedule `DeleteExpiredLinkNonces` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
+
+### OIDCLinkNonce struct
+
+```go
+type OIDCLinkNonce struct {
+    ID        string
+    UserID    string
+    NonceHash string
+    ExpiresAt time.Time
+    CreatedAt time.Time
+}
+```
 
 ## RBACUserStore
 
