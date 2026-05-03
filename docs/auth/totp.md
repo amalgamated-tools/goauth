@@ -35,6 +35,18 @@ usedCodes.MarkUsed(userID, code)
 !!! warning "Multi-instance deployments"
     `TOTPUsedCodeCache` is process-local. For multi-instance deployments, supplement with a shared external cache (e.g. Redis) to prevent replay attacks across instances.
 
+## Base32 encoding
+
+All TOTP secrets are encoded with a specific base32 alphabet (standard RFC 4648 base32, no padding). Use `auth.TOTPEncoding()` when you need to encode or decode TOTP secrets outside of the built-in functions — this ensures consistency with the encoding used internally by `GenerateTOTPSecret`, `ValidateTOTP`, and `GenerateTOTPCode`.
+
+```go
+// Encode raw secret bytes to the TOTP base32 format.
+encoded := auth.TOTPEncoding().EncodeToString(rawBytes)
+
+// Decode a stored secret back to raw bytes (e.g. for custom HMAC use).
+rawBytes, err := auth.TOTPEncoding().DecodeString(secret)
+```
+
 ## HTTP handler
 
 See [TOTPHandler](../handler/totp.md) for the ready-to-mount HTTP handler that wraps this logic.

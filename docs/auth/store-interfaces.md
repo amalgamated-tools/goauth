@@ -55,6 +55,20 @@ type APIKeyStore interface {
 
 `ValidateAPIKey` is given the SHA-256 hex hash of the raw key. Store only the hash — never the plaintext key.
 
+### APIKey struct
+
+```go
+type APIKey struct {
+    ID         string
+    UserID     string
+    Name       string
+    KeyHash    string
+    KeyPrefix  string
+    LastUsedAt *time.Time // nil until the key has been used at least once
+    CreatedAt  time.Time
+}
+```
+
 ## SessionStore
 
 ```go
@@ -72,6 +86,20 @@ type SessionStore interface {
 Each session is bound to one refresh token hash. Only the SHA-256 hash of the refresh token is persisted.
 
 Return `auth.ErrNotFound` from `FindSessionByID`, `FindSessionByRefreshTokenHash`, and `DeleteSession` when the record is not found.
+
+### Session struct
+
+```go
+type Session struct {
+    ID               string
+    UserID           string
+    RefreshTokenHash string
+    UserAgent        string
+    IPAddress        string
+    ExpiresAt        time.Time
+    CreatedAt        time.Time
+}
+```
 
 ## PasskeyStore
 
@@ -91,6 +119,32 @@ type PasskeyStore interface {
 
 `userID` in `CreateChallenge` is `nil` during authentication (discoverable login) and non-nil during registration.
 
+### PasskeyCredential struct
+
+```go
+type PasskeyCredential struct {
+    ID             string
+    UserID         string
+    Name           string
+    CredentialID   string // base64url-encoded WebAuthn credential ID
+    CredentialData string // serialised credential public key and metadata
+    AAGUID         string
+    CreatedAt      time.Time
+}
+```
+
+### PasskeyChallenge struct
+
+```go
+type PasskeyChallenge struct {
+    ID          string
+    UserID      *string   // nil for authentication challenges; non-nil for registration
+    SessionData string    // serialised WebAuthn session data
+    ExpiresAt   time.Time
+    CreatedAt   time.Time
+}
+```
+
 ## MagicLinkStore
 
 ```go
@@ -102,6 +156,18 @@ type MagicLinkStore interface {
 ```
 
 `FindAndDeleteMagicLink` atomically retrieves and removes the record matching `tokenHash`. Returns `auth.ErrNotFound` when not found. Only the SHA-256 hash of the raw token is persisted.
+
+### MagicLink struct
+
+```go
+type MagicLink struct {
+    ID        string
+    Email     string
+    TokenHash string
+    ExpiresAt time.Time
+    CreatedAt time.Time
+}
+```
 
 ## EmailVerificationStore
 
@@ -115,6 +181,18 @@ type EmailVerificationStore interface {
 
 `ConsumeEmailVerification` atomically looks up and deletes the token. Returns `auth.ErrNotFound` when not found.
 
+### EmailVerificationToken struct
+
+```go
+type EmailVerificationToken struct {
+    ID        string
+    UserID    string
+    TokenHash string
+    ExpiresAt time.Time
+    CreatedAt time.Time
+}
+```
+
 ## TOTPStore
 
 ```go
@@ -127,6 +205,17 @@ type TOTPStore interface {
 
 `GetTOTPSecret` returns `auth.ErrTOTPNotFound` when no secret is enrolled for the user. `CreateTOTPSecret` replaces any existing secret. The `Secret` field holds the unpadded base32-encoded TOTP secret.
 
+### TOTPSecret struct
+
+```go
+type TOTPSecret struct {
+    ID        string
+    UserID    string
+    Secret    string // unpadded base32-encoded TOTP secret; may be stored encrypted
+    CreatedAt time.Time
+}
+```
+
 ## PasswordResetStore
 
 ```go
@@ -135,6 +224,18 @@ type PasswordResetStore interface {
     FindPasswordResetToken(ctx context.Context, tokenHash string) (*PasswordResetToken, error)
     DeletePasswordResetToken(ctx context.Context, id string) error
     DeleteExpiredPasswordResetTokens(ctx context.Context) error
+}
+```
+
+### PasswordResetToken struct
+
+```go
+type PasswordResetToken struct {
+    ID        string
+    UserID    string
+    TokenHash string
+    ExpiresAt time.Time
+    CreatedAt time.Time
 }
 ```
 
