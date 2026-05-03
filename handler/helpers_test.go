@@ -269,11 +269,12 @@ func (m *mockTokenCreator) CreateTokenWithSession(ctx context.Context, userID, s
 
 func newAuthHandlerWithSessions(store auth.UserStore, sessions auth.SessionStore) *AuthHandler {
 	return &AuthHandler{
-		Users:         store,
-		JWT:           newTestJWT(),
-		Sessions:      sessions,
-		CookieName:    "auth",
-		SecureCookies: false,
+		Users:             store,
+		JWT:               newTestJWT(),
+		Sessions:          sessions,
+		CookieName:        "auth",
+		RefreshCookieName: "refresh",
+		SecureCookies:     false,
 	}
 }
 
@@ -486,20 +487,17 @@ func TestIssueTokens_withSessions_refreshCookie(t *testing.T) {
 }
 
 func TestIssueTokens_withSessions_noRefreshCookieName(t *testing.T) {
-	// When Sessions is set but RefreshCookieName is empty, refresh token is
-	// returned but not set as a cookie (caller must deliver it another way).
+	// When Sessions is set but RefreshCookieName is empty, issueTokens fails
+	// fast to prevent silent session leaks. Callers must set RefreshCookieName
+	// when using session tracking.
 	sessions := &mockSessionStore{}
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	w := httptest.NewRecorder()
 
 	access, refresh, ok := issueTokens(w, req, "user-1", sessions, newTestJWT(), "auth", false, "", time.Hour)
 
-	require.True(t, ok)
-	require.NotEmpty(t, access)
-	require.NotEmpty(t, refresh)
-
-	// No refresh cookie set.
-	for _, c := range w.Result().Cookies() {
-		require.Equal(t, "auth", c.Name, "unexpected cookie %q", c.Name)
-	}
+	require.False(t, ok)
+	require.Empty(t, access)
+	require.Empty(t, refresh)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
