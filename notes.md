@@ -12,7 +12,7 @@
 ## Efficiency Notes
 - No benchmarks exist in the codebase (confirmed by grep).
 - hotpCode (auth/totp.go) is called 3× per ValidateTOTP on every login. Critical path.
-- RateLimiter cleanup: lazy, once per 5-minute window — efficient BUT visitors map unbounded between cleanups (DoS risk / GC concern).
+- RateLimiter cleanup: lazy, once per 5-minute window — efficient BUT visitors map unbounded between cleanups (DoS risk / GC concern). PR #213 submitted to bound to 10_000.
 - cachingRoleChecker / cachingAdminChecker: well-designed with FIFO eviction and sweep.
 - TOTPUsedCodeCache: uses sync.Map with totpCacheKey struct (no string alloc per call).
 - cipher.AEAD (GCM) cached in SecretEncrypter — safe for concurrent use after init.
@@ -24,6 +24,7 @@
 - handler/totp.go: totpHandlerEncoding precomputed var added (PR #170 MERGED 2026-05-03).
 - handler/helpers.go validatePassword: errPasswordTooShort/errPasswordTooLong now const (not var+fmt.Sprintf); fmt import removed (PR #211 submitted 2026-05-03).
 - New OAuth2Handler (PR #203): login is unavoidably sequential (external API calls); no hot-path efficiency opportunities found.
+- auth/ratelimit.go: DefaultRateLimiterMaxVisitors=10_000 constant + maxVisitors field added (PR #213 submitted 2026-05-04). New IPs blocked without map growth when at capacity.
 
 ## Optimisation Backlog
 | Priority | Focus Area | Opportunity | Estimated Impact | Status |
@@ -40,11 +41,12 @@
 | MEDIUM | Code-Level | ValidateTOTP: reuse HMAC via hotpCodeWithMAC + mac.Reset() | Save ~600-700 bytes (2 hmac allocs) per TOTP auth attempt | MERGED PR #162 |
 | LOW | Code-Level | handler/totp.go Enroll + auth/totp.go TOTPProvisioningURI: precompute base32 encoding + strconv.Itoa constants | Save 3 allocs (~320 bytes) per TOTP enrollment | MERGED PR #170 |
 | LOW | Code-Level | handler/helpers.go validatePassword: var+fmt.Sprintf -> const strings + remove fmt import | Compile-time const literals; remove fmt init overhead | PR #211 open |
+| MEDIUM | Code-Level | auth/ratelimit.go: visitors map unbounded between 5-min cleanups | Memory+GC under IP flood; add maxVisitors FIFO cap | PR #213 open |
 | LOW | Data | No benchmarks for any code paths — measurement infrastructure gap | Enables future evidence-based optimisation | OPEN |
-| LOW | Code-Level | auth/ratelimit.go: visitors map unbounded between 5-min cleanups | Memory+GC under IP flood; add maxVisitors FIFO cap | OPEN (primarily reliability) |
 
 ## Work In Progress
-- PR #211 (branch: efficiency/password-error-consts): convert errPasswordTooShort/errPasswordTooLong from var+fmt.Sprintf to const; remove fmt import from handler/helpers.go; submitted 2026-05-03
+- PR #211 (branch: efficiency/password-error-consts-4dd01829cfdc24f7): convert errPasswordTooShort/errPasswordTooLong from var+fmt.Sprintf to const; remove fmt import from handler/helpers.go; submitted 2026-05-03; CI green
+- PR #213 (branch: efficiency/ratelimiter-bounded-visitors-map): add DefaultRateLimiterMaxVisitors=10_000 to bound visitors map; submitted 2026-05-04
 
 ## Completed Work
 - PR #39: MERGED 2026-04-20 — replace math.Pow10 with totpModulo=1_000_000 integer constant
@@ -61,12 +63,12 @@
 - PR #172: MERGED 2026-05-03 by veverkap — password error strings as var+fmt.Sprintf (not full const; follow-up is PR #211)
 
 ## Backlog Cursor
-- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-03)
+- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-04)
 - New OAuth2Handler (PR #203) scanned — no significant efficiency opportunities found
 - Major hot-path optimisations exhausted; remaining items are low-priority/rare-path
-- Last tasks run: Task 3 (PR #211: const fix for password errors), Task 7 (created new May 2026 issue)
-- Last run: 2026-05-03
+- Last tasks run: Task 4 (PR #211 CI check), Task 2 (rescan), Task 3 (PR #213 rate limiter cap), Task 7 (updated issue #212)
+- Last run: 2026-05-04
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED 2026-05-01)
-- May 2026: Issue #174 (CLOSED by veverkap 2026-05-03); new issue pending creation this run
+- May 2026: Issue #212 (OPEN — created 2026-05-03, updated 2026-05-04)
