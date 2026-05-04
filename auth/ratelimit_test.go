@@ -52,6 +52,37 @@ func TestRateLimiter_independentKeys(t *testing.T) {
 	require.True(t, rl.allow("b"))
 }
 
+func TestRateLimiter_maxVisitorsCapBlocksNewIPs(t *testing.T) {
+	rl := NewRateLimiter(10, 5)
+	rl.maxVisitors = 2 // override cap for test
+
+	require.True(t, rl.allow("ip1"))
+	require.True(t, rl.allow("ip2"))
+	// Cap reached: new IPs are blocked without being added to the map.
+	require.False(t, rl.allow("ip3"))
+
+	rl.mu.Lock()
+	_, exists := rl.visitors["ip3"]
+	size := len(rl.visitors)
+	rl.mu.Unlock()
+	require.False(t, exists, "ip3 must not be added to the map when at capacity")
+	require.Equal(t, 2, size, "visitor map must not grow beyond maxVisitors")
+}
+
+func TestRateLimiter_maxVisitorsCapRestoredAfterCleanup(t *testing.T) {
+	rl := newTestRateLimiter(10, 5)
+	rl.maxVisitors = 1
+
+	// Fill the map to capacity with a stale entry.
+	rl.mu.Lock()
+	rl.visitors["stale"] = &visitor{tokens: 5, lastSeen: time.Now().Add(-rl.cleanup - time.Second)}
+	rl.mu.Unlock()
+
+	// The allow call triggers cleanup (nextCleanup is in the past), evicts
+	// "stale", then successfully adds "new-ip".
+	require.True(t, rl.allow("new-ip"))
+}
+
 func TestRateLimiter_cleanup(t *testing.T) {
 	rl := newTestRateLimiter(10, 5)
 	// Add a stale visitor.

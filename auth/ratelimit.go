@@ -14,6 +14,12 @@ type visitor struct {
 	lastSeen time.Time
 }
 
+// DefaultRateLimiterMaxVisitors is the default maximum number of unique IP
+// addresses tracked concurrently. When the cap is reached, requests from
+// previously-unseen IPs are denied without growing the map, bounding memory
+// and GC pressure under IP-flood conditions.
+const DefaultRateLimiterMaxVisitors = 10_000
+
 // RateLimiter implements a per-IP token-bucket rate limiter.
 type RateLimiter struct {
 	mu             sync.Mutex
@@ -22,6 +28,7 @@ type RateLimiter struct {
 	rate           float64
 	burst          int
 	cleanup        time.Duration
+	maxVisitors    int
 	trustedProxies []*net.IPNet
 }
 
@@ -50,6 +57,7 @@ func newRateLimiter(rate float64, burst int, trustedProxies []*net.IPNet) *RateL
 		rate:           rate,
 		burst:          burst,
 		cleanup:        cleanup,
+		maxVisitors:    DefaultRateLimiterMaxVisitors,
 		trustedProxies: copied,
 	}
 }
@@ -71,6 +79,10 @@ func (rl *RateLimiter) allow(key string) bool {
 
 	v, exists := rl.visitors[key]
 	if !exists {
+		// Block unseen IPs without map growth when the cap is reached.
+		if len(rl.visitors) >= rl.maxVisitors {
+			return false
+		}
 		rl.visitors[key] = &visitor{tokens: float64(rl.burst) - 1, lastSeen: now}
 		return true
 	}
