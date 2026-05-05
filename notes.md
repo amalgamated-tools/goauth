@@ -25,6 +25,7 @@
 - handler/helpers.go validatePassword: errPasswordTooShort/errPasswordTooLong now const (not var+fmt.Sprintf); fmt import removed (PR #211 submitted 2026-05-03).
 - New OAuth2Handler (PR #203): login is unavoidably sequential (external API calls); no hot-path efficiency opportunities found.
 - auth/ratelimit.go: DefaultRateLimiterMaxVisitors=10_000 constant + maxVisitors field added (PR #213 submitted 2026-05-04). New IPs blocked without map growth when at capacity.
+- Full codebase rescan (2026-05-05): smtp/, maintenance/, auth/, handler/ all re-checked. No new efficiency opportunities. Hot-path optimisations exhausted.
 
 ## Optimisation Backlog
 | Priority | Focus Area | Opportunity | Estimated Impact | Status |
@@ -46,7 +47,7 @@
 
 ## Work In Progress
 - PR #211 (branch: efficiency/password-error-consts-4dd01829cfdc24f7): convert errPasswordTooShort/errPasswordTooLong from var+fmt.Sprintf to const; remove fmt import from handler/helpers.go; submitted 2026-05-03; CI green
-- PR #213 (branch: efficiency/ratelimiter-bounded-visitors-map): add DefaultRateLimiterMaxVisitors=10_000 to bound visitors map; submitted 2026-05-04
+- PR #213 (branch: efficiency/ratelimiter-bounded-visitors-map-4c17d4f20708584c): add DefaultRateLimiterMaxVisitors=10_000 to bound visitors map; submitted 2026-05-04; CI green
 
 ## Completed Work
 - PR #39: MERGED 2026-04-20 — replace math.Pow10 with totpModulo=1_000_000 integer constant
@@ -63,12 +64,12 @@
 - PR #172: MERGED 2026-05-03 by veverkap — password error strings as var+fmt.Sprintf (not full const; follow-up is PR #211)
 
 ## Backlog Cursor
-- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-04)
+- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-05)
 - New OAuth2Handler (PR #203) scanned — no significant efficiency opportunities found
 - Major hot-path optimisations exhausted; remaining items are low-priority/rare-path
-- Last tasks run: Task 4 (PR #211 CI check), Task 2 (rescan), Task 3 (PR #213 rate limiter cap), Task 7 (updated issue #212)
-- Last run: 2026-05-04
+- Last tasks run: Task 4 (PRs #211/#213 CI check), Task 2 (full rescan), Task 7 (updated issue #212)
+- Last run: 2026-05-05
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED 2026-05-01)
-- May 2026: Issue #212 (OPEN — created 2026-05-03, updated 2026-05-04)
+- May 2026: Issue #212 (OPEN — created 2026-05-03, updated 2026-05-05)
