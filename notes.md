@@ -25,6 +25,7 @@
 - handler/helpers.go validatePassword: errPasswordTooShort/errPasswordTooLong now const (not var+fmt.Sprintf); fmt import removed (PR #211 submitted 2026-05-03).
 - New OAuth2Handler (PR #203): login is unavoidably sequential (external API calls); no hot-path efficiency opportunities found.
 - auth/ratelimit.go: DefaultRateLimiterMaxVisitors=10_000 constant + maxVisitors field added (PR #213 submitted 2026-05-04). New IPs blocked without map growth when at capacity.
+- maintenance/maintenance.go: slog.Default() called once at StartCleanup time (line 37), not inside goroutine. Correctness concern (Grumpy #214) but NOT an efficiency concern — pre-capturing is slightly more efficient.
 - Full codebase rescan (2026-05-05): smtp/, maintenance/, auth/, handler/ all re-checked. No new efficiency opportunities. Hot-path optimisations exhausted.
 
 ## Optimisation Backlog
@@ -67,9 +68,9 @@
 - Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-05)
 - New OAuth2Handler (PR #203) scanned — no significant efficiency opportunities found
 - Major hot-path optimisations exhausted; remaining items are low-priority/rare-path
-- Last tasks run: Task 4 (PRs #211/#213 CI check), Task 2 (full rescan), Task 7 (updated issue #212)
-- Last run: 2026-05-05
+- Last tasks run: Task 4 (PRs #211/#213 CI check), Task 5 (comment on #214), Task 7 (updated issue #212)
+- Last run: 2026-05-06
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED 2026-05-01)
-- May 2026: Issue #212 (OPEN — created 2026-05-03, updated 2026-05-05)
+- May 2026: Issue #212 (OPEN — created 2026-05-03, updated 2026-05-06)
