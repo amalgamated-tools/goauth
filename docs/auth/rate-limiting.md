@@ -51,11 +51,11 @@ Use `WithMaxVisitors` to override the default at construction time:
 // Track up to 50,000 unique IPs (high-traffic deployment).
 rl := auth.NewRateLimiter(5, 10).WithMaxVisitors(50_000)
 
-// No cap (use with caution — unbounded memory growth under flood).
+// No cap: any value <= 0 removes the limit (use with caution — unbounded memory growth under flood).
 rl = auth.NewRateLimiter(5, 10).WithMaxVisitors(0)
 ```
 
-`WithMaxVisitors` returns the receiver, so it chains directly after the constructor. It is safe to call before the limiter handles any requests.
+`WithMaxVisitors` returns the receiver, so it chains directly after the constructor. It is safe to call at any time, including on a limiter that is already handling requests.
 
 !!! warning "In-memory state"
     `RateLimiter` tracks per-IP token buckets in an in-memory map. In a **multi-instance deployment** (e.g. behind a load balancer), each instance maintains its own independent state — a client can exceed the intended limit by spreading requests across instances. For stricter multi-instance enforcement, supplement with a shared external rate limiter (e.g. Redis).
