@@ -378,6 +378,60 @@ func TestOAuth2Callback_concurrentCreationRace(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// findOrCreateUser — race-retry error paths
+// ---------------------------------------------------------------------------
+
+func TestFindOrCreateUser_raceRetry_findByOIDCSubjectError(t *testing.T) {
+	storeErr := errors.New("db timeout")
+	calls := 0
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			calls++
+			if calls == 1 {
+				return nil, auth.ErrNotFound
+			}
+			return nil, storeErr
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
+			return nil, auth.ErrEmailExists
+		},
+	}
+
+	_, err := findOrCreateUser(context.Background(), store, "sub:1", "race@example.com", "Race User")
+	require.Error(t, err)
+	require.ErrorIs(t, err, storeErr)
+}
+
+func TestFindOrCreateUser_raceRetry_findByEmailError(t *testing.T) {
+	storeErr := errors.New("db timeout")
+	oidcCalls := 0
+	store := &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			oidcCalls++
+			// first call: not found (triggers email+create path)
+			// second call (race retry): not found (falls through to email retry)
+			return nil, auth.ErrNotFound
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			if oidcCalls == 1 {
+				return nil, auth.ErrNotFound
+			}
+			return nil, storeErr
+		},
+		createOIDCUserFunc: func(_ context.Context, _, _, _ string) (*auth.User, error) {
+			return nil, auth.ErrEmailExists
+		},
+	}
+
+	_, err := findOrCreateUser(context.Background(), store, "sub:2", "race@example.com", "Race User")
+	require.Error(t, err)
+	require.ErrorIs(t, err, storeErr)
+}
+
+// ---------------------------------------------------------------------------
 // Callback — LoginRedirect field
 // ---------------------------------------------------------------------------
 
