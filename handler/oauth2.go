@@ -111,6 +111,7 @@ func (h *OAuth2Handler) loginRedirectURL() string {
 func (h *OAuth2Handler) Login(w http.ResponseWriter, r *http.Request) {
 	state, err := auth.GenerateRandomBase64(32)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to generate OAuth2 login state", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate login")
 		return
 	}
@@ -226,6 +227,7 @@ func (h *OAuth2Handler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) 
 	userID := auth.UserIDFromContext(r.Context())
 	nonce, err := auth.GenerateRandomBase64(32)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to generate OAuth2 link nonce", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate nonce")
 		return
 	}
@@ -279,6 +281,7 @@ func (h *OAuth2Handler) Link(w http.ResponseWriter, r *http.Request) {
 
 	state, err := auth.GenerateRandomBase64(32)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to generate OAuth2 link state", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate link")
 		return
 	}

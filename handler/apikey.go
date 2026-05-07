@@ -78,6 +78,7 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Generate 40 hex chars (20 bytes / 160 bits of entropy).
 	hexKey, err := auth.GenerateRandomHex(20)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to generate API key", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate API key")
 		return
 	}

@@ -63,6 +63,7 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 
 	token, err := auth.GenerateRandomBase64(32)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to generate magic link token", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate token")
 		return
 	}
@@ -102,6 +103,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
+		slog.ErrorContext(r.Context(), "failed to find magic link", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
