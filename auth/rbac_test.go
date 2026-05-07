@@ -311,7 +311,6 @@ func TestRequireRole_noToken(t *testing.T) {
 }
 
 func TestRequireRole_wrongRole(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("plain-user")
 
@@ -325,7 +324,6 @@ func TestRequireRole_wrongRole(t *testing.T) {
 }
 
 func TestRequireRole_correctRole(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("admin-user")
 
@@ -339,7 +337,6 @@ func TestRequireRole_correctRole(t *testing.T) {
 }
 
 func TestRequireRole_checkerError(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("some-user")
 
@@ -364,7 +361,6 @@ func TestRequireRole_invalidToken(t *testing.T) {
 }
 
 func TestRequireRole_setsContextValues(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("role-user")
 
@@ -408,7 +404,6 @@ func TestRequirePermission_noToken(t *testing.T) {
 }
 
 func TestRequirePermission_insufficientPerm(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("viewer-user")
 
@@ -422,7 +417,6 @@ func TestRequirePermission_insufficientPerm(t *testing.T) {
 }
 
 func TestRequirePermission_granted(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("editor-user")
 
@@ -436,7 +430,6 @@ func TestRequirePermission_granted(t *testing.T) {
 }
 
 func TestRequirePermission_checkerError(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("some-user")
 
@@ -461,7 +454,6 @@ func TestRequirePermission_invalidToken(t *testing.T) {
 }
 
 func TestRequirePermission_setsUserIDInContext(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("perm-user")
 

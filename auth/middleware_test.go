@@ -283,7 +283,6 @@ func TestMiddleware_invalidToken(t *testing.T) {
 }
 
 func TestMiddleware_validJWT(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("user-mw")
 
@@ -296,7 +295,6 @@ func TestMiddleware_validJWT(t *testing.T) {
 }
 
 func TestMiddleware_validCookieJWT(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("cookie-user")
 
@@ -339,7 +337,6 @@ func TestAdminMiddleware_noToken(t *testing.T) {
 }
 
 func TestAdminMiddleware_nonAdmin(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("plain-user")
 
@@ -352,7 +349,6 @@ func TestAdminMiddleware_nonAdmin(t *testing.T) {
 }
 
 func TestAdminMiddleware_admin(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("admin-user")
 
@@ -365,7 +361,6 @@ func TestAdminMiddleware_admin(t *testing.T) {
 }
 
 func TestAdminMiddleware_checkerError(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateToken("some-user")
 
@@ -567,7 +562,6 @@ func TestAdminMiddleware_internalError(t *testing.T) {
 // --- Session validation in Middleware -----------------------------------------
 
 func TestMiddleware_validSessionJWT(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession("user-sess", "sess-abc")
 
@@ -590,7 +584,6 @@ func TestMiddleware_validSessionJWT(t *testing.T) {
 }
 
 func TestMiddleware_revokedSession(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession("user-revoked", "sess-revoked")
 
@@ -611,7 +604,6 @@ func TestMiddleware_revokedSession(t *testing.T) {
 }
 
 func TestMiddleware_revokedSessionSentinel(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession("user-revoked", "sess-revoked")
 
@@ -632,7 +624,6 @@ func TestMiddleware_revokedSessionSentinel(t *testing.T) {
 }
 
 func TestMiddleware_expiredSession(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession("user-expired", "sess-expired")
 
@@ -652,7 +643,6 @@ func TestMiddleware_expiredSession(t *testing.T) {
 
 func TestMiddleware_noSessionStoreSkipsCheck(t *testing.T) {
 	// Without a session store, no session check is performed even if jti is present.
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession("user-noss", "sess-noss")
 
@@ -695,7 +685,6 @@ func TestMiddleware_apiKeyBypassesSessionCheck(t *testing.T) {
 }
 
 func TestAdminMiddleware_validSession(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession("admin-user", "sess-admin")
 
@@ -715,7 +704,6 @@ func TestAdminMiddleware_validSession(t *testing.T) {
 }
 
 func TestAdminMiddleware_revokedSession(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	token, _ := mgr.CreateTokenWithSession("admin-user", "sess-revoked-admin")
 
