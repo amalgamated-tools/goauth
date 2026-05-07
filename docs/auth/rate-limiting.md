@@ -41,5 +41,21 @@ if !rl.Allow(r) {
 
 Stale visitor entries are swept lazily every 5 minutes.
 
+## Visitor cap
+
+By default, `RateLimiter` tracks at most `auth.DefaultRateLimiterMaxVisitors` (10,000) unique IP addresses concurrently. When the cap is reached, requests from previously-unseen IPs are denied immediately — without growing the map — to bound memory and GC pressure under IP-flood conditions.
+
+Use `WithMaxVisitors` to override the default at construction time:
+
+```go
+// Track up to 50,000 unique IPs (high-traffic deployment).
+rl := auth.NewRateLimiter(5, 10).WithMaxVisitors(50_000)
+
+// No cap (use with caution — unbounded memory growth under flood).
+rl = auth.NewRateLimiter(5, 10).WithMaxVisitors(0)
+```
+
+`WithMaxVisitors` returns the receiver, so it chains directly after the constructor. It is safe to call before the limiter handles any requests.
+
 !!! warning "In-memory state"
     `RateLimiter` tracks per-IP token buckets in an in-memory map. In a **multi-instance deployment** (e.g. behind a load balancer), each instance maintains its own independent state — a client can exceed the intended limit by spreading requests across instances. For stricter multi-instance enforcement, supplement with a shared external rate limiter (e.g. Redis).
