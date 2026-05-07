@@ -108,5 +108,8 @@ When `Sessions` is set on `AuthHandler`:
 | Profile update store failure | `ERROR` | `"failed to update profile"` | `UpdateProfile` |
 | Password update store failure | `ERROR` | `"failed to update password"` | `ChangePassword` |
 | Sessions set without `RefreshCookieName` | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `Signup`, `Login`, `RefreshToken` |
+| Refresh token generation failure | `ERROR` | `"failed to generate refresh token"` | `Signup`, `Login`, `RefreshToken` |
+| Session creation store failure | `ERROR` | `"failed to create session"` | `Signup`, `Login`, `RefreshToken` |
+| Access token creation failure | `ERROR` | `"failed to create token"` | `Signup`, `Login`, `RefreshToken` |
 
 The `WARN`-level logout event does not affect the HTTP 200 response. All other events in the table are followed immediately by an HTTP 500 response.

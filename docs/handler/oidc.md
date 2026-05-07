@@ -129,10 +129,17 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | `id_token` claims parsing failure | `ERROR` | `"failed to parse OIDC claims"` | `Callback` |
 | User resolution / creation failure | `ERROR` | `"OIDC user resolution failed"` | `Callback` |
 | Best-effort subject link failure | `WARN` | `"failed to link OIDC subject to email-matched user"` | `Callback` |
+| Sessions set without `RefreshCookieName` | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `Callback` |
+| Refresh token generation failure | `ERROR` | `"failed to generate refresh token"` | `Callback` |
+| Session creation store failure | `ERROR` | `"failed to create session"` | `Callback` |
+| Access token creation failure | `ERROR` | `"failed to create token"` | `Callback` |
 | Nonce generation failure | `ERROR` | `"failed to generate OIDC link nonce"` | `CreateLinkNonce` |
 | Nonce persistence store failure | `ERROR` | `"failed to store link nonce"` | `CreateLinkNonce` |
 | Link state generation failure | `ERROR` | `"failed to generate OIDC link state"` | `Link` |
-| Nonce consumption failure (link callback) | `ERROR` | `"failed to consume link nonce"` | `Callback` (link flow) |
-| User lookup failure (link callback) | `ERROR` | `"failed to look up user during OIDC link"` | `Callback` (link flow) |
+| Nonce consumption failure | `ERROR` | `"failed to consume link nonce"` | `Link` |
+| User lookup failure (link initiation) | `ERROR` | `"failed to look up user during OIDC link"` | `Link` |
+| User lookup failure (link callback) | `ERROR` | `"failed to look up user during link"` | `Callback` (link flow) |
+| OIDC subject lookup failure (link callback) | `ERROR` | `"failed to look up OIDC subject during link"` | `Callback` (link flow) |
+| OIDC subject linking failure | `ERROR` | `"failed to link OIDC subject"` | `Callback` (link flow) |
 
-The `WARN`-level best-effort link event does not produce an HTTP error — login still succeeds. All `ERROR`-level events are followed by an HTTP 500 response (or a link-callback redirect with `oidc_link_error` for the link-flow entries).
+The `WARN`-level best-effort link event does not produce an HTTP error — login still succeeds. `ERROR`-level events in `Login`, `Callback`, `CreateLinkNonce`, and `Link` are followed by an HTTP 500 response. `ERROR`-level events in the `Callback` link flow are followed by a redirect with `oidc_link_error`.

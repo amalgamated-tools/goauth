@@ -82,4 +82,4 @@ Every HTTP 500 response is preceded by a `slog.ErrorContext` call that records t
 
 goauth never sets or replaces the global `slog` handler. Configure your own handler before starting the server to control log destination, format, and minimum level.
 
-Each handler's documentation lists the specific `slog` messages it emits. All error-level log records include an `error` attribute set to the raw Go error value.
+Each handler's documentation lists the specific `slog` messages it emits. ERROR log records generally include an `error` attribute set to the raw Go error value; the misconfiguration message `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` is an exception.

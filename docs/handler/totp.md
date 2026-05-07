@@ -76,5 +76,5 @@ See [TOTP / MFA](../auth/totp.md) for the underlying primitives and replay prote
 | User lookup store failure | `ERROR` | `"failed to fetch user"` | `Generate` |
 | TOTP secret persistence failure | `ERROR` | `"failed to save TOTP secret"` | `Enroll` |
 | Enrolled secret lookup failure | `ERROR` | `"failed to fetch TOTP secret"` | `Verify` |
-| TOTP code validation store failure | `ERROR` | `"failed to validate TOTP code"` | `Verify` |
+| TOTP code validation failure | `ERROR` | `"failed to validate TOTP code"` | `Verify` |
 | TOTP secret deletion failure | `ERROR` | `"failed to delete TOTP secret"` | `Disable` |
