@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -32,54 +31,49 @@ func TestNewJWTManager_defaultIssuer(t *testing.T) {
 }
 
 func TestCreateToken_andValidate(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-	token, err := mgr.CreateToken(ctx, "user123")
+	token, err := mgr.CreateToken("user123")
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	claims, err := mgr.ValidateToken(ctx, token)
+	claims, err := mgr.ValidateToken(token)
 	require.NoError(t, err)
-	require.Equal(t, "user123", claims.UserID)
+	require.Equal(t, "user123", claims.Subject)
 }
 
 func TestValidate_expiredToken(t *testing.T) {
-	ctx := context.Background()
 	// Negative TTL produces a token that is immediately expired.
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", -time.Hour, "testapp")
 
-	token, _ := mgr.CreateToken(ctx, "user123")
-	_, err := mgr.ValidateToken(ctx, token)
+	token, _ := mgr.CreateToken("user123")
+	_, err := mgr.ValidateToken(token)
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrExpiredToken)
 }
 
 func TestValidate_invalidToken(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-	_, err := mgr.ValidateToken(ctx, "this.is.not.a.jwt")
+	_, err := mgr.ValidateToken("this.is.not.a.jwt")
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestValidate_wrongAlgorithmToken(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
 	// A syntactically valid but RS256-signed token (header claims RS256).
 	badToken := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.invalidsig"
-	_, err := mgr.ValidateToken(ctx, badToken)
+	_, err := mgr.ValidateToken(badToken)
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
 func TestValidate_wrongIssuerToken(t *testing.T) {
-	ctx := context.Background()
 	mgr1, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "app1")
 	mgr2, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "app2")
 
-	token, _ := mgr1.CreateToken(ctx, "user123")
-	_, err := mgr2.ValidateToken(ctx, token)
+	token, _ := mgr1.CreateToken("user123")
+	_, err := mgr2.ValidateToken(token)
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
@@ -133,71 +127,66 @@ func TestJWTManager_newSecretEncrypter(t *testing.T) {
 }
 
 func TestToken_hasCorrectClaims(t *testing.T) {
-	ctx := context.Background()
 	issuer := "my-issuer"
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, issuer)
 
-	tokenStr, _ := mgr.CreateToken(ctx, "user-abc")
-	claims, err := mgr.ValidateToken(ctx, tokenStr)
+	tokenStr, _ := mgr.CreateToken("user-abc")
+	claims, err := mgr.ValidateToken(tokenStr)
 	require.NoError(t, err)
 	require.Equal(t, issuer, claims.Issuer)
 	require.NotEmpty(t, claims.Audience)
 	require.Equal(t, issuer, claims.Audience[0])
-	require.Equal(t, "user-abc", claims.UserID)
+	require.Equal(t, "user-abc", claims.Subject)
 	require.NotNil(t, claims.ExpiresAt)
 	require.NotNil(t, claims.IssuedAt)
 }
 
 func TestCreateToken_withSession(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-	tok, err := mgr.CreateTokenWithSession(ctx, "user-xyz", "sess-001")
+	tok, err := mgr.CreateTokenWithSession("user-xyz", "sess-001")
 	require.NoError(t, err)
 
-	claims, err := mgr.ValidateToken(ctx, tok)
+	claims, err := mgr.ValidateToken(tok)
 	require.NoError(t, err)
-	require.Equal(t, "user-xyz", claims.UserID)
+	require.Equal(t, "user-xyz", claims.Subject)
 	require.Equal(t, "sess-001", claims.ID)
 }
 
 func TestCreateToken_withSessionEmptySessionID(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-	tok, err := mgr.CreateTokenWithSession(ctx, "user-xyz", "")
+	tok, err := mgr.CreateTokenWithSession("user-xyz", "")
 	require.NoError(t, err)
-	claims, err := mgr.ValidateToken(ctx, tok)
+	claims, err := mgr.ValidateToken(tok)
 	require.NoError(t, err)
 	require.Empty(t, claims.ID)
 }
 
 func TestParseTokenClaims_valid(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-	tok, _ := mgr.CreateTokenWithSession(ctx, "user-parse", "sess-parse")
+	tok, _ := mgr.CreateTokenWithSession("user-parse", "sess-parse")
 	claims, err := mgr.ParseTokenClaims(tok)
 	require.NoError(t, err)
-	require.Equal(t, "user-parse", claims.UserID)
+	require.Equal(t, "user-parse", claims.Subject)
 	require.Equal(t, "sess-parse", claims.ID)
 }
 
 func TestParseTokenClaims_ignoresExpiry(t *testing.T) {
-	ctx := context.Background()
 	// Negative TTL produces a token that is immediately expired.
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", -time.Hour, "testapp")
 
-	tok, _ := mgr.CreateTokenWithSession(ctx, "user-exp", "sess-exp")
+	tok, _ := mgr.CreateTokenWithSession("user-exp", "sess-exp")
 
 	// ValidateToken should reject it.
-	_, err := mgr.ValidateToken(ctx, tok)
+	_, err := mgr.ValidateToken(tok)
 	require.ErrorIs(t, err, ErrExpiredToken)
 
 	// ParseTokenClaims should still succeed (ignores expiry).
 	claims, err := mgr.ParseTokenClaims(tok)
 	require.NoError(t, err)
-	require.Equal(t, "user-exp", claims.UserID)
+	require.Equal(t, "user-exp", claims.Subject)
 	require.Equal(t, "sess-exp", claims.ID)
 }
 
@@ -209,11 +198,10 @@ func TestParseTokenClaims_invalidToken(t *testing.T) {
 }
 
 func TestParseTokenClaims_wrongSignature(t *testing.T) {
-	ctx := context.Background()
 	mgr1, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 	mgr2, _ := NewJWTManager("other-secret-32-bytes-long-here!", time.Hour, "testapp")
 
-	tok, _ := mgr1.CreateToken(ctx, "user-sig")
+	tok, _ := mgr1.CreateToken("user-sig")
 	_, err := mgr2.ParseTokenClaims(tok)
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
@@ -226,13 +214,12 @@ func TestParseTokenClaims_wrongIssuer(t *testing.T) {
 	// Token signed by issuer-a but parsed by a manager expecting issuer-b.
 	// Both managers share the same signing secret so the signature is valid,
 	// but the manual issuer check must reject it.
-	ctx := context.Background()
 	mgr1, err := NewJWTManager("shared-secret-32-bytes-long-here!", time.Hour, "issuer-a")
 	require.NoError(t, err)
 	mgr2, err := NewJWTManager("shared-secret-32-bytes-long-here!", time.Hour, "issuer-b")
 	require.NoError(t, err)
 
-	tok, err := mgr1.CreateToken(ctx, "user-iss")
+	tok, err := mgr1.CreateToken("user-iss")
 	require.NoError(t, err)
 	_, err = mgr2.ParseTokenClaims(tok)
 	require.ErrorIs(t, err, ErrInvalidToken)
@@ -249,7 +236,6 @@ func TestParseTokenClaims_wrongAudience(t *testing.T) {
 	// mismatched audience, bypassing the JWTManager helper.
 	now := time.Now()
 	rawClaims := Claims{
-		UserID: "user-aud",
 		RegisteredClaims: jwtPkg.RegisteredClaims{
 			Issuer:    "testapp",
 			Audience:  jwtPkg.ClaimStrings{"different-audience"},

@@ -16,29 +16,28 @@ Pass a secret of at least `auth.MinSecretLength` (32) bytes. A shorter secret is
 ## Creating tokens
 
 ```go
-token, err := jwtMgr.CreateToken(ctx, userID)
+token, err := jwtMgr.CreateToken(userID)
 
 // CreateTokenWithSession embeds the session ID as the JWT jti claim.
 // Use this (or let AuthHandler do it automatically) when Sessions is enabled.
-token, err := jwtMgr.CreateTokenWithSession(ctx, userID, sessionID)
+token, err := jwtMgr.CreateTokenWithSession(userID, sessionID)
 ```
 
 ## Validating tokens
 
 ```go
-claims, err := jwtMgr.ValidateToken(ctx, tokenString)
+claims, err := jwtMgr.ValidateToken(tokenString)
 ```
 
 `ValidateToken` returns a `*auth.Claims` value:
 
 ```go
 type Claims struct {
-    UserID string `json:"sub"` // subject — the authenticated user's ID
-    jwt.RegisteredClaims       // embeds standard JWT fields; ID field holds the jti (session ID)
+    jwt.RegisteredClaims // embeds standard JWT fields; Subject is the user ID and ID holds the jti (session ID)
 }
 ```
 
-`claims.UserID` contains the user ID; `claims.ID` (from `jwt.RegisteredClaims`) contains the session ID embedded as the `jti` claim when `CreateTokenWithSession` was used.
+`claims.Subject` contains the user ID; `claims.ID` (from `jwt.RegisteredClaims`) contains the session ID embedded as the `jti` claim when `CreateTokenWithSession` was used.
 
 ### Parsing without time checks
 

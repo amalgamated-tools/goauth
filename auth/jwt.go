@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -16,7 +15,6 @@ import (
 
 // Claims represents the JWT payload.
 type Claims struct {
-	UserID string `json:"sub"`
 	jwt.RegisteredClaims
 }
 
@@ -55,10 +53,9 @@ func NewJWTManager(secret string, ttl time.Duration, issuer string) (*JWTManager
 }
 
 // CreateToken generates a signed JWT for the given user ID.
-func (j *JWTManager) CreateToken(ctx context.Context, userID string) (string, error) {
+func (j *JWTManager) CreateToken(userID string) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    j.issuer,
 			Audience:  jwt.ClaimStrings{j.issuer},
@@ -75,10 +72,9 @@ func (j *JWTManager) CreateToken(ctx context.Context, userID string) (string, er
 // CreateTokenWithSession generates a signed JWT for the given user ID and
 // session ID. The session ID is embedded as the jti claim, enabling the
 // middleware to verify session liveness when a SessionStore is configured.
-func (j *JWTManager) CreateTokenWithSession(ctx context.Context, userID, sessionID string) (string, error) {
+func (j *JWTManager) CreateTokenWithSession(userID, sessionID string) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    j.issuer,
 			Audience:  jwt.ClaimStrings{j.issuer},
@@ -94,7 +90,7 @@ func (j *JWTManager) CreateTokenWithSession(ctx context.Context, userID, session
 }
 
 // ValidateToken parses and validates a JWT, returning the claims if valid.
-func (j *JWTManager) ValidateToken(ctx context.Context, tokenString string) (*Claims, error) {
+func (j *JWTManager) ValidateToken(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])

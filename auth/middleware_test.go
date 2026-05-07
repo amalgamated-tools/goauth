@@ -196,7 +196,7 @@ func TestResolveUser_validJWT(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-	token, _ := mgr.CreateToken(ctx, "user-jwt")
+	token, _ := mgr.CreateToken("user-jwt")
 	uid, _, err := resolveUser(ctx, token, tokenSourceHeader, mgr, nil, "")
 	require.NoError(t, err)
 	require.Equal(t, "user-jwt", uid)
@@ -285,7 +285,7 @@ func TestMiddleware_invalidToken(t *testing.T) {
 func TestMiddleware_validJWT(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "user-mw")
+	token, _ := mgr.CreateToken("user-mw")
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -298,7 +298,7 @@ func TestMiddleware_validJWT(t *testing.T) {
 func TestMiddleware_validCookieJWT(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "cookie-user")
+	token, _ := mgr.CreateToken("cookie-user")
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: "auth", Value: token})
@@ -341,7 +341,7 @@ func TestAdminMiddleware_noToken(t *testing.T) {
 func TestAdminMiddleware_nonAdmin(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "plain-user")
+	token, _ := mgr.CreateToken("plain-user")
 
 	checker := &mockAdminChecker{isAdminFunc: func(_ context.Context, _ string) (bool, error) { return false, nil }}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -354,7 +354,7 @@ func TestAdminMiddleware_nonAdmin(t *testing.T) {
 func TestAdminMiddleware_admin(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "admin-user")
+	token, _ := mgr.CreateToken("admin-user")
 
 	checker := &mockAdminChecker{isAdminFunc: func(_ context.Context, _ string) (bool, error) { return true, nil }}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -367,7 +367,7 @@ func TestAdminMiddleware_admin(t *testing.T) {
 func TestAdminMiddleware_checkerError(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "some-user")
+	token, _ := mgr.CreateToken("some-user")
 
 	checker := &mockAdminChecker{
 		isAdminFunc: func(_ context.Context, _ string) (bool, error) {
@@ -569,7 +569,7 @@ func TestAdminMiddleware_internalError(t *testing.T) {
 func TestMiddleware_validSessionJWT(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateTokenWithSession(ctx, "user-sess", "sess-abc")
+	token, _ := mgr.CreateTokenWithSession("user-sess", "sess-abc")
 
 	store := &mockSessionStore{
 		findByIDFunc: func(_ context.Context, id string) (*Session, error) {
@@ -592,7 +592,7 @@ func TestMiddleware_validSessionJWT(t *testing.T) {
 func TestMiddleware_revokedSession(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateTokenWithSession(ctx, "user-revoked", "sess-revoked")
+	token, _ := mgr.CreateTokenWithSession("user-revoked", "sess-revoked")
 
 	store := &mockSessionStore{
 		// Session not found → revoked.
@@ -613,7 +613,7 @@ func TestMiddleware_revokedSession(t *testing.T) {
 func TestMiddleware_revokedSessionSentinel(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateTokenWithSession(ctx, "user-revoked", "sess-revoked")
+	token, _ := mgr.CreateTokenWithSession("user-revoked", "sess-revoked")
 
 	store := &mockSessionStore{
 		// Store explicitly signals ErrSessionRevoked.
@@ -634,7 +634,7 @@ func TestMiddleware_revokedSessionSentinel(t *testing.T) {
 func TestMiddleware_expiredSession(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateTokenWithSession(ctx, "user-expired", "sess-expired")
+	token, _ := mgr.CreateTokenWithSession("user-expired", "sess-expired")
 
 	store := &mockSessionStore{
 		findByIDFunc: func(_ context.Context, id string) (*Session, error) {
@@ -654,7 +654,7 @@ func TestMiddleware_noSessionStoreSkipsCheck(t *testing.T) {
 	// Without a session store, no session check is performed even if jti is present.
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateTokenWithSession(ctx, "user-noss", "sess-noss")
+	token, _ := mgr.CreateTokenWithSession("user-noss", "sess-noss")
 
 	cfg := Config{CookieName: "auth"} // Sessions is nil
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -697,7 +697,7 @@ func TestMiddleware_apiKeyBypassesSessionCheck(t *testing.T) {
 func TestAdminMiddleware_validSession(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateTokenWithSession(ctx, "admin-user", "sess-admin")
+	token, _ := mgr.CreateTokenWithSession("admin-user", "sess-admin")
 
 	sessStore := &mockSessionStore{
 		findByIDFunc: func(_ context.Context, id string) (*Session, error) {
@@ -717,7 +717,7 @@ func TestAdminMiddleware_validSession(t *testing.T) {
 func TestAdminMiddleware_revokedSession(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateTokenWithSession(ctx, "admin-user", "sess-revoked-admin")
+	token, _ := mgr.CreateTokenWithSession("admin-user", "sess-revoked-admin")
 
 	sessStore := &mockSessionStore{
 		findByIDFunc: func(_ context.Context, _ string) (*Session, error) {
@@ -740,7 +740,7 @@ func TestResolveUser_jwtWithSessionID(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
 
-	token, _ := mgr.CreateTokenWithSession(ctx, "user-jti", "sess-jti")
+	token, _ := mgr.CreateTokenWithSession("user-jti", "sess-jti")
 	uid, sessID, err := resolveUser(ctx, token, tokenSourceHeader, mgr, nil, "")
 	require.NoError(t, err)
 	require.Equal(t, "user-jti", uid)

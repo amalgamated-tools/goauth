@@ -536,7 +536,7 @@ func TestLogout_revokesSession(t *testing.T) {
 	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
 
 	// Create a token with a known session ID.
-	tok, _ := h.JWT.CreateTokenWithSession(context.Background(), "u1", "sess-logout")
+	tok, _ := h.JWT.CreateTokenWithSession("u1", "sess-logout")
 
 	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
@@ -552,7 +552,7 @@ func TestLogout_clearsRefreshCookie(t *testing.T) {
 	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
 	h.RefreshCookieName = "refresh"
 
-	tok, _ := h.JWT.CreateToken(context.Background(), "u1")
+	tok, _ := h.JWT.CreateToken("u1")
 
 	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
 	req.AddCookie(&http.Cookie{Name: "auth", Value: tok})
@@ -575,7 +575,7 @@ func TestLogout_warnOnSessionDeletionError(t *testing.T) {
 		},
 	}
 	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
-	tok, _ := h.JWT.CreateTokenWithSession(context.Background(), "u1", "sess-del-err")
+	tok, _ := h.JWT.CreateTokenWithSession("u1", "sess-del-err")
 
 	var buf bytes.Buffer
 	prev := slog.Default()
@@ -599,7 +599,7 @@ func TestLogout_silentOnNotFoundSessionDeletion(t *testing.T) {
 		},
 	}
 	h := newAuthHandlerWithSessions(&mockUserStore{}, sessions)
-	tok, _ := h.JWT.CreateTokenWithSession(context.Background(), "u1", "sess-gone")
+	tok, _ := h.JWT.CreateTokenWithSession("u1", "sess-gone")
 
 	var buf bytes.Buffer
 	prev := slog.Default()
