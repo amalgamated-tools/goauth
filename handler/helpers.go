@@ -15,8 +15,8 @@ import (
 
 // tokenCreator is the subset of auth.JWTManager used during token issuance.
 type tokenCreator interface {
-	CreateToken(ctx context.Context, userID string) (string, error)
-	CreateTokenWithSession(ctx context.Context, userID, sessionID string) (string, error)
+	CreateToken(userID string) (string, error)
+	CreateTokenWithSession(userID, sessionID string) (string, error)
 }
 
 // issueTokens creates an access JWT and, when sessions is non-nil, a session
@@ -66,7 +66,7 @@ func issueTokens(
 			return "", "", false
 		}
 
-		accessToken, err = jwtMgr.CreateTokenWithSession(r.Context(), userID, sess.ID)
+		accessToken, err = jwtMgr.CreateTokenWithSession(userID, sess.ID)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "failed to create token", slog.Any("error", err))
 			_ = sessions.DeleteSession(r.Context(), sess.ID, userID)
@@ -82,7 +82,7 @@ func issueTokens(
 	}
 
 	var err error
-	accessToken, err = jwtMgr.CreateToken(r.Context(), userID)
+	accessToken, err = jwtMgr.CreateToken(userID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to create token", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create token")

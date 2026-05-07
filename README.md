@@ -88,20 +88,19 @@ jwtMgr, err := auth.NewJWTManager(secret, ttl, issuer)
 // ttl     – token lifetime (e.g. 24 * time.Hour)
 // issuer  – value used for iss/aud claims (defaults to "goauth")
 
-token, err := jwtMgr.CreateToken(ctx, userID)
+token, err := jwtMgr.CreateToken(userID)
 // CreateTokenWithSession embeds the session ID as the JWT jti claim.
 // Use this (or let AuthHandler do it automatically) when Sessions is enabled.
-token, err = jwtMgr.CreateTokenWithSession(ctx, userID, sessionID)
+token, err = jwtMgr.CreateTokenWithSession(userID, sessionID)
 
 tokenString := token // signed JWT string returned by CreateToken / CreateTokenWithSession
 
-claims, err := jwtMgr.ValidateToken(ctx, tokenString)
+claims, err := jwtMgr.ValidateToken(tokenString)
 // claims is of type *auth.Claims:
 //   type Claims struct {
-//       UserID string `json:"sub"` // subject (user ID)
-//       jwt.RegisteredClaims       // embeds ID (jti), ExpiresAt, IssuedAt, Issuer, Audience
+//       jwt.RegisteredClaims // Subject is the user ID; ID is the session ID (jti)
 //   }
-// claims.UserID contains the subject; claims.ID contains the session ID (jti)
+// claims.Subject contains the user ID; claims.ID contains the session ID (jti)
 
 // ParseTokenClaims validates the signature (and iss/aud) but ignores all
 // time-based claim validation (expiry, not-before, issued-at).

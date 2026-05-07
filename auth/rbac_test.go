@@ -311,9 +311,8 @@ func TestRequireRole_noToken(t *testing.T) {
 }
 
 func TestRequireRole_wrongRole(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "plain-user")
+	token, _ := mgr.CreateToken("plain-user")
 
 	checker := &mockRoleChecker{
 		hasRoleFunc: func(_ context.Context, _ string, _ Role) (bool, error) { return false, nil },
@@ -325,9 +324,8 @@ func TestRequireRole_wrongRole(t *testing.T) {
 }
 
 func TestRequireRole_correctRole(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "admin-user")
+	token, _ := mgr.CreateToken("admin-user")
 
 	checker := &mockRoleChecker{
 		hasRoleFunc: func(_ context.Context, _ string, _ Role) (bool, error) { return true, nil },
@@ -339,9 +337,8 @@ func TestRequireRole_correctRole(t *testing.T) {
 }
 
 func TestRequireRole_checkerError(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "some-user")
+	token, _ := mgr.CreateToken("some-user")
 
 	checker := &mockRoleChecker{
 		hasRoleFunc: func(_ context.Context, _ string, _ Role) (bool, error) {
@@ -364,9 +361,8 @@ func TestRequireRole_invalidToken(t *testing.T) {
 }
 
 func TestRequireRole_setsContextValues(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "role-user")
+	token, _ := mgr.CreateToken("role-user")
 
 	checker := &mockRoleChecker{
 		hasRoleFunc: func(_ context.Context, _ string, _ Role) (bool, error) { return true, nil },
@@ -408,9 +404,8 @@ func TestRequirePermission_noToken(t *testing.T) {
 }
 
 func TestRequirePermission_insufficientPerm(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "viewer-user")
+	token, _ := mgr.CreateToken("viewer-user")
 
 	checker := &mockRoleChecker{
 		hasPermFunc: func(_ context.Context, _ string, _ Permission) (bool, error) { return false, nil },
@@ -422,9 +417,8 @@ func TestRequirePermission_insufficientPerm(t *testing.T) {
 }
 
 func TestRequirePermission_granted(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "editor-user")
+	token, _ := mgr.CreateToken("editor-user")
 
 	checker := &mockRoleChecker{
 		hasPermFunc: func(_ context.Context, _ string, _ Permission) (bool, error) { return true, nil },
@@ -436,9 +430,8 @@ func TestRequirePermission_granted(t *testing.T) {
 }
 
 func TestRequirePermission_checkerError(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "some-user")
+	token, _ := mgr.CreateToken("some-user")
 
 	checker := &mockRoleChecker{
 		hasPermFunc: func(_ context.Context, _ string, _ Permission) (bool, error) {
@@ -461,9 +454,8 @@ func TestRequirePermission_invalidToken(t *testing.T) {
 }
 
 func TestRequirePermission_setsUserIDInContext(t *testing.T) {
-	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
-	token, _ := mgr.CreateToken(ctx, "perm-user")
+	token, _ := mgr.CreateToken("perm-user")
 
 	checker := &mockRoleChecker{
 		hasPermFunc: func(_ context.Context, _ string, _ Permission) (bool, error) { return true, nil },

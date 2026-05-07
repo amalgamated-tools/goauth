@@ -385,7 +385,7 @@ func TestVerifyMagicLink_withSessionsCreateTokenError(t *testing.T) {
 	}
 	h := newMagicLinkHandlerWithSessions(userStore, validMagicLinkStore("alice@example.com"), sessions)
 	h.JWT = &mockTokenCreator{
-		createTokenWithSessionFunc: func(_ context.Context, _, _ string) (string, error) {
+		createTokenWithSessionFunc: func(_, _ string) (string, error) {
 			return "", errors.New("jwt signing error")
 		},
 	}

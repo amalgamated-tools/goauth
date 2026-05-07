@@ -100,7 +100,7 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 	}
 
 	if err := h.SendEmail(r.Context(), user.Email, plaintext); err != nil {
-		slog.ErrorContext(r.Context(), "failed to send verification email", slog.String("userID", user.ID), slog.Any("error", err))
+		slog.ErrorContext(r.Context(), "failed to send verification email", slog.String("user_id", user.ID), slog.Any("error", err))
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})

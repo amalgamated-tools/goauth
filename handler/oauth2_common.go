@@ -52,10 +52,14 @@ func findOrCreateUser(ctx context.Context, users auth.UserStore, subject, email,
 	// concurrently, so look them up instead.
 	if u, err := users.FindByOIDCSubject(ctx, subject); err == nil {
 		return u, nil
+	} else if !errors.Is(err, auth.ErrNotFound) {
+		return nil, fmt.Errorf("look up OIDC user after email race: %w", err)
 	}
 	if u, err := users.FindByEmail(ctx, email); err == nil {
 		linkSubjectBestEffort(ctx, users, u.ID, subject, "race_retry")
 		return u, nil
+	} else if !errors.Is(err, auth.ErrNotFound) {
+		return nil, fmt.Errorf("look up user by email after email race: %w", err)
 	}
 	return nil, fmt.Errorf("failed to resolve OIDC user")
 }

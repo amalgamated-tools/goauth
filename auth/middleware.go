@@ -151,11 +151,11 @@ func resolveUser(ctx context.Context, token string, source tokenSource, jwtMgr *
 		}
 		return uid, "", nil
 	}
-	claims, err := jwtMgr.ValidateToken(ctx, token)
+	claims, err := jwtMgr.ValidateToken(token)
 	if err != nil {
 		return "", "", err
 	}
-	return claims.UserID, claims.ID, nil
+	return claims.Subject, claims.ID, nil
 }
 
 // Middleware returns HTTP middleware that validates JWTs and API keys.

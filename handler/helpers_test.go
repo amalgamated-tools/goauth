@@ -290,22 +290,22 @@ func (m *mockPasswordResetStore) DeleteExpiredPasswordResetTokens(ctx context.Co
 
 // mockTokenCreator is a test double for tokenCreator.
 type mockTokenCreator struct {
-	createTokenFunc            func(ctx context.Context, userID string) (string, error)
-	createTokenWithSessionFunc func(ctx context.Context, userID, sessionID string) (string, error)
+	createTokenFunc            func(userID string) (string, error)
+	createTokenWithSessionFunc func(userID, sessionID string) (string, error)
 }
 
-func (m *mockTokenCreator) CreateToken(ctx context.Context, userID string) (string, error) {
+func (m *mockTokenCreator) CreateToken(userID string) (string, error) {
 	if m.createTokenFunc != nil {
-		return m.createTokenFunc(ctx, userID)
+		return m.createTokenFunc(userID)
 	}
-	return newTestJWT().CreateToken(ctx, userID)
+	return newTestJWT().CreateToken(userID)
 }
 
-func (m *mockTokenCreator) CreateTokenWithSession(ctx context.Context, userID, sessionID string) (string, error) {
+func (m *mockTokenCreator) CreateTokenWithSession(userID, sessionID string) (string, error) {
 	if m.createTokenWithSessionFunc != nil {
-		return m.createTokenWithSessionFunc(ctx, userID, sessionID)
+		return m.createTokenWithSessionFunc(userID, sessionID)
 	}
-	return newTestJWT().CreateTokenWithSession(ctx, userID, sessionID)
+	return newTestJWT().CreateTokenWithSession(userID, sessionID)
 }
 
 func newAuthHandlerWithSessions(store auth.UserStore, sessions auth.SessionStore) *AuthHandler {
