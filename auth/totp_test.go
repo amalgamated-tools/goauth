@@ -214,6 +214,40 @@ func TestGenerateTOTPCode_matchesHOTP(t *testing.T) {
 	require.Equal(t, hotpCode(keyBytes, step), code)
 }
 
+// ---------------------------------------------------------------------------
+// Benchmarks — energy-critical TOTP paths
+// ---------------------------------------------------------------------------
+
+// BenchmarkValidateTOTP measures the full ValidateTOTP hot path:
+// base32 decode → HMAC-SHA1 init → 3× hotpCodeWithMAC (with mac.Reset reuse).
+// Run with: go test -bench=BenchmarkValidateTOTP -benchmem ./auth/
+func BenchmarkValidateTOTP(b *testing.B) {
+	secret, err := GenerateTOTPSecret()
+	if err != nil {
+		b.Fatal(err)
+	}
+	// Use a code that is unlikely to match so the inner loop always runs all 3 steps.
+	code := "000000"
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = ValidateTOTP(secret, code)
+	}
+}
+
+// BenchmarkHotpCodeWithMAC measures the inner HMAC-reuse function in isolation
+// (binary.BigEndian + mac.Write + mac.Sum + truncation + fmt.Sprintf).
+// Run with: go test -bench=BenchmarkHotpCodeWithMAC -benchmem ./auth/
+func BenchmarkHotpCodeWithMAC(b *testing.B) {
+	key := []byte("12345678901234567890")
+	mac := hmac.New(sha1.New, key) //nolint:gosec // benchmark only
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = hotpCodeWithMAC(mac, uint64(i))
+	}
+}
+
 func TestHOTPCode_outputLengthMatchesDigits(t *testing.T) {
 	key := []byte("12345678901234567890")
 	foundLeftPadded := false
