@@ -113,6 +113,12 @@ type messageBody struct {
 	Message string `json:"message"`
 }
 
+// nonceBody is used instead of map[string]string to avoid a map allocation on
+// nonce response paths shared by OAuth2 and OIDC handlers.
+type nonceBody struct {
+	Nonce string `json:"nonce"`
+}
+
 // writeError sends a JSON error response.
 func writeError(ctx context.Context, w http.ResponseWriter, status int, message string) {
 	writeJSON(ctx, w, status, errorBody{Error: message})

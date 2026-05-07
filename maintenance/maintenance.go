@@ -34,7 +34,6 @@ func StartCleanup(ctx context.Context, interval time.Duration, cleaners ...func(
 		panic(fmt.Sprintf("StartCleanup: interval must be positive, got %v", interval))
 	}
 
-	logger := slog.Default()
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 
@@ -52,7 +51,7 @@ func StartCleanup(ctx context.Context, interval time.Duration, cleaners ...func(
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						logger.ErrorContext(ctx, "cleanup task panicked",
+						slog.Default().ErrorContext(ctx, "cleanup task panicked",
 							slog.String("cleaner_name", names[i]),
 							slog.Any("panic", r),
 							slog.String("stack", string(debug.Stack())),
@@ -60,7 +59,7 @@ func StartCleanup(ctx context.Context, interval time.Duration, cleaners ...func(
 					}
 				}()
 				if err := cleaner(ctx); err != nil {
-					logger.ErrorContext(ctx, "cleanup task failed", slog.String("cleaner_name", names[i]), slog.Any("error", err))
+					slog.Default().ErrorContext(ctx, "cleanup task failed", slog.String("cleaner_name", names[i]), slog.Any("error", err))
 				}
 			}()
 		}

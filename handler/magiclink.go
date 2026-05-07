@@ -31,13 +31,24 @@ type MagicLinkHandler struct {
 	// DefaultRefreshTokenTTL when Sessions is non-nil.
 	RefreshTokenTTL time.Duration
 	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. When empty the refresh token is only returned in the
-	// response body.
+	// refresh token. Must be non-empty when Sessions is set; call Validate at
+	// startup to catch this misconfiguration early.
 	RefreshCookieName string
 }
 
 type magicLinkRequestBody struct {
 	Email string `json:"email"`
+}
+
+// Validate checks that the handler is correctly configured and returns an error
+// if any required fields are missing or incompatible. Call Validate once at
+// server startup, after setting all optional fields, so that misconfiguration
+// is caught immediately rather than at the first real login attempt.
+func (h *MagicLinkHandler) Validate() error {
+	if h.Sessions != nil && h.RefreshCookieName == "" {
+		return errors.New("MagicLinkHandler misconfigured: Sessions requires RefreshCookieName")
+	}
+	return nil
 }
 
 // RequestMagicLink handles POST requests to generate a one-time login link.

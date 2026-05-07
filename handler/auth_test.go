@@ -26,6 +26,25 @@ func newAuthHandler(store auth.UserStore) *AuthHandler {
 	}
 }
 
+func TestAuthValidate_sessionsWithoutRefreshCookieName_returnsError(t *testing.T) {
+	h := newAuthHandler(&mockUserStore{})
+	h.Sessions = &mockSessionStore{}
+
+	require.Error(t, h.Validate())
+}
+
+func TestAuthValidate_sessionsWithRefreshCookieName_ok(t *testing.T) {
+	h := newAuthHandler(&mockUserStore{})
+	h.Sessions = &mockSessionStore{}
+	h.RefreshCookieName = "refresh"
+
+	require.NoError(t, h.Validate())
+}
+
+func TestAuthValidate_noSessions_ok(t *testing.T) {
+	require.NoError(t, newAuthHandler(&mockUserStore{}).Validate())
+}
+
 // ---------------------------------------------------------------------------
 // Signup
 // ---------------------------------------------------------------------------

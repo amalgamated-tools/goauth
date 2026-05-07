@@ -19,12 +19,6 @@ const (
 	oidcStateCookieTTL     = 5 * time.Minute
 )
 
-// nonceBody is used instead of map[string]string to avoid a map allocation
-// on the OIDC nonce response path.
-type nonceBody struct {
-	Nonce string `json:"nonce"`
-}
-
 // OIDCHandler holds dependencies for OIDC auth endpoints.
 type OIDCHandler struct {
 	Users         auth.UserStore
