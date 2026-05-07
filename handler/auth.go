@@ -361,6 +361,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), auth.BcryptCost)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to hash password", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to hash password")
 		return
 	}

@@ -88,6 +88,7 @@ func generateOIDCState() (string, error) {
 func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
 	state, err := generateOIDCState()
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to generate OIDC login state", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate login")
 		return
 	}
@@ -169,6 +170,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		EmailVerified *bool  `json:"email_verified"`
 	}
 	if err := idToken.Claims(&claims); err != nil {
+		slog.ErrorContext(r.Context(), "failed to parse OIDC claims", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to parse claims")
 		return
 	}
@@ -221,6 +223,7 @@ func (h *OIDCHandler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	nonce, err := generateOIDCState()
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to generate OIDC link nonce", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate nonce")
 		return
 	}
@@ -273,6 +276,7 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 
 	state, err := generateOIDCState()
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to generate OIDC link state", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate link")
 		return
 	}
