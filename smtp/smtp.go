@@ -2,9 +2,9 @@
 // authentication, and connection management. Templates and email content are the
 // consuming application's responsibility.
 //
-// WARNING: Send only uses Params.From for the SMTP envelope (MAIL FROM). Callers
-// must embed Params.FromHeader in msg themselves when constructing the RFC 5322
-// message headers.
+// WARNING: [Send] only uses [Params.From] for the SMTP envelope (MAIL FROM). Callers
+// must add a "From: "+[Params.FromHeader]+"\r\n" header line in msg themselves when
+// constructing the RFC 5322 message headers.
 package smtp
 
 import (
@@ -40,8 +40,8 @@ type Params struct {
 	// name as required by RFC 5322 (e.g. names containing commas or non-ASCII
 	// characters); otherwise it is the bare email address.
 	//
-	// WARNING: Send does not copy this into msg. Callers must embed
-	// "From: "+Params.FromHeader in the message headers themselves.
+	// WARNING: [Send] does not copy this into msg. Callers must add
+	// "From: "+Params.FromHeader+"\r\n" to the message headers themselves.
 	FromHeader string
 	TLS        string
 	Auth       netsmtp.Auth
@@ -119,9 +119,9 @@ const sessionTimeout = 30 * time.Second
 
 // Send delivers a single email message.
 //
-// Send uses Params.From only for the SMTP envelope sender (MAIL FROM). It does
-// not add or rewrite RFC 5322 message headers, including From, so callers must
-// embed Params.FromHeader in msg themselves.
+// Send uses [Params.From] only for the SMTP envelope sender (MAIL FROM). It does
+// not add or rewrite RFC 5322 message headers, so callers must add
+// "From: "+[Params.FromHeader]+"\r\n" to msg themselves.
 func Send(ctx context.Context, params Params, to string, msg []byte) error {
 	host, _, err := net.SplitHostPort(params.Addr)
 	if err != nil {
