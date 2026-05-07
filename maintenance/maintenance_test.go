@@ -135,7 +135,6 @@ func TestStartCleanup_logsCleanerNameOnError(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
 
 	stop := StartCleanup(context.Background(), time.Hour, namedErrorCleaner)
-	slog.SetDefault(orig) // safe to restore immediately — StartCleanup captured the logger at entry
 	stop()
 
 	var record struct {
@@ -156,7 +155,6 @@ func TestStartCleanup_logsCleanerNameOnPanic(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
 
 	stop := StartCleanup(context.Background(), time.Hour, namedPanicCleaner)
-	slog.SetDefault(orig) // safe to restore immediately — StartCleanup captured the logger at entry
 	stop()
 
 	var record struct {
@@ -164,4 +162,27 @@ func TestStartCleanup_logsCleanerNameOnPanic(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &record))
 	require.Contains(t, record.CleanerName, "namedPanicCleaner")
+}
+
+func TestStartCleanup_usesCurrentDefaultLoggerAtLogTime(t *testing.T) {
+	var buf bytes.Buffer
+	orig := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(orig) })
+
+	release := make(chan struct{})
+	cleaner := func(_ context.Context) error {
+		<-release
+		return errors.New("db error")
+	}
+
+	stop := StartCleanup(context.Background(), time.Hour, cleaner)
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	close(release)
+	stop()
+
+	var record struct {
+		CleanerName string `json:"cleaner_name"`
+	}
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &record))
+	require.Contains(t, record.CleanerName, "TestStartCleanup_usesCurrentDefaultLoggerAtLogTime")
 }

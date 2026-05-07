@@ -34,7 +34,6 @@ func StartCleanup(ctx context.Context, interval time.Duration, cleaners ...func(
 		panic(fmt.Sprintf("StartCleanup: interval must be positive, got %v", interval))
 	}
 
-	logger := slog.Default()
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 
@@ -48,6 +47,7 @@ func StartCleanup(ctx context.Context, interval time.Duration, cleaners ...func(
 	}
 
 	runCleaners := func() {
+		logger := slog.Default()
 		for i, cleaner := range cleaners {
 			func() {
 				defer func() {

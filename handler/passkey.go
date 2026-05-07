@@ -36,10 +36,21 @@ type PasskeyHandler struct {
 	// DefaultRefreshTokenTTL when Sessions is non-nil.
 	RefreshTokenTTL time.Duration
 	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. When empty the refresh token is only returned in the
-	// response body.
+	// refresh token. Must be non-empty when Sessions is set; call Validate at
+	// startup to catch this misconfiguration early.
 	RefreshCookieName string
 	URLParamFunc      func(r *http.Request, key string) string
+}
+
+// Validate checks that the handler is correctly configured and returns an error
+// if any required fields are missing or incompatible. Call Validate once at
+// server startup, after setting all optional fields, so that misconfiguration
+// is caught immediately rather than at the first passkey ceremony completion.
+func (h *PasskeyHandler) Validate() error {
+	if h.Sessions != nil && h.RefreshCookieName == "" {
+		return errors.New("PasskeyHandler misconfigured: Sessions requires RefreshCookieName")
+	}
+	return nil
 }
 
 // issueTokens delegates to the package-level issueTokens helper.
@@ -209,6 +220,10 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 
 	user, err := h.Users.FindByID(r.Context(), userID)
 	if err != nil {
+		if errors.Is(err, auth.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusNotFound, "user not found")
+			return
+		}
 		slog.ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
 		return
@@ -286,6 +301,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 	var authedUserID, authedCredentialID string
 	var authedUser *auth.User
 	var listCredsErr error
+	var userLookupErr error
 
 	handler := webauthn.DiscoverableUserHandler(func(rawID, userHandle []byte) (webauthn.User, error) {
 		credID := base64.RawURLEncoding.EncodeToString(rawID)
@@ -295,6 +311,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		}
 		user, err := h.Users.FindByID(r.Context(), cred.UserID)
 		if err != nil {
+			userLookupErr = err
 			return nil, fmt.Errorf("user not found: %w", err)
 		}
 		userCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), user.ID)
@@ -313,6 +330,11 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		if listCredsErr != nil {
 			slog.ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", listCredsErr))
 			writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
+		} else if errors.Is(userLookupErr, auth.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusNotFound, "user not found")
+		} else if userLookupErr != nil {
+			slog.ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", userLookupErr))
+			writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
 		} else {
 			writeError(r.Context(), w, http.StatusUnauthorized, "authentication failed")
 		}

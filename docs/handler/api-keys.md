@@ -36,7 +36,7 @@ DELETE /api-keys/{id}   → h.Delete  // 204 No Content
 
 ```go
 // Returned by List (and by Create, which also includes Key)
-type apiKeyDTO struct {
+type APIKeyDTO struct {
     ID         string     `json:"id"`
     Name       string     `json:"name"`
     KeyPrefix  string     `json:"key_prefix"` // configured prefix + first 12 hex chars of the random portion
@@ -46,7 +46,7 @@ type apiKeyDTO struct {
 
 // Returned by Create only
 type apiKeyCreateResponse struct {
-    apiKeyDTO
+    APIKeyDTO
     Key string `json:"key"` // full raw API key; present in Create response only
 }
 ```

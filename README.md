@@ -843,15 +843,15 @@ Keys are 160-bit random values prefixed with the configured string. Only the SHA
 
 | Route | HTTP status | Response body |
 |---|---|---|
-| `List` | 200 | `[]apiKeyDTO` — array of key metadata |
-| `Create` | 201 | `apiKeyDTO` + `key` field — `Cache-Control: no-store` and `Pragma: no-cache` |
+| `List` | 200 | `[]APIKeyDTO` — array of key metadata |
+| `Create` | 201 | `APIKeyDTO` + `key` field — `Cache-Control: no-store` and `Pragma: no-cache` |
 | `Delete` | 204 | *(no body)* |
 
 ```go
-// Illustrative response shapes (actual types are unexported in the handler package)
+// Illustrative response shapes
 
 // Returned by List (and by Create, which also includes Key)
-type apiKeyDTO struct {
+type APIKeyDTO struct {
     ID         string     `json:"id"`
     Name       string     `json:"name"`
     KeyPrefix  string     `json:"key_prefix"` // configured prefix + first 12 hex chars of the random portion
@@ -861,12 +861,12 @@ type apiKeyDTO struct {
 
 // Returned by Create only
 type apiKeyCreateResponse struct {
-    apiKeyDTO
+    APIKeyDTO
     Key string `json:"key"` // full raw API key; present in Create response only
 }
 ```
 
-The `Create` response embeds `apiKeyDTO` and adds a top-level `key` field containing the full plaintext key. `key_prefix` is the configured `Prefix` followed by the first 12 hex characters of the key — safe to display for user-facing identification.
+The `Create` response embeds `APIKeyDTO` and adds a top-level `key` field containing the full plaintext key. `key_prefix` is the configured `Prefix` followed by the first 12 hex characters of the key — safe to display for user-facing identification.
 
 #### Error responses
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,6 +100,25 @@ func newPasskeyHandler(passkeys auth.PasskeyStore, users auth.UserStore) *Passke
 	}
 }
 
+func TestPasskeyValidate_sessionsWithoutRefreshCookieName_returnsError(t *testing.T) {
+	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
+	h.Sessions = &mockSessionStore{}
+
+	require.Error(t, h.Validate())
+}
+
+func TestPasskeyValidate_sessionsWithRefreshCookieName_ok(t *testing.T) {
+	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
+	h.Sessions = &mockSessionStore{}
+	h.RefreshCookieName = "refresh"
+
+	require.NoError(t, h.Validate())
+}
+
+func TestPasskeyValidate_noSessions_ok(t *testing.T) {
+	require.NoError(t, newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{}).Validate())
+}
+
 // ---------------------------------------------------------------------------
 // Enabled
 // ---------------------------------------------------------------------------
@@ -175,6 +195,41 @@ func TestPasskey_finishRegistration_findByIDError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+func TestPasskey_finishRegistration_userNotFound(t *testing.T) {
+	wa, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "Test",
+		RPID:          "localhost",
+		RPOrigins:     []string{"http://localhost"},
+	})
+	require.NoError(t, err)
+
+	challengeJSON := `{"session_data":{"challenge":"dGVzdA","rpId":"localhost","user_id":null,"expires":"2099-01-01T00:00:00Z","userVerification":""},"name":"test-key"}`
+	store := &mockPasskeyStore{
+		getAndDeleteChallengeFunc: func(_ context.Context, _ string) (*auth.PasskeyChallenge, error) {
+			return &auth.PasskeyChallenge{
+				ID:          "sess-1",
+				SessionData: challengeJSON,
+				ExpiresAt:   time.Now().Add(5 * time.Minute),
+			}, nil
+		},
+	}
+	users := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+	}
+
+	h := newPasskeyHandler(store, users)
+	h.WebAuthn = wa
+
+	req := httptest.NewRequest(http.MethodPost, "/passkeys/register/finish?session_id=sess-1", nil)
+	req = withUserID(req, "u1")
+	w := httptest.NewRecorder()
+	h.FinishRegistration(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
 func TestPasskey_beginRegistration_listCredentialsError(t *testing.T) {
 	wa, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: "Test",
@@ -247,6 +302,40 @@ func TestPasskey_finishAuthentication_notConfigured(t *testing.T) {
 	h.FinishAuthentication(w, req)
 
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestPasskey_finishAuthentication_userNotFound(t *testing.T) {
+	wa, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "Test",
+		RPID:          "localhost",
+		RPOrigins:     []string{"http://localhost"},
+	})
+	require.NoError(t, err)
+
+	h := newPasskeyHandler(&mockPasskeyStore{
+		getAndDeleteChallengeFunc: func(_ context.Context, _ string) (*auth.PasskeyChallenge, error) {
+			return &auth.PasskeyChallenge{
+				ID:          "sess-1",
+				ExpiresAt:   time.Now().Add(5 * time.Minute),
+				SessionData: `{"session_data":{"challenge":"AA","rpId":"localhost","allowCredentials":[],"userVerification":"discouraged"},"name":""}`,
+			}, nil
+		},
+		findCredentialByCredIDFunc: func(_ context.Context, _ string) (*auth.PasskeyCredential, error) {
+			return &auth.PasskeyCredential{ID: "cred-1", UserID: "u1"}, nil
+		},
+	}, &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+	})
+	h.WebAuthn = wa
+
+	req := httptest.NewRequest(http.MethodPost, "/passkeys/auth/finish?session_id=sess-1", strings.NewReader(`{"id":"-R85HbTJsv3g6nAYnLo_tj9Xm6YSKzOtlP8-wwAIS-Q","rawId":"-R85HbTJsv3g6nAYnLo_tj9Xm6YSKzOtlP8-wwAIS-Q","type":"public-key","response":{"authenticatorData":"v6vDdDKViwYzYNOtZGHJxHNa5_jt1GWSpeDwFFKy5LUZAAAAAA","clientDataJSON":"eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiT2NEblVoUVh1bFRVUG8zSlVYVDBJOTdwdnp6WUJQOXRYY2hYeWF2MDFBZyIsIm9yaWdpbiI6Imh0dHBzOi8vZXhhbXBsZS5vcmciLCJjcm9zc09yaWdpbiI6ZmFsc2V9","signature":"MEYCIQD1Ck4uRAkknEqFO6NhKC8JhB303UVHoTqHeAIY3v_NOAIhAISArA8Lk1OBdPV1vxGh3V14xuSGAT-TcpXqE2U-Mx6H","userHandle":"dTE"}}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.FinishAuthentication(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 // ---------------------------------------------------------------------------

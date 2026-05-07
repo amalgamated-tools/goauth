@@ -40,7 +40,6 @@ type AuthHandler struct {
 	SecureCookies       bool
 	DisableSignup       bool
 	RequireVerification bool
-	Verifications       auth.EmailVerificationStore
 }
 
 type signupRequest struct {
@@ -92,6 +91,17 @@ func ToUserDTO(u *auth.User) UserDTO {
 // issueTokens delegates to the package-level issueTokens helper.
 func (h *AuthHandler) issueTokens(w http.ResponseWriter, r *http.Request, userID string) (accessToken, refreshToken string, ok bool) {
 	return issueTokens(w, r, userID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
+}
+
+// Validate checks that the handler is correctly configured and returns an error
+// if any required fields are missing or incompatible. Call Validate once at
+// server startup, after setting all optional fields, so that misconfiguration
+// is caught immediately rather than at the first user login attempt.
+func (h *AuthHandler) Validate() error {
+	if h.Sessions != nil && h.RefreshCookieName == "" {
+		return errors.New("AuthHandler misconfigured: Sessions requires RefreshCookieName")
+	}
+	return nil
 }
 
 // Signup creates a new user account.

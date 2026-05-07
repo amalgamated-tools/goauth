@@ -21,7 +21,8 @@ type APIKeyHandler struct {
 	URLParamFunc func(r *http.Request, key string) string
 }
 
-type apiKeyDTO struct {
+// APIKeyDTO is the public representation of an API key.
+type APIKeyDTO struct {
 	ID         string     `json:"id"`
 	Name       string     `json:"name"`
 	KeyPrefix  string     `json:"key_prefix"`
@@ -30,12 +31,12 @@ type apiKeyDTO struct {
 }
 
 type apiKeyCreateResponse struct {
-	apiKeyDTO
+	APIKeyDTO
 	Key string `json:"key"`
 }
 
-func toAPIKeyDTO(k *auth.APIKey) apiKeyDTO {
-	return apiKeyDTO{
+func toAPIKeyDTO(k *auth.APIKey) APIKeyDTO {
+	return APIKeyDTO{
 		ID: k.ID, Name: k.Name, KeyPrefix: k.KeyPrefix,
 		LastUsedAt: k.LastUsedAt, CreatedAt: k.CreatedAt,
 	}
@@ -50,7 +51,7 @@ func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list API keys")
 		return
 	}
-	dtos := make([]apiKeyDTO, len(keys))
+	dtos := make([]APIKeyDTO, len(keys))
 	for i := range keys {
 		dtos[i] = toAPIKeyDTO(&keys[i])
 	}
@@ -97,7 +98,7 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	writeJSON(r.Context(), w, http.StatusCreated, apiKeyCreateResponse{
-		apiKeyDTO: toAPIKeyDTO(apiKey),
+		APIKeyDTO: toAPIKeyDTO(apiKey),
 		Key:       fullKey,
 	})
 }

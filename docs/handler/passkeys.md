@@ -24,6 +24,10 @@ h := &handler.PasskeyHandler{
     RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // default 7 days
     RefreshCookieName: "refresh",
 }
+
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
 ```
 
 ## Routes
@@ -66,7 +70,7 @@ When `Sessions` is `nil`, `PasskeyHandler` issues an access JWT only. The token 
 When `Sessions` is set on `PasskeyHandler`:
 
 - `FinishAuthentication` creates a server-side session, embeds the session ID as the JWT `jti` claim, and returns a `refresh_token` alongside the short-lived access token.
-- `RefreshCookieName` is **required** when `Sessions` is set. The refresh token is returned in both the response body **and** an `HttpOnly` cookie.
+- `RefreshCookieName` is **required** when `Sessions` is set. The refresh token is returned in both the response body **and** an `HttpOnly` cookie. Call `h.Validate()` at startup to catch this misconfiguration before any passkey ceremony reaches token issuance.
 - Pass `auth.Config{CookieName: "session", Sessions: sessionStore}` to `Middleware` so that revoked sessions are rejected on every request.
 
 Session tracking and refresh token rotation work identically to `AuthHandler`. Refresh token rotation (via `AuthHandler.RefreshToken`) requires `AuthHandler` to be mounted — `PasskeyHandler` does not expose a dedicated refresh endpoint.

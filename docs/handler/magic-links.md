@@ -19,6 +19,10 @@ h := &handler.MagicLinkHandler{
     RefreshTokenTTL:   7 * 24 * time.Hour,
     RefreshCookieName: "refresh",
 }
+
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
 ```
 
 `Sender` has the named type `handler.MagicLinkSender` (`func(ctx context.Context, email, token string) error`). Pass the raw token (not the hash) directly to the user in a login URL such as `https://myapp.example.com/magic-link?token=<token>`.
@@ -51,7 +55,7 @@ GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → A
 
 ## Session tracking
 
-Session tracking and refresh token rotation work identically to `AuthHandler` — set `Sessions`, `RefreshTokenTTL`, and `RefreshCookieName` to enable them. `RefreshCookieName` is **required** when `Sessions` is set; omitting it causes any `VerifyMagicLink` call to return HTTP 500 `"server misconfiguration"`. See [AuthHandler — Session tracking](auth.md#session-tracking-and-refresh-token-rotation) for details.
+Session tracking and refresh token rotation work identically to `AuthHandler` — set `Sessions`, `RefreshTokenTTL`, and `RefreshCookieName` to enable them. `RefreshCookieName` is **required** when `Sessions` is set; call `h.Validate()` at startup to catch this misconfiguration before any `VerifyMagicLink` request reaches token issuance. See [AuthHandler — Session tracking](auth.md#session-tracking-and-refresh-token-rotation) for details.
 
 ## HTTP status codes
 
