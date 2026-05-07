@@ -47,12 +47,11 @@ func StartCleanup(ctx context.Context, interval time.Duration, cleaners ...func(
 	}
 
 	runCleaners := func() {
-		logger := slog.Default()
 		for i, cleaner := range cleaners {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						logger.ErrorContext(ctx, "cleanup task panicked",
+						slog.Default().ErrorContext(ctx, "cleanup task panicked",
 							slog.String("cleaner_name", names[i]),
 							slog.Any("panic", r),
 							slog.String("stack", string(debug.Stack())),
@@ -60,7 +59,7 @@ func StartCleanup(ctx context.Context, interval time.Duration, cleaners ...func(
 					}
 				}()
 				if err := cleaner(ctx); err != nil {
-					logger.ErrorContext(ctx, "cleanup task failed", slog.String("cleaner_name", names[i]), slog.Any("error", err))
+					slog.Default().ErrorContext(ctx, "cleanup task failed", slog.String("cleaner_name", names[i]), slog.Any("error", err))
 				}
 			}()
 		}
