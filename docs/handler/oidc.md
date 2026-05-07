@@ -118,3 +118,21 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 
 !!! info "Link-callback redirects"
     After the OIDC provider returns to `Callback` during a link flow, all outcomes (success and failure) are communicated via redirect query parameters (`oidc_linked=true` or `oidc_link_error=<value>`), never via JSON error responses. See [Linking flow error redirects](#linking-flow-error-redirects) for the possible `oidc_link_error` values.
+
+## Observability
+
+`OIDCHandler` emits structured log events via `slog` with the request context for trace correlation.
+
+| Event | Level | `slog` message | Endpoint |
+|---|---|---|---|
+| OIDC state generation failure | `ERROR` | `"failed to generate OIDC login state"` | `Login` |
+| `id_token` claims parsing failure | `ERROR` | `"failed to parse OIDC claims"` | `Callback` |
+| User resolution / creation failure | `ERROR` | `"OIDC user resolution failed"` | `Callback` |
+| Best-effort subject link failure | `WARN` | `"failed to link OIDC subject to email-matched user"` | `Callback` |
+| Nonce generation failure | `ERROR` | `"failed to generate OIDC link nonce"` | `CreateLinkNonce` |
+| Nonce persistence store failure | `ERROR` | `"failed to store link nonce"` | `CreateLinkNonce` |
+| Link state generation failure | `ERROR` | `"failed to generate OIDC link state"` | `Link` |
+| Nonce consumption failure (link callback) | `ERROR` | `"failed to consume link nonce"` | `Callback` (link flow) |
+| User lookup failure (link callback) | `ERROR` | `"failed to look up user during OIDC link"` | `Callback` (link flow) |
+
+The `WARN`-level best-effort link event does not produce an HTTP error — login still succeeds. All `ERROR`-level events are followed by an HTTP 500 response (or a link-callback redirect with `oidc_link_error` for the link-flow entries).

@@ -64,3 +64,17 @@ See [TOTP / MFA](../auth/totp.md) for the underlying primitives and replay prote
 | `Disable` | 204 No Content | Success |
 | `Disable` | 404 Not Found | TOTP not configured for the user |
 | `Disable` | 500 Internal Server Error | Store failure |
+
+## Observability
+
+`TOTPHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response, propagating the request context for trace correlation.
+
+| Event | Level | `slog` message | Endpoint |
+|---|---|---|---|
+| TOTP status store failure | `ERROR` | `"failed to fetch TOTP status"` | `Status` |
+| TOTP secret generation failure | `ERROR` | `"failed to generate TOTP secret"` | `Generate` |
+| User lookup store failure | `ERROR` | `"failed to fetch user"` | `Generate` |
+| TOTP secret persistence failure | `ERROR` | `"failed to save TOTP secret"` | `Enroll` |
+| Enrolled secret lookup failure | `ERROR` | `"failed to fetch TOTP secret"` | `Verify` |
+| TOTP code validation store failure | `ERROR` | `"failed to validate TOTP code"` | `Verify` |
+| TOTP secret deletion failure | `ERROR` | `"failed to delete TOTP secret"` | `Disable` |

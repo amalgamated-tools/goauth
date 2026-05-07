@@ -70,3 +70,22 @@ Reset tokens are consumed (deleted) after successful use.
 | `ResetPassword` | 200 OK | `{"message": "password reset successfully"}` |
 | `ResetPassword` | 400 Bad Request | Missing `token` or `newPassword`; password outside 8–72 bytes; invalid or expired token; OIDC-only account (no password set) |
 | `ResetPassword` | 500 Internal Server Error | Internal failure during token lookup, user lookup, password hashing, or password update |
+
+## Observability
+
+`PasswordResetHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response and for non-fatal failures, propagating the request context for trace correlation.
+
+| Event | Level | `slog` message | Endpoint |
+|---|---|---|---|
+| User lookup store failure | `ERROR` | `"password reset: lookup user"` | `RequestReset` |
+| Token generation failure | `ERROR` | `"password reset: generate token"` | `RequestReset` |
+| Token persistence store failure | `ERROR` | `"password reset: store token"` | `RequestReset` |
+| Email delivery failure | `ERROR` | `"password reset: send email"` | `RequestReset` |
+| Token cleanup failure after email failure | `ERROR` | `"password reset: cleanup token after email failure"` | `RequestReset` |
+| Token lookup store failure | `ERROR` | `"password reset: find token"` | `ResetPassword` |
+| User lookup store failure | `ERROR` | `"password reset: lookup user"` | `ResetPassword` |
+| Password hashing failure | `ERROR` | `"password reset: hash password"` | `ResetPassword` |
+| Password update store failure | `ERROR` | `"password reset: update password"` | `ResetPassword` |
+| Token consumption failure | `ERROR` | `"password reset: consume token"` | `ResetPassword` |
+
+The email delivery failure event is `ERROR`-level but the handler still returns HTTP 200 (see [Token cleanup on email delivery failure](#token-cleanup-on-email-delivery-failure)). All other `ERROR`-level events are followed by an HTTP 500 response.
