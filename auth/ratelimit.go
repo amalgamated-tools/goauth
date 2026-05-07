@@ -44,6 +44,15 @@ func NewRateLimiterWithTrustedProxies(rate float64, burst int, trustedProxies []
 	return newRateLimiter(rate, burst, trustedProxies)
 }
 
+// WithMaxVisitors overrides the maximum number of unique IP addresses tracked
+// concurrently and returns the receiver for chaining. A value <= 0 means no cap.
+func (rl *RateLimiter) WithMaxVisitors(n int) *RateLimiter {
+	rl.mu.Lock()
+	rl.maxVisitors = n
+	rl.mu.Unlock()
+	return rl
+}
+
 func newRateLimiter(rate float64, burst int, trustedProxies []*net.IPNet) *RateLimiter {
 	cleanup := 5 * time.Minute
 	var copied []*net.IPNet
@@ -77,10 +86,14 @@ func (rl *RateLimiter) allow(key string) bool {
 		rl.nextCleanup = now.Add(rl.cleanup)
 	}
 
+	if rl.visitors == nil {
+		rl.visitors = make(map[string]*visitor)
+	}
 	v, exists := rl.visitors[key]
 	if !exists {
 		// Block unseen IPs without map growth when the cap is reached.
-		if len(rl.visitors) >= rl.maxVisitors {
+		// maxVisitors <= 0 means no cap (safe for zero-value RateLimiter{}).
+		if rl.maxVisitors > 0 && len(rl.visitors) >= rl.maxVisitors {
 			return false
 		}
 		rl.visitors[key] = &visitor{tokens: float64(rl.burst) - 1, lastSeen: now}

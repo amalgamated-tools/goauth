@@ -54,7 +54,9 @@ func TestRateLimiter_independentKeys(t *testing.T) {
 
 func TestRateLimiter_maxVisitorsCapBlocksNewIPs(t *testing.T) {
 	rl := NewRateLimiter(10, 5)
-	rl.maxVisitors = 2 // override cap for test
+	rl.mu.Lock()
+	rl.maxVisitors = 2
+	rl.mu.Unlock()
 
 	require.True(t, rl.allow("ip1"))
 	require.True(t, rl.allow("ip2"))
@@ -71,7 +73,9 @@ func TestRateLimiter_maxVisitorsCapBlocksNewIPs(t *testing.T) {
 
 func TestRateLimiter_maxVisitorsCapRestoredAfterCleanup(t *testing.T) {
 	rl := newTestRateLimiter(10, 5)
+	rl.mu.Lock()
 	rl.maxVisitors = 1
+	rl.mu.Unlock()
 
 	// Fill the map to capacity with a stale entry.
 	rl.mu.Lock()
@@ -81,6 +85,16 @@ func TestRateLimiter_maxVisitorsCapRestoredAfterCleanup(t *testing.T) {
 	// The allow call triggers cleanup (nextCleanup is in the past), evicts
 	// "stale", then successfully adds "new-ip".
 	require.True(t, rl.allow("new-ip"))
+
+	rl.mu.Lock()
+	_, staleExists := rl.visitors["stale"]
+	_, newIPExists := rl.visitors["new-ip"]
+	size := len(rl.visitors)
+	rl.mu.Unlock()
+
+	require.False(t, staleExists, "stale entry must be evicted by cleanup")
+	require.True(t, newIPExists, "new-ip must be added after cleanup frees capacity")
+	require.Equal(t, 1, size, "visitor map must contain only new-ip after cleanup")
 }
 
 func TestRateLimiter_cleanup(t *testing.T) {
