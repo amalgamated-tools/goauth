@@ -21,7 +21,7 @@ type UserStore interface {
 
 Return `auth.ErrEmailExists` from `CreateUser` when a duplicate email is detected.
 
-Return `auth.ErrEmailExists` from `CreateOIDCUser` when the given email is already registered. Both `OIDCHandler` and `OAuth2Handler` rely on this to handle a race condition where two concurrent first-time logins for the same email both attempt to create an account simultaneously: when `CreateOIDCUser` returns `ErrEmailExists`, the handler retries by looking up the now-existing user instead.
+Return `auth.ErrEmailExists` from `CreateOIDCUser` when the given email is already registered. Both `OIDCHandler` and `OAuth2Handler` rely on this to handle a race condition where two concurrent first-time logins for the same email both attempt to create an account simultaneously: when `CreateOIDCUser` returns `auth.ErrEmailExists`, the handler retries by looking up the now-existing user instead.
 
 Implement `LinkOIDCSubject` as an idempotent upsert: return `nil` when the given OIDC subject is already associated with the specified user (i.e., the link is already in place). The interactive link callback treats any non-nil return value from `LinkOIDCSubject` as a failure, so returning `auth.ErrOIDCSubjectAlreadyLinked` here will cause a "Failed to link" redirect error on benign re-link attempts. The best-effort login path (`linkOIDCSubjectBestEffort`) does suppress `ErrOIDCSubjectAlreadyLinked` specifically, but an upsert returning `nil` is equally safe and avoids the callback-path failure. Return any other non-nil error for genuine failures (e.g. database errors).
 
