@@ -132,6 +132,7 @@ const (
 	minPasswordLength = 8
 	maxPasswordLength = 72
 
+	// Keep these strings in sync with minPasswordLength / maxPasswordLength above.
 	errPasswordTooShort = "password must be at least 8 bytes"
 	errPasswordTooLong  = "password must be at most 72 bytes"
 )
