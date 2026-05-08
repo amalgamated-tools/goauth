@@ -79,4 +79,4 @@ To gate login on email verification, set `RequireVerification: true` on `AuthHan
 | Token consumption store failure | `ERROR` | `"failed to consume verification token"` | `VerifyEmail` |
 | Email-verified flag persistence failure | `ERROR` | `"failed to mark email as verified"` | `VerifyEmail` |
 
-The email delivery failure event is `ERROR`-level but the handler still returns HTTP 200 (see [Token retention on email delivery failure](#token-retention-on-email-delivery-failure)). All other `ERROR`-level events are followed by an HTTP 500 response.
+The email delivery failure event is `ERROR`-level but the handler still returns HTTP 200 (see [Token retention on email delivery failure](#token-retention-on-email-delivery-failure)). The three `SendVerification` lookup/token events (`"failed to find user for email verification"`, `"failed to generate verification token"`, `"failed to store verification token"`) also return HTTP 200 — `SendVerification` always returns HTTP 200 to prevent email enumeration. Only the two `VerifyEmail` `ERROR`-level events are followed by an HTTP 500 response.
