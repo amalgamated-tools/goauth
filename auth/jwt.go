@@ -54,19 +54,7 @@ func NewJWTManager(secret string, ttl time.Duration, issuer string) (*JWTManager
 
 // CreateToken generates a signed JWT for the given user ID.
 func (j *JWTManager) CreateToken(userID string) (string, error) {
-	now := time.Now()
-	claims := Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    j.issuer,
-			Audience:  jwt.ClaimStrings{j.issuer},
-			Subject:   userID,
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(j.ttl)),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(j.secret)
+	return j.CreateTokenWithSession(userID, "")
 }
 
 // CreateTokenWithSession generates a signed JWT for the given user ID and
