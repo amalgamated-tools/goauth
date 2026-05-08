@@ -205,4 +205,4 @@ When `Sessions` is `nil`, only a stateless access JWT is issued. Token lifetime 
 | OIDC subject lookup failure (link callback) | `ERROR` | `"failed to look up OIDC subject during link"` | `Callback` (link flow) |
 | OIDC subject linking failure | `ERROR` | `"failed to link OIDC subject"` | `Callback` (link flow) |
 
-The `WARN`-level best-effort link event does not produce an HTTP error — login still succeeds. `ERROR`-level events in `Login`, `Callback`, `CreateLinkNonce`, and `Link` are followed by an HTTP 500 response. `ERROR`-level events in the `Callback` link flow are followed by a redirect with `oauth2_link_error`.
+The `WARN`-level best-effort link event does not produce an HTTP error — login still succeeds. The `"OAuth2 FetchUserInfo failed"` event is followed by HTTP 401. All other `ERROR`-level events in `Login`, `Callback`, `CreateLinkNonce`, and `Link` are followed by an HTTP 500 response. `ERROR`-level events in the `Callback` link flow are followed by a redirect with `oauth2_link_error`.
