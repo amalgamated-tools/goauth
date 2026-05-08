@@ -123,3 +123,27 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 | `DeleteCredential` | 400 Bad Request | Missing credential ID |
 | `DeleteCredential` | 404 Not Found | Credential not found or not owned by the authenticated user |
 | `DeleteCredential` | 500 Internal Server Error | Store failure |
+
+## Observability
+
+`PasskeyHandler` emits structured log events via `slog` with the request context for trace correlation.
+
+| Event | Level | `slog` message | Endpoint |
+|---|---|---|---|
+| User lookup store failure | `ERROR` | `"failed to fetch user"` | `BeginRegistration`, `FinishRegistration`, `FinishAuthentication` |
+| Credential listing store failure | `ERROR` | `"failed to list credentials"` | `BeginRegistration`, `FinishRegistration`, `FinishAuthentication`, `ListCredentials` |
+| WebAuthn registration ceremony failure | `ERROR` | `"failed to begin registration"` | `BeginRegistration` |
+| Challenge persistence failure | `ERROR` | `"failed to store challenge"` | `BeginRegistration`, `BeginAuthentication` |
+| Credential marshalling failure | `ERROR` | `"failed to marshal credential"` | `FinishRegistration` |
+| Credential persistence failure | `ERROR` | `"failed to store credential"` | `FinishRegistration` |
+| WebAuthn authentication ceremony failure | `ERROR` | `"failed to begin login"` | `BeginAuthentication` |
+| Credential deletion store failure | `ERROR` | `"failed to delete credential"` | `DeleteCredential` |
+| Corrupted credential skipped during decode | `WARN` | `"skipping corrupted passkey credential"` | (internal, during listing) |
+| Credential counter update marshal failure | `WARN` | `"failed to marshal credential for counter update"` | `FinishAuthentication` |
+| Credential counter update store failure | `WARN` | `"failed to update credential counter"` | `FinishAuthentication` |
+| Sessions set without `RefreshCookieName` | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `FinishAuthentication` |
+| Refresh token generation failure | `ERROR` | `"failed to generate refresh token"` | `FinishAuthentication` |
+| Session creation store failure | `ERROR` | `"failed to create session"` | `FinishAuthentication` |
+| Access token creation failure | `ERROR` | `"failed to create token"` | `FinishAuthentication` |
+
+`WARN`-level events for counter updates do not fail the authentication — the user is logged in successfully. The `WARN` for a corrupted credential skips that credential silently during listing.

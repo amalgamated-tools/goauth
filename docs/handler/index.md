@@ -75,3 +75,11 @@ The HTTP status code reflects the error category:
 | `429 Too Many Requests` | Rate limit exceeded (see [Rate limiting](../auth/rate-limiting.md)) |
 | `500 Internal Server Error` | Unexpected server-side failure |
 | `503 Service Unavailable` | A required dependency is not configured (e.g. `SendEmail`, `Sender`, `SendResetEmail`, or `WebAuthn` is `nil`) |
+
+## Observability
+
+Every HTTP 500 response is preceded by a `slog.ErrorContext` call that records the underlying error with the request context, enabling trace correlation. `slog.WarnContext` is used for non-fatal degradations that do not affect the HTTP response (e.g. failing to update a credential counter or revoke a session on logout).
+
+goauth never sets or replaces the global `slog` handler. Configure your own handler before starting the server to control log destination, format, and minimum level.
+
+Each handler's documentation lists the specific `slog` messages it emits. ERROR log records generally include an `error` attribute set to the raw Go error value; the misconfiguration message `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` is an exception.

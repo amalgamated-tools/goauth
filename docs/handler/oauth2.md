@@ -181,3 +181,28 @@ When `Sessions` is `nil`, only a stateless access JWT is issued. Token lifetime 
 
 !!! info "Link-callback redirects"
     After the provider returns to `Callback` during a link flow, outcomes that depend on the linking logic (duplicate subject check, `LinkOIDCSubject`) are communicated via redirect query parameters (`oauth2_link_error` / `oauth2_linked=true`). Early failures before identity is confirmed — such as missing cookies, a failed code exchange, or a `FetchUserInfo` error — still return JSON error responses.
+
+## Observability
+
+`OAuth2Handler` emits structured log events via `slog` with the request context for trace correlation.
+
+| Event | Level | `slog` message | Endpoint |
+|---|---|---|---|
+| OAuth2 state generation failure | `ERROR` | `"failed to generate OAuth2 login state"` | `Login` |
+| `FetchUserInfo` call failure | `ERROR` | `"OAuth2 FetchUserInfo failed"` | `Callback` |
+| User resolution / creation failure | `ERROR` | `"OAuth2 user resolution failed"` | `Callback` |
+| Best-effort subject link failure | `WARN` | `"failed to link OIDC subject to email-matched user"` | `Callback` |
+| Sessions set without `RefreshCookieName` | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `Callback` |
+| Refresh token generation failure | `ERROR` | `"failed to generate refresh token"` | `Callback` |
+| Session creation store failure | `ERROR` | `"failed to create session"` | `Callback` |
+| Access token creation failure | `ERROR` | `"failed to create token"` | `Callback` |
+| Nonce generation failure | `ERROR` | `"failed to generate OAuth2 link nonce"` | `CreateLinkNonce` |
+| Nonce persistence store failure | `ERROR` | `"failed to store link nonce"` | `CreateLinkNonce` |
+| Link state generation failure | `ERROR` | `"failed to generate OAuth2 link state"` | `Link` |
+| Nonce consumption failure | `ERROR` | `"failed to consume link nonce"` | `Link` |
+| User lookup failure (link initiation) | `ERROR` | `"failed to look up user during OAuth2 link"` | `Link` |
+| User lookup failure (link callback) | `ERROR` | `"failed to look up user during link"` | `Callback` (link flow) |
+| OIDC subject lookup failure (link callback) | `ERROR` | `"failed to look up OIDC subject during link"` | `Callback` (link flow) |
+| OIDC subject linking failure | `ERROR` | `"failed to link OIDC subject"` | `Callback` (link flow) |
+
+The `WARN`-level best-effort link event does not produce an HTTP error — login still succeeds. The `"OAuth2 FetchUserInfo failed"` event is followed by HTTP 401. All other `ERROR`-level events in `Login`, `Callback`, `CreateLinkNonce`, and `Link` are followed by an HTTP 500 response. `ERROR`-level events in the `Callback` link flow are followed by a redirect with `oauth2_link_error`.

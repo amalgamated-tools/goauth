@@ -65,3 +65,18 @@ To gate login on email verification, set `RequireVerification: true` on `AuthHan
 
 !!! info "Silent success for unregistered / already-verified addresses"
     `SendVerification` returns 200 for unregistered emails and already-verified addresses without storing a token or sending an email. Only the missing-`email` validation check surfaces as a non-200 error.
+
+## Observability
+
+`EmailVerificationHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response and for non-fatal email delivery failures, propagating the request context for trace correlation.
+
+| Event | Level | `slog` message | Endpoint |
+|---|---|---|---|
+| User lookup store failure | `ERROR` | `"failed to find user for email verification"` | `SendVerification` |
+| Verification token generation failure | `ERROR` | `"failed to generate verification token"` | `SendVerification` |
+| Token persistence store failure | `ERROR` | `"failed to store verification token"` | `SendVerification` |
+| Email delivery failure | `ERROR` | `"failed to send verification email"` | `SendVerification` |
+| Token consumption store failure | `ERROR` | `"failed to consume verification token"` | `VerifyEmail` |
+| Email-verified flag persistence failure | `ERROR` | `"failed to mark email as verified"` | `VerifyEmail` |
+
+The email delivery failure event is `ERROR`-level but the handler still returns HTTP 200 (see [Token retention on email delivery failure](#token-retention-on-email-delivery-failure)). The three `SendVerification` lookup/token events (`"failed to find user for email verification"`, `"failed to generate verification token"`, `"failed to store verification token"`) also return HTTP 200 — `SendVerification` always returns HTTP 200 to prevent email enumeration. Only the two `VerifyEmail` `ERROR`-level events are followed by an HTTP 500 response.

@@ -72,3 +72,14 @@ The `Create` response also sets `Cache-Control: no-store` and `Pragma: no-cache`
 | `Delete` | 400 Bad Request | Missing key ID |
 | `Delete` | 404 Not Found | API key not found or not owned by the authenticated user |
 | `Delete` | 500 Internal Server Error | Store failure |
+
+## Observability
+
+`APIKeyHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response, propagating the request context for trace correlation.
+
+| Event | Level | `slog` message | Endpoint |
+|---|---|---|---|
+| Key listing store failure | `ERROR` | `"failed to list API keys"` | `List` |
+| Random key generation failure | `ERROR` | `"failed to generate API key"` | `Create` |
+| Key creation store failure | `ERROR` | `"failed to create API key"` | `Create` |
+| Key deletion store failure | `ERROR` | `"failed to delete API key"` | `Delete` |

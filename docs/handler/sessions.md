@@ -49,3 +49,13 @@ The `id` field can be passed to `Revoke` to force a remote sign-out.
 | `Revoke` | 500 Internal Server Error | Store failure |
 | `RevokeAll` | 204 No Content | Success |
 | `RevokeAll` | 500 Internal Server Error | Store failure |
+
+## Observability
+
+`SessionHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response, propagating the request context for trace correlation.
+
+| Event | Level | `slog` message | Endpoint |
+|---|---|---|---|
+| Session listing store failure | `ERROR` | `"failed to list sessions"` | `List` |
+| Session revocation store failure | `ERROR` | `"failed to revoke session"` | `Revoke` |
+| Bulk revocation store failure | `ERROR` | `"failed to revoke all sessions"` | `RevokeAll` |

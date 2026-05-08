@@ -90,3 +90,26 @@ When `Sessions` is set on `AuthHandler`:
 | `ChangePassword` | 401 Unauthorized | Wrong current password; missing or invalid auth token (middleware) |
 | `ChangePassword` | 404 Not Found | User not found |
 | `ChangePassword` | 500 Internal Server Error | Store failure or password hashing failure |
+
+## Observability
+
+`AuthHandler` emits structured log events via `slog` with the request context for trace correlation.
+
+| Event | Level | `slog` message | Endpoint(s) |
+|---|---|---|---|
+| Password hashing failure | `ERROR` | `"failed to hash password"` | `Signup`, `ChangePassword` |
+| User creation store failure | `ERROR` | `"failed to create user"` | `Signup` |
+| User lookup store failure | `ERROR` | `"failed to find user by email"` | `Login` |
+| Session revocation failure on logout | `WARN` | `"failed to revoke session on logout"` | `Logout` |
+| Refresh token lookup store failure | `ERROR` | `"failed to find session by refresh token"` | `RefreshToken` |
+| Old session revocation failure | `ERROR` | `"failed to revoke old session on refresh"` | `RefreshToken` |
+| User lookup after token rotation | `ERROR` | `"failed to find user on refresh"` | `RefreshToken` |
+| User lookup store failure | `ERROR` | `"failed to get user"` | `Me`, `ChangePassword` |
+| Profile update store failure | `ERROR` | `"failed to update profile"` | `UpdateProfile` |
+| Password update store failure | `ERROR` | `"failed to update password"` | `ChangePassword` |
+| Sessions set without `RefreshCookieName` | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `Signup`, `Login`, `RefreshToken` |
+| Refresh token generation failure | `ERROR` | `"failed to generate refresh token"` | `Signup`, `Login`, `RefreshToken` |
+| Session creation store failure | `ERROR` | `"failed to create session"` | `Signup`, `Login`, `RefreshToken` |
+| Access token creation failure | `ERROR` | `"failed to create token"` | `Signup`, `Login`, `RefreshToken` |
+
+The `WARN`-level logout event does not affect the HTTP 200 response. All other events in the table are followed immediately by an HTTP 500 response.
