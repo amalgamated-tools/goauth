@@ -30,6 +30,7 @@
 - maintenance/maintenance.go: slog.Default() called inline at each log site (PR #218 merged), NOT pre-captured at startup. No efficiency concern.
 - Full codebase rescan (2026-05-05): smtp/, maintenance/, auth/, handler/ all re-checked. No new efficiency opportunities. Hot-path optimisations exhausted.
 - Benchmarks added (2026-05-07): BenchmarkValidateTOTP, BenchmarkHotpCodeWithMAC (auth/totp_test.go); BenchmarkSecretEncrypterEncrypt, BenchmarkSecretEncrypterDecrypt (auth/crypto_test.go). PR submitted.
+- 2026-05-09 scan: recent commits #217 (JWT API cleanup) and #215 (missing 500 logs) are correctness/docs only; no new efficiency opportunities.
 
 ## Optimisation Backlog
 | Priority | Focus Area | Opportunity | Estimated Impact | Status |
@@ -46,13 +47,13 @@
 | MEDIUM | Code-Level | ValidateTOTP: reuse HMAC via hotpCodeWithMAC + mac.Reset() | Save ~600-700 bytes (2 hmac allocs) per TOTP auth attempt | MERGED PR #162 |
 | LOW | Code-Level | handler/totp.go Enroll + auth/totp.go TOTPProvisioningURI: precompute base32 encoding + strconv.Itoa constants | Save 3 allocs (~320 bytes) per TOTP enrollment | MERGED PR #170 |
 | LOW | Code-Level | handler/helpers.go validatePassword: var+fmt.Sprintf -> const strings + remove fmt import | Compile-time const literals; remove fmt init overhead | MERGED PR #211 |
-| MEDIUM | Code-Level | auth/ratelimit.go: visitors map unbounded between 5-min cleanups | Memory+GC under IP flood; add maxVisitors FIFO cap | MERGED PR #213 |
+| MEDIUM | Code-Level | auth/ratelimit.go: visitors map unbounded between 5-min cleanup ticks | Memory+GC under IP flood; add maxVisitors FIFO cap | MERGED PR #213 |
 | LOW | Data | Benchmarks for energy-critical code paths (ValidateTOTP, SecretEncrypter) | Enables future evidence-based optimisation | PR #223 submitted 2026-05-07 |
 | MEDIUM | Code-Level | `auth/middleware.go` apiKeyLastTouchedAt: unbounded map when all keys fresh + large fleet | Bounded heap + GC (same pattern as PR #213) | PR #227 submitted 2026-05-08 |
 
 ## Work In Progress
 - Benchmark PR #223 (branch: efficiency/add-energy-benchmarks-auth): CI all green; awaiting maintainer review
-- PR #227 (branch: efficiency/bound-apikey-touch-cache): adds apiKeyTouchCacheMaxSize=10_000; submitted 2026-05-08; awaiting CI
+- PR #227 (branch: efficiency/bound-apikey-touch-cache): adds apiKeyTouchCacheMaxSize=10_000; CI all green; awaiting maintainer review
 
 ## Completed Work
 - PR #39: MERGED 2026-04-20 — replace math.Pow10 with totpModulo=1_000_000 integer constant
@@ -71,11 +72,11 @@
 - PR #213: MERGED 2026-05-07 by veverkap — bound RateLimiter visitors map to DefaultRateLimiterMaxVisitors=10_000
 
 ## Backlog Cursor
-- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-08)
+- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-09)
 - Major hot-path optimisations exhausted; remaining items are infrastructure/low-priority
-- Last tasks run: Task 2 (found apiKeyLastTouchedAt unbounded map), Task 3 (PR #227), Task 4 (PR #223 CI green), Task 7 (updated issue #212)
-- Last run: 2026-05-08
+- Last tasks run: Task 4 (both PRs CI green, no fixes), Task 2 (no new opportunities), Task 7 (updated issue #212)
+- Last run: 2026-05-09
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED 2026-05-01)
-- May 2026: Issue #212 (OPEN — created 2026-05-03, updated 2026-05-08)
+- May 2026: Issue #212 (OPEN — created 2026-05-03, updated 2026-05-09)
