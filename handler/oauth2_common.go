@@ -62,7 +62,7 @@ func findOrCreateUser(ctx context.Context, users auth.UserStore, subject, email,
 	} else if !errors.Is(err, auth.ErrNotFound) {
 		return nil, fmt.Errorf("look up user by email after email race: %w", err)
 	}
-	return nil, fmt.Errorf("failed to resolve OIDC user after race retry: %w", err)
+	return nil, fmt.Errorf("failed to resolve user after race retry: %w", err)
 }
 
 // signLinkState encodes userID and produces an HMAC-signed state value that
