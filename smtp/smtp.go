@@ -116,8 +116,15 @@ const sessionTimeout = 30 * time.Second
 //
 // Send uses [Params.From] for the SMTP envelope sender (MAIL FROM) and
 // automatically prepends "From: "+[Params.FromHeader]+"\r\n" to msg before
-// transmitting the message body.
+// transmitting the message body, unless msg already contains a From field.
+// [Params.FromHeader] must be non-empty and must not contain CR or LF.
 func Send(ctx context.Context, params Params, to string, msg []byte) error {
+	if params.FromHeader == "" {
+		return fmt.Errorf("smtp: FromHeader is required")
+	}
+	if strings.ContainsAny(params.FromHeader, "\r\n") {
+		return fmt.Errorf("smtp: FromHeader contains invalid characters")
+	}
 	host, _, err := net.SplitHostPort(params.Addr)
 	if err != nil {
 		return fmt.Errorf("smtp invalid address: %w", err)
@@ -169,8 +176,10 @@ func Send(ctx context.Context, params Params, to string, msg []byte) error {
 	if err != nil {
 		return fmt.Errorf("smtp DATA failed: %w", err)
 	}
-	if _, err := w.Write([]byte("From: " + params.FromHeader + "\r\n")); err != nil {
-		return fmt.Errorf("smtp write failed: %w", err)
+	if !msgHasFromHeader(msg) {
+		if _, err := w.Write([]byte("From: " + params.FromHeader + "\r\n")); err != nil {
+			return fmt.Errorf("smtp write failed: %w", err)
+		}
 	}
 	if _, err := w.Write(msg); err != nil {
 		return fmt.Errorf("smtp write failed: %w", err)
@@ -179,4 +188,18 @@ func Send(ctx context.Context, params Params, to string, msg []byte) error {
 		return fmt.Errorf("smtp close failed: %w", err)
 	}
 	return client.Quit()
+}
+
+// msgHasFromHeader reports whether the header section of msg already contains a From field.
+func msgHasFromHeader(msg []byte) bool {
+	header := string(msg)
+	if idx := strings.Index(header, "\r\n\r\n"); idx >= 0 {
+		header = header[:idx]
+	}
+	for line := range strings.SplitSeq(header, "\r\n") {
+		if strings.HasPrefix(strings.ToLower(line), "from:") {
+			return true
+		}
+	}
+	return false
 }
