@@ -585,7 +585,7 @@ func TestOAuth2Link_userNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.Link(w, req)
 
-	require.Equal(t, http.StatusConflict, w.Code)
+	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestOAuth2Link_userStoreError(t *testing.T) {
