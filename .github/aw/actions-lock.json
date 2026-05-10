@@ -1,5 +1,10 @@
 {
   "entries": {
+    "actions/cache/save@v5.0.5": {
+      "repo": "actions/cache",
+      "version": "v5.0.5",
+      "sha": "27d5ce7f107fe9357f9df03efb73ab90386fccae"
+    },
     "actions/checkout@v6.0.2": {
       "repo": "actions/checkout",
       "version": "v6.0.2",
@@ -8,17 +13,7 @@
     "actions/github-script@v9": {
       "repo": "actions/github-script",
       "version": "v9",
-      "sha": "3a2844b7e9c422d3c10d287c895573f7108da1b3"
-    },
-    "actions/cache/restore@v5.0.5": {
-      "repo": "actions/cache",
-      "version": "v5.0.5",
-      "sha": "27d5ce7f107fe9357f9df03efb73ab90386fccae"
-    },
-    "actions/cache/save@v5.0.5": {
-      "repo": "actions/cache",
-      "version": "v5.0.5",
-      "sha": "27d5ce7f107fe9357f9df03efb73ab90386fccae"
+      "sha": "d746ffe35508b1917358783b479e04febd2b8f71"
     },
     "actions/github-script@v9.0.0": {
       "repo": "actions/github-script",
