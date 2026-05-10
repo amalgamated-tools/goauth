@@ -127,14 +127,15 @@ func shouldTouchAPIKeyLastUsed(id string, now time.Time) bool {
 		return false
 	}
 
-	// Renewals (id already in the map) reuse the existing slot and do not grow
-	// the map, so eviction is only needed when inserting a brand-new key.
+	// Always compact so stale re-insertion entries from renewals do not
+	// accumulate in the order queue between evictions.
+	apiKeyTouchOrder = compactOrderLocked(apiKeyTouchOrder, func(k string) (uint64, bool) {
+		e, ok := apiKeyTouchEntries[k]
+		return e.seq, ok
+	})
+
+	// Eviction is only needed when inserting a new key would grow the map.
 	if _, isRenewal := apiKeyTouchEntries[id]; !isRenewal && len(apiKeyTouchEntries) >= defaultAPIKeyTouchMaxEntries {
-		// Compact before evicting so stale order entries don't mask live ones.
-		apiKeyTouchOrder = compactOrderLocked(apiKeyTouchOrder, func(k string) (uint64, bool) {
-			e, ok := apiKeyTouchEntries[k]
-			return e.seq, ok
-		})
 		if len(apiKeyTouchOrder) == 0 {
 			for k := range apiKeyTouchEntries {
 				delete(apiKeyTouchEntries, k)
