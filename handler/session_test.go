@@ -191,7 +191,7 @@ func TestSession_revokeAll_storeError(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// toSessionDTO
+// ToSessionDTO
 // ---------------------------------------------------------------------------
 
 func TestToSessionDTO_mapsAllFields(t *testing.T) {
@@ -204,7 +204,7 @@ func TestToSessionDTO_mapsAllFields(t *testing.T) {
 		ExpiresAt: now.Add(time.Hour),
 		CreatedAt: now,
 	}
-	dto := toSessionDTO(s)
+	dto := ToSessionDTO(s)
 	require.Equal(t, s.ID, dto.ID)
 	require.Equal(t, s.UserAgent, dto.UserAgent)
 	require.Equal(t, s.IPAddress, dto.IPAddress)

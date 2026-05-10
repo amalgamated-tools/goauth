@@ -92,7 +92,8 @@ type PasskeyCredentialDTO struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func toPasskeyCredentialDTO(c auth.PasskeyCredential) PasskeyCredentialDTO {
+// ToPasskeyCredentialDTO converts an auth.PasskeyCredential to a PasskeyCredentialDTO.
+func ToPasskeyCredentialDTO(c auth.PasskeyCredential) PasskeyCredentialDTO {
 	return PasskeyCredentialDTO{ID: c.ID, Name: c.Name, AAGUID: c.AAGUID, CreatedAt: c.CreatedAt}
 }
 
@@ -257,7 +258,7 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store credential")
 		return
 	}
-	writeJSON(r.Context(), w, http.StatusCreated, toPasskeyCredentialDTO(*stored))
+	writeJSON(r.Context(), w, http.StatusCreated, ToPasskeyCredentialDTO(*stored))
 }
 
 // BeginAuthentication starts the passkey login ceremony.
@@ -374,7 +375,7 @@ func (h *PasskeyHandler) ListCredentials(w http.ResponseWriter, r *http.Request)
 	}
 	dtos := make([]PasskeyCredentialDTO, len(creds))
 	for i := range creds {
-		dtos[i] = toPasskeyCredentialDTO(creds[i])
+		dtos[i] = ToPasskeyCredentialDTO(creds[i])
 	}
 	writeJSON(r.Context(), w, http.StatusOK, dtos)
 }

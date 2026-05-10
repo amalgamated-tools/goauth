@@ -35,7 +35,8 @@ type apiKeyCreateResponse struct {
 	Key string `json:"key"`
 }
 
-func toAPIKeyDTO(k *auth.APIKey) APIKeyDTO {
+// ToAPIKeyDTO converts an auth.APIKey to an APIKeyDTO.
+func ToAPIKeyDTO(k *auth.APIKey) APIKeyDTO {
 	return APIKeyDTO{
 		ID: k.ID, Name: k.Name, KeyPrefix: k.KeyPrefix,
 		LastUsedAt: k.LastUsedAt, CreatedAt: k.CreatedAt,
@@ -53,7 +54,7 @@ func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	dtos := make([]APIKeyDTO, len(keys))
 	for i := range keys {
-		dtos[i] = toAPIKeyDTO(&keys[i])
+		dtos[i] = ToAPIKeyDTO(&keys[i])
 	}
 	writeJSON(r.Context(), w, http.StatusOK, dtos)
 }
@@ -99,7 +100,7 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	writeJSON(r.Context(), w, http.StatusCreated, apiKeyCreateResponse{
-		APIKeyDTO: toAPIKeyDTO(apiKey),
+		APIKeyDTO: ToAPIKeyDTO(apiKey),
 		Key:       fullKey,
 	})
 }
