@@ -127,26 +127,26 @@ func shouldTouchAPIKeyLastUsed(id string, now time.Time) bool {
 		return false
 	}
 
-	// Compact the order queue and evict the oldest-inserted entries until the
-	// map is under the cap, mirroring the FIFO eviction used by the caches in
-	// this package.
-	apiKeyTouchOrder = compactOrderLocked(apiKeyTouchOrder, func(k string) (uint64, bool) {
-		e, ok := apiKeyTouchEntries[k]
-		return e.seq, ok
-	})
-	for len(apiKeyTouchEntries) >= defaultAPIKeyTouchMaxEntries {
+	// Renewals (id already in the map) reuse the existing slot and do not grow
+	// the map, so eviction is only needed when inserting a brand-new key.
+	if _, isRenewal := apiKeyTouchEntries[id]; !isRenewal && len(apiKeyTouchEntries) >= defaultAPIKeyTouchMaxEntries {
+		// Compact before evicting so stale order entries don't mask live ones.
+		apiKeyTouchOrder = compactOrderLocked(apiKeyTouchOrder, func(k string) (uint64, bool) {
+			e, ok := apiKeyTouchEntries[k]
+			return e.seq, ok
+		})
 		if len(apiKeyTouchOrder) == 0 {
 			for k := range apiKeyTouchEntries {
 				delete(apiKeyTouchEntries, k)
 				break
 			}
-			break
-		}
-		oldest := apiKeyTouchOrder[0]
-		apiKeyTouchOrder[0] = orderEntry[string]{}
-		apiKeyTouchOrder = apiKeyTouchOrder[1:]
-		if e, ok := apiKeyTouchEntries[oldest.key]; ok && e.seq == oldest.seq {
-			delete(apiKeyTouchEntries, oldest.key)
+		} else {
+			oldest := apiKeyTouchOrder[0]
+			apiKeyTouchOrder[0] = orderEntry[string]{}
+			apiKeyTouchOrder = apiKeyTouchOrder[1:]
+			if e, ok := apiKeyTouchEntries[oldest.key]; ok && e.seq == oldest.seq {
+				delete(apiKeyTouchEntries, oldest.key)
+			}
 		}
 	}
 

@@ -193,8 +193,11 @@ func TestShouldTouchAPIKeyLastUsed_afterInterval(t *testing.T) {
 }
 
 func TestShouldTouchAPIKeyLastUsed_capEviction(t *testing.T) {
-	// Fill the map to exactly the cap using keys that will not expire.
+	// Save and restore global state so this test doesn't affect others.
 	apiKeyTouchMu.Lock()
+	origEntries := apiKeyTouchEntries
+	origOrder := apiKeyTouchOrder
+	origSeq := apiKeyTouchSeq
 	apiKeyTouchEntries = make(map[string]apiKeyTouchEntry)
 	apiKeyTouchOrder = nil
 	apiKeyTouchSeq = 0
@@ -206,6 +209,14 @@ func TestShouldTouchAPIKeyLastUsed_capEviction(t *testing.T) {
 		apiKeyTouchOrder = append(apiKeyTouchOrder, orderEntry[string]{key: k, seq: apiKeyTouchSeq})
 	}
 	apiKeyTouchMu.Unlock()
+
+	t.Cleanup(func() {
+		apiKeyTouchMu.Lock()
+		apiKeyTouchEntries = origEntries
+		apiKeyTouchOrder = origOrder
+		apiKeyTouchSeq = origSeq
+		apiKeyTouchMu.Unlock()
+	})
 
 	require.Equal(t, defaultAPIKeyTouchMaxEntries, len(apiKeyTouchEntries))
 
