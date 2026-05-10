@@ -14,7 +14,7 @@ permissions:
 
 tracker-id: go-fan-daily
 
-engine: claude
+engine: copilot
 
 network:
   allowed:
@@ -43,9 +43,7 @@ tools:
     - "cat go.sum"
     - "go list -m all"
     - "grep -r 'import' --include='*.go'"
-    - "find pkg -name '*.go'"
-    - "find scratchpad/mods/ -maxdepth 1 -ls"
-    - "cat scratchpad/mods/*"
+    - "find auth handler smtp -name '*.go'"
 
 timeout-minutes: 30
 strict: true

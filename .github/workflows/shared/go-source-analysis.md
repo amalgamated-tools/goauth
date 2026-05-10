@@ -12,14 +12,13 @@ imports:
 
 tools:
   bash:
-    - "find pkg -name '*.go' ! -name '*_test.go' -type f"
-    - "find pkg -type f -name '*.go' ! -name '*_test.go'"
-    - "find pkg/ -maxdepth 1 -ls"
-    - "find pkg/workflow/ -maxdepth 1 -ls"
-    - "wc -l pkg/**/*.go"
-    - "head -n * pkg/**/*.go"
-    - "grep -r 'func ' pkg --include='*.go'"
-    - "cat pkg/**/*.go"
+    - "find auth handler maintenance smtp slogcheck -name '*.go' ! -name '*_test.go' -type f"
+    - "find auth handler maintenance smtp slogcheck -type f -name '*.go' ! -name '*_test.go'"
+    - "find auth/ handler/ maintenance/ smtp/ slogcheck/ -maxdepth 1 -ls"
+    - "find auth/ handler/ maintenance/ smtp/ slogcheck/ -name '*.go' -type f | xargs wc -l"
+    - "head -n 200 $(find auth handler maintenance smtp slogcheck -name '*.go' ! -name '*_test.go' -type f)"
+    - "grep -r 'func ' auth handler maintenance smtp slogcheck --include='*.go'"
+    - "cat $(find auth handler maintenance smtp slogcheck -name '*.go' ! -name '*_test.go' -type f)"
 ---
 
 ## Go Source Code Analysis Setup
@@ -30,8 +29,8 @@ Serena Go LSP analysis is configured for this workspace. Standard bash tools for
 
 Use these bash tools to supplement Serena's semantic analysis:
 
-- `find pkg -name '*.go' ! -name '*_test.go' -type f` — list all non-test Go source files
-- `find pkg/ -maxdepth 1 -ls` / `find pkg/workflow/ -maxdepth 1 -ls` — explore directory structure
-- `wc -l pkg/**/*.go` — measure file sizes
-- `head -n * pkg/**/*.go` / `cat pkg/**/*.go` — read file contents
-- `grep -r 'func ' pkg --include='*.go'` — find all function definitions
+- `find auth handler maintenance smtp slogcheck -name '*.go' ! -name '*_test.go' -type f` — list all non-test Go source files
+- `find auth/ handler/ maintenance/ smtp/ slogcheck/ -maxdepth 1 -ls` — explore directory structure
+- `find ... -name '*.go' -type f | xargs wc -l` — measure file sizes
+- `head -n 200 $(find ... -type f)` / `cat $(find ... -type f)` — read file contents
+- `grep -r 'func ' auth handler maintenance smtp slogcheck --include='*.go'` — find all function definitions

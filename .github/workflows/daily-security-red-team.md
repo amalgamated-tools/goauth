@@ -1,5 +1,5 @@
 ---
-description: Daily deep red teaming security scan of actions/setup/js and actions/setup/sh directories, looking for backdoors, secret leaks, and malicious code
+description: Daily deep red teaming security scan of auth, handler, maintenance, smtp, and slogcheck directories, looking for backdoors, secret leaks, and malicious code
 on:
   schedule: daily
   workflow_dispatch:
@@ -38,7 +38,7 @@ source: github/gh-aw/.github/workflows/daily-security-red-team.md@a70dd401e64b94
 
 # Daily Security Red Team Agent
 
-You are a specialized **Security Red Team Agent** performing deep security analysis on the codebase. Your mission is to identify backdoors, secret leaks, destructive code, and other malicious patterns in the `actions/setup/js` and `actions/setup/sh` directories.
+You are a specialized **Security Red Team Agent** performing deep security analysis on the codebase. Your mission is to identify backdoors, secret leaks, destructive code, and other malicious patterns in the `auth/`, `handler/`, `maintenance/`, `smtp/`, and `slogcheck/` directories.
 
 ## Current Context
 
@@ -219,15 +219,13 @@ EOF
 #!/bin/bash
 
 # Target directories
-JS_DIR="actions/setup/js"
-SH_DIR="actions/setup/sh"
+GO_DIRS="auth handler maintenance smtp slogcheck"
 
 if [ "$IS_FULL_SCAN" = "true" ]; then
-  echo "📁 Full scan: analyzing all files in $JS_DIR and $SH_DIR"
+  echo "📁 Full scan: analyzing all Go files in $GO_DIRS"
   
-  # Get all files
-  find "$JS_DIR" -name "*.cjs" > /tmp/files-to-scan.txt
-  find "$SH_DIR" -name "*.sh" >> /tmp/files-to-scan.txt
+  # Get all non-test Go source files
+  find $GO_DIRS -name '*.go' ! -name '*_test.go' -type f > /tmp/files-to-scan.txt
   
 else
   echo "📁 Incremental scan: analyzing files changed in last 24 hours"
@@ -236,14 +234,13 @@ else
   git fetch --unshallow 2>/dev/null || true
   
   # Get files changed in last 24 hours
-  git log --since="24 hours ago" --name-only --pretty=format: -- "$JS_DIR" "$SH_DIR" | \
-    grep -E '\.(cjs|sh)$' | sort | uniq > /tmp/files-to-scan.txt
+  git log --since="24 hours ago" --name-only --pretty=format: -- $GO_DIRS | \
+    grep -E '\.go$' | grep -v '_test\.go$' | sort | uniq > /tmp/files-to-scan.txt
   
   # If no changes, scan a random subset for proactive monitoring
   if [ ! -s /tmp/files-to-scan.txt ]; then
     echo "⚠️  No changes in last 24h, scanning random sample"
-    find "$JS_DIR" -name "*.cjs" | shuf -n 5 > /tmp/files-to-scan.txt
-    find "$SH_DIR" -name "*.sh" | shuf -n 3 >> /tmp/files-to-scan.txt
+    find $GO_DIRS -name '*.go' ! -name '*_test.go' -type f | shuf -n 8 > /tmp/files-to-scan.txt
   fi
 fi
 
@@ -276,28 +273,29 @@ while IFS= read -r file; do
   
   echo "Analyzing: $file"
   
-  # Pattern 1: Secret exfiltration
-  if grep -nE '(process\.env\.|os\.getenv|ENV\[)[^;]*\.(post|fetch|axios|request|curl|wget)' "$file" > /tmp/pattern.txt; then
+  # Pattern 1: Secret exfiltration via environment variables sent over network
+  if grep -nE '(os\.Getenv|os\.LookupEnv)[^;]*(http\.Post|http\.Get|net\.Dial|exec\.Command)' "$file" > /tmp/pattern.txt; then
     echo "⚠️  Potential secret exfiltration in $file"
     FINDINGS+=("SECRET_EXFIL:$file:$(head -1 /tmp/pattern.txt | cut -d: -f1)")
   fi
   
-  # Pattern 2: Eval/exec with user input
-  if grep -nE '(eval|exec|Function)\s*\([^)]*(\$\{|process\.env|user|input|github\.)' "$file" > /tmp/pattern.txt; then
-    echo "⚠️  Dynamic code execution with external input in $file"
+  # Pattern 2: Exec with user input
+  if grep -nE 'exec\.Command\s*\([^)]*(\+|fmt\.Sprintf|os\.Getenv|r\.(Form|URL))' "$file" > /tmp/pattern.txt; then
+    echo "⚠️  Dynamic command execution with external input in $file"
     FINDINGS+=("DYNAMIC_EXEC:$file:$(head -1 /tmp/pattern.txt | cut -d: -f1)")
   fi
   
-  # Pattern 3: Obfuscated strings
-  if grep -nE '(atob|btoa|Buffer\.from.*base64|String\.fromCharCode|\\x[0-9a-f]{2}.*\\x[0-9a-f]{2}.*\\x[0-9a-f]{2})' "$file" > /tmp/pattern.txt; then
-    echo "⚠️  Obfuscated content in $file"
+  # Pattern 3: Obfuscated strings (hex/base64 encoding)
+  if grep -nE '(base64\.StdEncoding\.DecodeString|hex\.DecodeString|encoding/base64)' "$file" > /tmp/pattern.txt; then
+    echo "⚠️  Encoded content in $file"
     FINDINGS+=("OBFUSCATION:$file:$(head -1 /tmp/pattern.txt | cut -d: -f1)")
   fi
   
-  # Pattern 4: Suspicious file operations
-  if grep -nE '(rm\s+-rf|unlink.*\$|fs\.rmdir|fs\.unlink).*(\$\{|process\.env|user|input)' "$file" > /tmp/pattern.txt; then
+  # Pattern 4: Suspicious file operations with dynamic paths
+  if grep -nE '(os\.Remove|os\.RemoveAll)\s*\([^)]*(\+|fmt\.Sprintf|os\.Getenv|r\.(Form|URL))' "$file" > /tmp/pattern.txt; then
     echo "⚠️  Dangerous file operations in $file"
     FINDINGS+=("DANGEROUS_OPS:$file:$(head -1 /tmp/pattern.txt | cut -d: -f1)")
+  fi
   fi
   
   # Pattern 5: Network calls to suspicious domains
@@ -326,31 +324,35 @@ Analyze code structure for suspicious patterns:
 
 echo "🔍 Executing AST Inspection"
 
-# For JavaScript files, check for suspicious structures
+# For Go files, check for suspicious structures
 while IFS= read -r file; do
-  if [[ "$file" == *.cjs ]]; then
+  if [[ "$file" == *.go ]]; then
     echo "Analyzing AST: $file"
     
-    # Check for suspicious constructs (simplified - in production use proper JS parser)
-    # Look for: deeply nested callbacks, unusual async patterns, hidden side effects
-    
-    # Pattern: Excessive nesting (potential obfuscation)
-    NESTING=$(grep -o '(function\|=>\|{' "$file" | wc -l)
-    if [ "$NESTING" -gt 200 ]; then
-      echo "⚠️  Excessive nesting/complexity in $file"
+    # Pattern: Excessive complexity (potential obfuscation)
+    FUNCS=$(grep -c 'func ' "$file" 2>/dev/null || echo "0")
+    LINES=$(wc -l < "$file")
+    if [ "$LINES" -gt 1000 ]; then
+      echo "⚠️  Excessive file size in $file ($LINES lines)"
       FINDINGS+=("HIGH_COMPLEXITY:$file:0")
     fi
     
     # Pattern: Suspicious function names
-    if grep -nE 'function\s+(hack|pwn|exploit|backdoor|inject|payload)' "$file" > /tmp/ast.txt; then
+    if grep -nE 'func\s+(hack|pwn|exploit|backdoor|inject|payload)' "$file" > /tmp/ast.txt; then
       echo "⚠️  Suspicious function names in $file"
       FINDINGS+=("SUSPICIOUS_NAMES:$file:$(head -1 /tmp/ast.txt | cut -d: -f1)")
     fi
     
-    # Pattern: Unusual module.exports or global assignments
-    if grep -nE '(global\.|window\.|process\.)[a-zA-Z_$].*=.*require|module\.exports\s*=\s*require' "$file" > /tmp/ast.txt; then
-      echo "⚠️  Suspicious global/export patterns in $file"
-      FINDINGS+=("SUSPICIOUS_EXPORTS:$file:$(head -1 /tmp/ast.txt | cut -d: -f1)")
+    # Pattern: Unsafe use of reflect, unsafe, or cgo
+    if grep -nE '(unsafe\.Pointer|reflect\.NewAt|"C"|//export)' "$file" > /tmp/ast.txt; then
+      echo "⚠️  Unsafe/CGo usage in $file"
+      FINDINGS+=("UNSAFE_USAGE:$file:$(head -1 /tmp/ast.txt | cut -d: -f1)")
+    fi
+    
+    # Pattern: init() functions doing suspicious work
+    if grep -nE 'func init\(\)' "$file" > /tmp/ast.txt; then
+      echo "⚠️  init() function in $file — review for hidden side effects"
+      FINDINGS+=("INIT_FUNC:$file:$(head -1 /tmp/ast.txt | cut -d: -f1)")
     fi
   fi
 done < /tmp/files-to-scan.txt
@@ -461,23 +463,23 @@ while IFS= read -r file; do
   echo "Analyzing behavior: $file"
   
   # Check for time-based logic (time bombs)
-  if grep -nE '(new Date\(\)|Date\.now\(\)|getTime\(\)).*[<>]=?\s*[0-9]' "$file" > /tmp/time.txt; then
-    if grep -E '(if|while).*Date' "$file" | grep -qE '(exit|throw|delete|destroy)'; then
+  if grep -nE '(time\.Now\(\)|time\.Since|time\.Until).*[<>]=?\s*[0-9]' "$file" > /tmp/time.txt; then
+    if grep -E '(if|for).*time\.' "$file" | grep -qE '(os\.Exit|panic|os\.Remove|log\.Fatal)'; then
       echo "⚠️  Time-based conditional with destructive action in $file"
       FINDINGS+=("TIME_BOMB:$file:$(head -1 /tmp/time.txt | cut -d: -f1)")
     fi
   fi
   
-  # Check for persistence mechanisms
-  if grep -nE '(cron|setInterval|setTimeout.*[0-9]{6,}|while.*true)' "$file" > /tmp/persist.txt; then
+  # Check for goroutine-based persistence
+  if grep -nE '(go\s+func|time\.NewTicker|time\.AfterFunc|for\s*\{\s*$)' "$file" > /tmp/persist.txt; then
     echo "⚠️  Persistence mechanism in $file"
     FINDINGS+=("PERSISTENCE:$file:$(head -1 /tmp/persist.txt | cut -d: -f1)")
   fi
   
-  # Check for anti-debugging
-  if grep -nE '(debugger|isDebugger|chrome|devtools)' "$file" > /tmp/debug.txt; then
-    echo "⚠️  Anti-debugging code in $file"
-    FINDINGS+=("ANTI_DEBUG:$file:$(head -1 /tmp/debug.txt | cut -d: -f1)")
+  # Check for build tag tricks (conditional compilation hiding code)
+  if grep -nE '^//go:build\s+(ignore|!linux|!darwin)' "$file" > /tmp/buildtag.txt; then
+    echo "⚠️  Conditional build tag in $file"
+    FINDINGS+=("BUILD_TAG_TRICK:$file:$(head -1 /tmp/buildtag.txt | cut -d: -f1)")
   fi
   
 done < /tmp/files-to-scan.txt
@@ -494,24 +496,30 @@ Check for vulnerable dependencies:
 
 echo "🔍 Executing Dependency Audit"
 
-# Check package.json for known vulnerable packages
-if [ -f ".github/workflows/package.json" ]; then
-  echo "Auditing Node.js dependencies"
+# Check go.mod for known vulnerable or suspicious modules
+if [ -f "go.mod" ]; then
+  echo "Auditing Go module dependencies"
   
-  # Look for suspicious or deprecated packages
-  if grep -E '"(colors|faker|event-stream|flatmap-stream|getcookies)"' .github/workflows/package.json; then
-    echo "⚠️  Potentially compromised package detected"
-    FINDINGS+=("VULNERABLE_DEP:.github/workflows/package.json:0")
+  # Look for replace directives pointing to unexpected locations
+  if grep -nE '^replace\s+.*=>\s+\.\./' go.mod > /tmp/replace.txt; then
+    echo "⚠️  Local replace directive in go.mod"
+    FINDINGS+=("LOCAL_REPLACE:go.mod:$(head -1 /tmp/replace.txt | cut -d: -f1)")
+  fi
+  
+  # Check for known compromised or suspicious modules
+  if grep -E '(typosquat|malicious)' go.sum 2>/dev/null; then
+    echo "⚠️  Potentially compromised dependency detected"
+    FINDINGS+=("VULNERABLE_DEP:go.sum:0")
   fi
 fi
 
-# Check for suspicious require() patterns
+# Check for suspicious import paths in Go files
 while IFS= read -r file; do
-  if [[ "$file" == *.cjs ]]; then
-    # Check for requires to unusual paths
-    if grep -nE 'require\(["\x27]\.\.\/\.\.\/\.\.\/' "$file" > /tmp/require.txt; then
-      echo "⚠️  Suspicious require path traversal in $file"
-      FINDINGS+=("PATH_TRAVERSAL:$file:$(head -1 /tmp/require.txt | cut -d: -f1)")
+  if [[ "$file" == *.go ]]; then
+    # Check for imports from unusual/suspicious domains
+    if grep -nE '"[a-z]+\.(ru|cn|tk|ml|ga|cf)/' "$file" > /tmp/import.txt; then
+      echo "⚠️  Suspicious import domain in $file"
+      FINDINGS+=("SUSPICIOUS_IMPORT:$file:$(head -1 /tmp/import.txt | cut -d: -f1)")
     fi
   fi
 done < /tmp/files-to-scan.txt
@@ -606,7 +614,7 @@ if [ ${#FINDINGS[@]} -gt 0 ]; then
 
 ## 📋 Executive Summary
 
-The daily security red team scan has detected **${#FINDINGS[@]}** potential security issues in the \`actions/setup/js\` and \`actions/setup/sh\` directories using the **$TECHNIQUE** technique.
+The daily security red team scan has detected **${#FINDINGS[@]}** potential security issues in the `auth/`, `handler/`, `maintenance/`, `smtp/`, and `slogcheck/` directories using the **$TECHNIQUE** technique.
 
 ## 🔍 Detailed Findings
 
@@ -709,7 +717,7 @@ A successful security scan:
 
 ## Begin Your Security Analysis
 
-Initialize your cache-memory, determine today's technique, and begin your comprehensive security scan of the `actions/setup/js` and `actions/setup/sh` directories!
+Initialize your cache-memory, determine today's technique, and begin your comprehensive security scan of the `auth/`, `handler/`, `maintenance/`, `smtp/`, and `slogcheck/` directories!
 
 ## agent: `forensics-extractor`
 ---

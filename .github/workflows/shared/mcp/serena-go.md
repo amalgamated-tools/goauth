@@ -38,5 +38,5 @@ Args: { "path": "${{ github.workspace }}" }
 
 1. **Only analyze `.go` files** — Ignore all other file types
 2. **Skip test files** — Never analyze files ending in `_test.go`
-3. **Focus on `pkg/` directory** — Primary analysis area
+3. **Focus on the repository's Go source directories** — Prioritize `auth/`, `handler/`, `smtp/`, and any other directories containing `.go` files
 4. **Use Serena for semantic analysis** — Leverage LSP capabilities for deeper insights
