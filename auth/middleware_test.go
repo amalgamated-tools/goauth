@@ -191,15 +191,22 @@ func TestShouldTouchAPIKeyLastUsed_afterInterval(t *testing.T) {
 }
 
 func TestShouldTouchAPIKeyLastUsed_capPreventsBoundlessGrowth(t *testing.T) {
-	// Fill the cache to one below the cap with fresh entries from the future,
+	// Fill the cache to exactly the cap with fresh entries from the future,
 	// so the stale-entry sweep cannot evict them.
 	apiKeyTouchMu.Lock()
+	orig := apiKeyLastTouchedAt
 	apiKeyLastTouchedAt = make(map[string]time.Time, apiKeyTouchCacheMaxSize)
 	future := time.Now().Add(apiKeyTouchInterval * 2)
 	for i := range apiKeyTouchCacheMaxSize {
 		apiKeyLastTouchedAt[fmt.Sprintf("cap-fill-%d", i)] = future
 	}
 	apiKeyTouchMu.Unlock()
+
+	t.Cleanup(func() {
+		apiKeyTouchMu.Lock()
+		apiKeyLastTouchedAt = orig
+		apiKeyTouchMu.Unlock()
+	})
 
 	// A new key must not be inserted when the cache is at capacity.
 	newID := "cap-new-key"
