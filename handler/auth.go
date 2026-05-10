@@ -2,7 +2,6 @@ package handler
 
 import (
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -16,13 +15,7 @@ import (
 // Sessions is configured on AuthHandler.
 const DefaultRefreshTokenTTL = 7 * 24 * time.Hour
 
-var dummyLoginBcryptHash = func() []byte {
-	hash, err := bcrypt.GenerateFromPassword([]byte("dummy-login-password"), auth.BcryptCost)
-	if err != nil {
-		panic(fmt.Errorf("generate dummy login bcrypt hash: %w", err))
-	}
-	return hash
-}()
+var dummyLoginBcryptHash = auth.MustGenerateDummyBcryptHash("dummy-login-password")
 
 // AuthHandler holds dependencies for email/password auth endpoints.
 type AuthHandler struct {
