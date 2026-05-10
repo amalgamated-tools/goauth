@@ -289,8 +289,7 @@ func TestSend_success_none(t *testing.T) {
 	msg := []byte("Subject: Test\r\n\r\nHello\r\n")
 	err := Send(context.Background(), p, "to@example.com", msg)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(srv.received), "From: sender@example.com\r\n"),
-		"message body should begin with From header, got: %q", string(srv.received))
+	require.Equal(t, "From: sender@example.com\r\n", string(srv.received[:len("From: sender@example.com\r\n")]))
 }
 
 func TestSend_injectsFromHeaderWithDisplayName(t *testing.T) {
@@ -306,8 +305,8 @@ func TestSend_injectsFromHeaderWithDisplayName(t *testing.T) {
 
 	err := Send(context.Background(), p, "to@example.com", []byte("Subject: Hi\r\n\r\nBody\r\n"))
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(srv.received), "From: \"My App\" <no-reply@example.com>\r\n"),
-		"message body should begin with formatted From header, got: %q", string(srv.received))
+	wantPrefix := "From: \"My App\" <no-reply@example.com>\r\n"
+	require.Equal(t, wantPrefix, string(srv.received[:len(wantPrefix)]))
 }
 
 func TestSend_connectionRefused(t *testing.T) {
