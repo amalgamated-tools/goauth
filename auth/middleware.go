@@ -95,9 +95,22 @@ func extractToken(r *http.Request, cookieName string) (string, tokenSource, stri
 }
 
 // API key last-used throttling (process-local).
+
+type apiKeyTouchEntry struct {
+	touchedAt time.Time
+	seq       uint64
+}
+
+// defaultAPIKeyTouchMaxEntries caps the number of API key IDs tracked for
+// last-used throttling. When the cap is reached, FIFO eviction removes the
+// oldest-inserted entry before adding a new one, bounding memory growth.
+const defaultAPIKeyTouchMaxEntries = DefaultRateLimiterMaxVisitors
+
 var (
-	apiKeyTouchMu       sync.Mutex
-	apiKeyLastTouchedAt = make(map[string]time.Time)
+	apiKeyTouchMu      sync.Mutex
+	apiKeyTouchEntries = make(map[string]apiKeyTouchEntry)
+	apiKeyTouchOrder   []orderEntry[string]
+	apiKeyTouchSeq     uint64
 )
 
 const apiKeyTouchInterval = 5 * time.Minute
@@ -110,20 +123,36 @@ func shouldTouchAPIKeyLastUsed(id string, now time.Time) bool {
 	apiKeyTouchMu.Lock()
 	defer apiKeyTouchMu.Unlock()
 
-	last, ok := apiKeyLastTouchedAt[id]
-	if ok && now.Sub(last) < apiKeyTouchInterval {
+	if e, ok := apiKeyTouchEntries[id]; ok && now.Sub(e.touchedAt) < apiKeyTouchInterval {
 		return false
 	}
-	apiKeyLastTouchedAt[id] = now
 
-	const sweepThreshold = 100
-	if len(apiKeyLastTouchedAt) >= sweepThreshold {
-		for k, v := range apiKeyLastTouchedAt {
-			if now.Sub(v) >= apiKeyTouchInterval {
-				delete(apiKeyLastTouchedAt, k)
+	// Compact the order queue and evict the oldest-inserted entries until the
+	// map is under the cap, mirroring the FIFO eviction used by the caches in
+	// this package.
+	apiKeyTouchOrder = compactOrderLocked(apiKeyTouchOrder, func(k string) (uint64, bool) {
+		e, ok := apiKeyTouchEntries[k]
+		return e.seq, ok
+	})
+	for len(apiKeyTouchEntries) >= defaultAPIKeyTouchMaxEntries {
+		if len(apiKeyTouchOrder) == 0 {
+			for k := range apiKeyTouchEntries {
+				delete(apiKeyTouchEntries, k)
+				break
 			}
+			break
+		}
+		oldest := apiKeyTouchOrder[0]
+		apiKeyTouchOrder[0] = orderEntry[string]{}
+		apiKeyTouchOrder = apiKeyTouchOrder[1:]
+		if e, ok := apiKeyTouchEntries[oldest.key]; ok && e.seq == oldest.seq {
+			delete(apiKeyTouchEntries, oldest.key)
 		}
 	}
+
+	apiKeyTouchSeq++
+	apiKeyTouchEntries[id] = apiKeyTouchEntry{touchedAt: now, seq: apiKeyTouchSeq}
+	apiKeyTouchOrder = append(apiKeyTouchOrder, orderEntry[string]{key: id, seq: apiKeyTouchSeq})
 	return true
 }
 

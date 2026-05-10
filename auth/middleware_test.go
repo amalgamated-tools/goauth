@@ -161,9 +161,11 @@ func TestExtractToken_emptyBearer(t *testing.T) {
 // --- shouldTouchAPIKeyLastUsed ------------------------------------------------
 
 func init() {
-	// Reset the global map before tests in this package run.
+	// Reset the global state before tests in this package run.
 	apiKeyTouchMu.Lock()
-	apiKeyLastTouchedAt = make(map[string]time.Time)
+	apiKeyTouchEntries = make(map[string]apiKeyTouchEntry)
+	apiKeyTouchOrder = nil
+	apiKeyTouchSeq = 0
 	apiKeyTouchMu.Unlock()
 }
 
@@ -190,7 +192,35 @@ func TestShouldTouchAPIKeyLastUsed_afterInterval(t *testing.T) {
 	require.True(t, shouldTouchAPIKeyLastUsed(id, now.Add(apiKeyTouchInterval+time.Second)))
 }
 
-// --- resolveUser --------------------------------------------------------------
+func TestShouldTouchAPIKeyLastUsed_capEviction(t *testing.T) {
+	// Fill the map to exactly the cap using keys that will not expire.
+	apiKeyTouchMu.Lock()
+	apiKeyTouchEntries = make(map[string]apiKeyTouchEntry)
+	apiKeyTouchOrder = nil
+	apiKeyTouchSeq = 0
+	now := time.Now()
+	for i := range defaultAPIKeyTouchMaxEntries {
+		apiKeyTouchSeq++
+		k := fmt.Sprintf("filler-%d", i)
+		apiKeyTouchEntries[k] = apiKeyTouchEntry{touchedAt: now, seq: apiKeyTouchSeq}
+		apiKeyTouchOrder = append(apiKeyTouchOrder, orderEntry[string]{key: k, seq: apiKeyTouchSeq})
+	}
+	apiKeyTouchMu.Unlock()
+
+	require.Equal(t, defaultAPIKeyTouchMaxEntries, len(apiKeyTouchEntries))
+
+	// A new key should still be accepted; the oldest filler entry is evicted.
+	newKey := "new-key-cap-test"
+	require.True(t, shouldTouchAPIKeyLastUsed(newKey, now))
+
+	apiKeyTouchMu.Lock()
+	sz := len(apiKeyTouchEntries)
+	_, present := apiKeyTouchEntries[newKey]
+	apiKeyTouchMu.Unlock()
+
+	require.Equal(t, defaultAPIKeyTouchMaxEntries, sz, "map must not exceed cap")
+	require.True(t, present, "new key must be present after eviction")
+}
 
 func TestResolveUser_validJWT(t *testing.T) {
 	ctx := context.Background()
