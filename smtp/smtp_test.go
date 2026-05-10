@@ -198,6 +198,7 @@ func TestValidate_portBoundaries(t *testing.T) {
 // fakeSMTPServer is a minimal SMTP server for testing Send.
 type fakeSMTPServer struct {
 	listener net.Listener
+	received []byte // message body captured during DATA phase
 }
 
 func newFakeSMTPServer(t *testing.T) *fakeSMTPServer {
@@ -253,7 +254,8 @@ func (s *fakeSMTPServer) serveOne(t *testing.T) {
 			write("250 OK")
 		case cmd == "DATA":
 			write("354 Start mail input")
-			// Read until the lone "." terminator.
+			// Read until the lone "." terminator, capturing the body.
+			var body strings.Builder
 			for {
 				dl, err := r.ReadString('\n')
 				if err != nil {
@@ -262,7 +264,9 @@ func (s *fakeSMTPServer) serveOne(t *testing.T) {
 				if strings.TrimSpace(dl) == "." {
 					break
 				}
+				body.WriteString(dl)
 			}
+			s.received = []byte(body.String())
 			write("250 Message accepted")
 		case cmd == "QUIT":
 			write("221 Bye")
@@ -285,6 +289,25 @@ func TestSend_success_none(t *testing.T) {
 	msg := []byte("Subject: Test\r\n\r\nHello\r\n")
 	err := Send(context.Background(), p, "to@example.com", msg)
 	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(srv.received), "From: sender@example.com\r\n"),
+		"message body should begin with From header, got: %q", string(srv.received))
+}
+
+func TestSend_injectsFromHeaderWithDisplayName(t *testing.T) {
+	srv := newFakeSMTPServer(t)
+	defer srv.close()
+
+	p := Params{
+		Addr:       srv.addr(),
+		From:       "no-reply@example.com",
+		FromHeader: `"My App" <no-reply@example.com>`,
+		TLS:        "none",
+	}
+
+	err := Send(context.Background(), p, "to@example.com", []byte("Subject: Hi\r\n\r\nBody\r\n"))
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(srv.received), "From: \"My App\" <no-reply@example.com>\r\n"),
+		"message body should begin with formatted From header, got: %q", string(srv.received))
 }
 
 func TestSend_connectionRefused(t *testing.T) {
