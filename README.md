@@ -1,6 +1,6 @@
 # goauth
 
-**goauth** is a router-agnostic Go library that provides complete authentication infrastructure for web applications. It covers JWT session management, email/password auth, OIDC (SSO) login, WebAuthn passkeys, API key authentication, magic link (passwordless) login, TOTP/MFA, email verification, password reset, RBAC, rate limiting, AES-256-GCM encryption, and SMTP email delivery.
+**goauth** is a router-agnostic Go library that provides complete authentication infrastructure for web applications. It covers JWT session management, email/password auth, OIDC (SSO) login, generic OAuth2 login (GitHub, Discord, Slack, and any custom provider), WebAuthn passkeys, API key authentication, magic link (passwordless) login, TOTP/MFA, email verification, password reset, RBAC, rate limiting, AES-256-GCM encryption, and SMTP email delivery.
 
 ## Packages
 
@@ -38,7 +38,7 @@ authHandler := &handler.AuthHandler{
     SecureCookies:     true,
     Sessions:          sessionStore,      // enables server-side sessions + refresh tokens
     RefreshTokenTTL:   7 * 24 * time.Hour,
-    RefreshCookieName: "refresh",         // optional: deliver refresh token via cookie
+    RefreshCookieName: "refresh",         // required when Sessions is set
 }
 apiKeyHandler := &handler.APIKeyHandler{
     APIKeys:      apiKeyStore,
