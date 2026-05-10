@@ -222,6 +222,8 @@ func TestShouldTouchAPIKeyLastUsed_capEviction(t *testing.T) {
 	require.True(t, present, "new key must be present after eviction")
 }
 
+// --- resolveUser --------------------------------------------------------------
+
 func TestResolveUser_validJWT(t *testing.T) {
 	ctx := context.Background()
 	mgr, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "testapp")
