@@ -190,6 +190,38 @@ func TestShouldTouchAPIKeyLastUsed_afterInterval(t *testing.T) {
 	require.True(t, shouldTouchAPIKeyLastUsed(id, now.Add(apiKeyTouchInterval+time.Second)))
 }
 
+func TestShouldTouchAPIKeyLastUsed_capPreventsBoundlessGrowth(t *testing.T) {
+	// Fill the cache to exactly the cap with fresh entries from the future,
+	// so the stale-entry sweep cannot evict them.
+	apiKeyTouchMu.Lock()
+	orig := apiKeyLastTouchedAt
+	apiKeyLastTouchedAt = make(map[string]time.Time, apiKeyTouchCacheMaxSize)
+	future := time.Now().Add(apiKeyTouchInterval * 2)
+	for i := range apiKeyTouchCacheMaxSize {
+		apiKeyLastTouchedAt[fmt.Sprintf("cap-fill-%d", i)] = future
+	}
+	apiKeyTouchMu.Unlock()
+
+	t.Cleanup(func() {
+		apiKeyTouchMu.Lock()
+		apiKeyLastTouchedAt = orig
+		apiKeyTouchMu.Unlock()
+	})
+
+	// A new key must not be inserted when the cache is at capacity.
+	newID := "cap-new-key"
+	require.False(t, shouldTouchAPIKeyLastUsed(newID, time.Now()),
+		"shouldTouchAPIKeyLastUsed must return false when cache is at capacity")
+
+	apiKeyTouchMu.Lock()
+	_, inserted := apiKeyLastTouchedAt[newID]
+	mapLen := len(apiKeyLastTouchedAt)
+	apiKeyTouchMu.Unlock()
+
+	require.False(t, inserted, "new key must not be inserted into a full cache")
+	require.Equal(t, apiKeyTouchCacheMaxSize, mapLen, "cache must not grow beyond cap")
+}
+
 // --- resolveUser --------------------------------------------------------------
 
 func TestResolveUser_validJWT(t *testing.T) {

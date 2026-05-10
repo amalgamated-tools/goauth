@@ -102,6 +102,12 @@ var (
 
 const apiKeyTouchInterval = 5 * time.Minute
 
+// apiKeyTouchCacheMaxSize is the maximum number of API key IDs tracked in the
+// process-local last-touched cache. When the cache is at capacity after a stale
+// entry sweep, new touches are skipped to prevent unbounded heap growth under a
+// large or adversarially-rotated API key fleet.
+const apiKeyTouchCacheMaxSize = 10_000
+
 // defaultMiddlewareCacheTTL is the TTL used by AdminMiddleware, RequireRole,
 // and RequirePermission for their internal caching checkers.
 const defaultMiddlewareCacheTTL = 5 * time.Second
@@ -114,8 +120,8 @@ func shouldTouchAPIKeyLastUsed(id string, now time.Time) bool {
 	if ok && now.Sub(last) < apiKeyTouchInterval {
 		return false
 	}
-	apiKeyLastTouchedAt[id] = now
 
+	// Sweep stale entries before inserting to keep the map bounded.
 	const sweepThreshold = 100
 	if len(apiKeyLastTouchedAt) >= sweepThreshold {
 		for k, v := range apiKeyLastTouchedAt {
@@ -124,6 +130,14 @@ func shouldTouchAPIKeyLastUsed(id string, now time.Time) bool {
 			}
 		}
 	}
+	// If the cache is still at capacity after eviction, skip this touch.
+	// last_used_at is a best-effort field; it will be updated on the next
+	// eligible request once space becomes available.
+	if len(apiKeyLastTouchedAt) >= apiKeyTouchCacheMaxSize {
+		return false
+	}
+
+	apiKeyLastTouchedAt[id] = now
 	return true
 }
 
