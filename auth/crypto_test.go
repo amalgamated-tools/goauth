@@ -151,7 +151,7 @@ func TestGenerateRandomBase64_zeroBytes(t *testing.T) {
 // BenchmarkSecretEncrypterEncrypt measures AES-256-GCM encryption (nonce
 // generation + Seal + base64 encode). The cipher.AEAD is pre-built and reused,
 // so this measures only the per-call cost.
-// Run with: go test -bench=BenchmarkSecretEncrypter -benchmem ./auth/
+// Run with: go test -bench=BenchmarkSecretEncrypterEncrypt -benchmem ./auth/
 func BenchmarkSecretEncrypterEncrypt(b *testing.B) {
 	enc, err := newSecretEncrypter([]byte("benchmark-secret-key-32-bytes!!!"))
 	if err != nil {
@@ -161,13 +161,16 @@ func BenchmarkSecretEncrypterEncrypt(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = enc.Encrypt(plaintext)
+		_, err := enc.Encrypt(plaintext)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
 // BenchmarkSecretEncrypterDecrypt measures AES-256-GCM decryption (base64
 // decode + GCM Open). Pre-encrypts a value outside the timed loop.
-// Run with: go test -bench=BenchmarkSecretEncrypter -benchmem ./auth/
+// Run with: go test -bench=BenchmarkSecretEncrypterDecrypt -benchmem ./auth/
 func BenchmarkSecretEncrypterDecrypt(b *testing.B) {
 	enc, err := newSecretEncrypter([]byte("benchmark-secret-key-32-bytes!!!"))
 	if err != nil {
@@ -180,6 +183,9 @@ func BenchmarkSecretEncrypterDecrypt(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = enc.Decrypt(ciphertext)
+		_, err := enc.Decrypt(ciphertext)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }

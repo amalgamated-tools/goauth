@@ -226,12 +226,17 @@ func BenchmarkValidateTOTP(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	// Use a code that is unlikely to match so the inner loop always runs all 3 steps.
+	// Use a code that is statistically unlikely to match any of the 3 time windows
+	// (~3-in-1,000,000 chance per iteration), exercising the worst-case path on nearly every run.
 	code := "000000"
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ValidateTOTP(secret, code)
+		ok, err := ValidateTOTP(secret, code)
+		if err != nil {
+			b.Fatal(err)
+		}
+		_ = ok
 	}
 }
 
