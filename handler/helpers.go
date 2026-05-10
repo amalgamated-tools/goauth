@@ -5,6 +5,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -137,10 +138,11 @@ func decodeJSON(r *http.Request, w http.ResponseWriter, v any) bool {
 const (
 	minPasswordLength = 8
 	maxPasswordLength = 72
+)
 
-	// Keep these strings in sync with minPasswordLength / maxPasswordLength above.
-	errPasswordTooShort = "password must be at least 8 bytes"
-	errPasswordTooLong  = "password must be at most 72 bytes"
+var (
+	errPasswordTooShort = fmt.Sprintf("password must be at least %d bytes", minPasswordLength)
+	errPasswordTooLong  = fmt.Sprintf("password must be at most %d bytes", maxPasswordLength)
 )
 
 func validatePassword(ctx context.Context, w http.ResponseWriter, password string) bool {
