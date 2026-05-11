@@ -1024,6 +1024,11 @@ h := &handler.TOTPHandler{
     UsedCodes: &auth.TOTPUsedCodeCache{}, // required; prevents replay attacks
 }
 
+// Validate at startup to catch misconfiguration early.
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
+
 // Authenticated routes
 POST   /totp/generate   → h.Generate   // generate secret + provisioning URI (not persisted)
 POST   /totp/enroll     → h.Enroll     // verify first code and persist the secret
