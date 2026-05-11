@@ -113,7 +113,7 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | `Link` | 400 Bad Request | Missing nonce |
 | `Link` | 401 Unauthorized | Invalid or expired nonce |
 | `Link` | 404 Not Found | User not found (`ErrNotFound` from `Users.FindByID`) |
-| `Link` | 409 Conflict | Account is already linked to an OIDC identity |
+| `Link` | 409 Conflict | Account is already linked to an external identity |
 | `Link` | 500 Internal Server Error | Failed to initiate OIDC redirect, nonce store error, or DB error when looking up user by ID |
 | `Link` | 503 Service Unavailable | `LinkNonces` is `nil` |
 

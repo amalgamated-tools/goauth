@@ -176,7 +176,7 @@ When `Sessions` is `nil`, only a stateless access JWT is issued. Token lifetime 
 | `Link` | 400 Bad Request | Missing nonce |
 | `Link` | 401 Unauthorized | Invalid or expired nonce |
 | `Link` | 404 Not Found | User not found (`ErrNotFound` from `Users.FindByID`) |
-| `Link` | 409 Conflict | Account is already linked to an OAuth2 identity |
+| `Link` | 409 Conflict | Account is already linked to an external identity |
 | `Link` | 500 Internal Server Error | Nonce store error or failed to initiate redirect |
 | `Link` | 503 Service Unavailable | `LinkNonces` is `nil` |
 
