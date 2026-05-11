@@ -53,11 +53,6 @@ func (h *PasskeyHandler) Validate() error {
 	return nil
 }
 
-// issueTokens delegates to the package-level issueTokens helper.
-func (h *PasskeyHandler) issueTokens(w http.ResponseWriter, r *http.Request, userID string) (accessToken, refreshToken string, ok bool) {
-	return issueTokens(w, r, userID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
-}
-
 type passkeyUser struct {
 	user        *auth.User
 	credentials []webauthn.Credential
@@ -354,7 +349,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 			slog.Any("error", err))
 	}
 
-	token, refreshToken, ok := h.issueTokens(w, r, authedUserID)
+	token, refreshToken, ok := issueTokens(w, r, authedUserID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}

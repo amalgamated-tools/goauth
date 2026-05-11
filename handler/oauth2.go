@@ -94,10 +94,6 @@ func (h *OAuth2Handler) Validate() error {
 	return nil
 }
 
-func (h *OAuth2Handler) issueTokens(w http.ResponseWriter, r *http.Request, userID string) (accessToken, refreshToken string, ok bool) {
-	return issueTokens(w, r, userID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
-}
-
 func (h *OAuth2Handler) loginRedirectURL() string {
 	if h.LoginRedirect == "" {
 		return "/?oauth2_login=1"
@@ -210,7 +206,7 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, _, issueOK := h.issueTokens(w, r, user.ID); !issueOK {
+	if _, _, issueOK := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL); !issueOK {
 		return
 	}
 
