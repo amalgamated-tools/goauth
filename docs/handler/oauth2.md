@@ -118,7 +118,7 @@ The callback validates the CSRF state and PKCE verifier cookies, exchanges the a
 - **Existing email** → link the subject and log the user in (best-effort: if `LinkOIDCSubject` fails the failure is logged as a warning and login still succeeds)
 - **New user** → create an account via `UserStore.CreateOIDCUser`
 
-Concurrent first-login races (two requests creating the same account simultaneously) are handled by retrying the lookup when `CreateOIDCUser` returns `ErrEmailExists`. If the retry still cannot find the user — an extremely rare scenario where the concurrently-created account was removed between creation and retry — `findOrCreateUser` returns an error wrapping `auth.ErrNotFound` with the message `"failed to resolve user after race retry"`. This is treated as an unexpected error: it is logged as `"OAuth2 user resolution failed"` and the callback returns HTTP 500.
+Concurrent first-login races (two requests creating the same account simultaneously) are handled by retrying the lookup when `CreateOIDCUser` returns `ErrEmailExists`. If the retry still cannot find the user — an extremely rare inconsistent-store outcome (e.g. concurrent deletion or read-after-write lag) — `findOrCreateUser` returns an error wrapping `auth.ErrNotFound` with the message `"failed to resolve user after race retry: not found"`. This is treated as an unexpected error: it is logged as `"OAuth2 user resolution failed"` and the callback returns HTTP 500.
 
 `Callback` does **not** return JSON on success. It sets the JWT in an `HttpOnly` session cookie and redirects to `/?<LoginRedirect>` (HTTP 302).
 

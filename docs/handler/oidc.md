@@ -55,9 +55,9 @@ The callback performs PKCE verification and handles three cases automatically:
 - **Existing email** → link subject and log in (best-effort: if `LinkOIDCSubject` fails, the failure is logged as a warning and login still succeeds)
 - **New user** → create account
 
-Concurrent first-login races (two requests creating the same account simultaneously) are handled by retrying the lookup when `CreateOIDCUser` returns `ErrEmailExists`. If the retry still cannot find the user — an extremely rare scenario where the concurrently-created account was removed between creation and retry — the callback returns HTTP 500 logged as `"OIDC user resolution failed"` with the wrapped cause `"failed to resolve user after race retry"`.
+Concurrent first-login races (two requests creating the same account simultaneously) are handled by retrying the lookup when `CreateOIDCUser` returns `ErrEmailExists`. If the retry still cannot find the user — an extremely rare inconsistent-store outcome (e.g. concurrent deletion or read-after-write lag) — the callback returns HTTP 500 logged as `"OIDC user resolution failed"` with error `"failed to resolve user after race retry: not found"`.
 
-`Callback` does **not** return JSON. On success it sets the JWT in an `HttpOnly` session cookie and redirects the browser to `/?oidc_login=1` (HTTP 302) so that single-page applications can detect a completed OIDC login via the query parameter.
+`Callback` does **not** return JSON on success. It sets the JWT in an `HttpOnly` session cookie and redirects the browser to `/?oidc_login=1` (HTTP 302) so that single-page applications can detect a completed OIDC login via the query parameter.
 
 !!! info "Custom post-login redirect"
     The redirect destination is currently fixed to `/?oidc_login=1`. Frontends that need a custom post-login URL should rely on the `oidc_login=1` query parameter (or another explicit non-`HttpOnly` signal) to trigger navigation, rather than attempting to read the session cookie from browser JavaScript.
