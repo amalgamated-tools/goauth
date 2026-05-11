@@ -91,6 +91,8 @@ type PasskeyCredentialDTO struct {
 
 The `id` field can be passed to `DeleteCredential` to remove a specific passkey.
 
+Use `handler.ToPasskeyCredentialDTO(c)` to convert an `auth.PasskeyCredential` to a `PasskeyCredentialDTO` in custom handlers or tests.
+
 ## Disabling passkeys
 
 Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` returns `{"enabled": false}` normally. All other endpoints (`BeginRegistration`, `FinishRegistration`, `BeginAuthentication`, `FinishAuthentication`) return HTTP 503 "passkeys not configured". `ListCredentials` and `DeleteCredential` remain accessible via auth middleware but are not affected by the `WebAuthn` field.

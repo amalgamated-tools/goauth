@@ -43,6 +43,56 @@ type UserDTO struct {
 dto := handler.ToUserDTO(user)
 ```
 
+### APIKeyDTO
+
+Returned by `APIKeyHandler.List` (and by `Create`, which also includes the raw `key` field):
+
+```go
+type APIKeyDTO struct {
+    ID         string     `json:"id"`
+    Name       string     `json:"name"`
+    KeyPrefix  string     `json:"key_prefix"`
+    LastUsedAt *time.Time `json:"last_used_at"`
+    CreatedAt  time.Time  `json:"created_at"`
+}
+
+// Convert an auth.APIKey to an APIKeyDTO (useful in custom handlers or tests).
+dto := handler.ToAPIKeyDTO(apiKey)
+```
+
+### SessionDTO
+
+Returned by `SessionHandler.List`:
+
+```go
+type SessionDTO struct {
+    ID        string    `json:"id"`
+    UserAgent string    `json:"user_agent"`
+    IPAddress string    `json:"ip_address"`
+    ExpiresAt time.Time `json:"expires_at"`
+    CreatedAt time.Time `json:"created_at"`
+}
+
+// Convert an auth.Session to a SessionDTO (useful in custom handlers or tests).
+dto := handler.ToSessionDTO(session)
+```
+
+### PasskeyCredentialDTO
+
+Returned by `PasskeyHandler.FinishRegistration` (HTTP 201) and `ListCredentials` (HTTP 200):
+
+```go
+type PasskeyCredentialDTO struct {
+    ID        string    `json:"id"`
+    Name      string    `json:"name"`
+    AAGUID    string    `json:"aaguid"`
+    CreatedAt time.Time `json:"created_at"`
+}
+
+// Convert an auth.PasskeyCredential to a PasskeyCredentialDTO (useful in custom handlers or tests).
+dto := handler.ToPasskeyCredentialDTO(credential)
+```
+
 ### AuthResponse
 
 Returned by `Signup`, `Login`, `RefreshToken`, `VerifyMagicLink`, and `PasskeyHandler.FinishAuthentication`:

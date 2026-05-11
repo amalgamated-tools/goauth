@@ -51,6 +51,8 @@ type apiKeyCreateResponse struct {
 }
 ```
 
+Use `handler.ToAPIKeyDTO(k)` to convert an `auth.APIKey` to an `APIKeyDTO` in custom handlers or tests.
+
 !!! warning "Store the key immediately"
     The raw API key is returned once in the `Create` response and cannot be recovered. Store it securely before closing the creation response.
 
