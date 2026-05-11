@@ -91,6 +91,12 @@ When `Sessions` is set on `AuthHandler`:
 | `ChangePassword` | 404 Not Found | User not found |
 | `ChangePassword` | 500 Internal Server Error | Store failure or password hashing failure |
 
+## Security: timing-safe login
+
+`Login` performs a bcrypt comparison on every login attempt with non-empty credentials, even when the user is not found or the account has no password (OIDC-only accounts). Requests that fail validation before credentials are checked (e.g. missing email/password fields) return 400 before any bcrypt work. This prevents timing attacks that could enumerate valid email addresses by measuring response latency.
+
+The module-level `dummyLoginBcryptHash` variable is computed once at startup using [`auth.MustGenerateDummyBcryptHash`](../auth/crypto.md). When `FindByEmail` returns `auth.ErrNotFound`, or when `user.PasswordHash` is empty, `Login` calls `bcrypt.CompareHashAndPassword` against the dummy hash before responding 401. The result of that comparison is always discarded.
+
 ## Observability
 
 `AuthHandler` emits structured log events via `slog` with the request context for trace correlation.

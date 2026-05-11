@@ -13,7 +13,12 @@ hex, err := auth.GenerateRandomHex(20) // 40-char hex string
 b64, err := auth.GenerateRandomBase64(32) // 43-char base64url string
 
 // Generate a dummy bcrypt hash for timing-safe "user not found" paths.
-dummy := auth.MustGenerateDummyBcryptHash("fallback-secret")
+// Call this once at startup (e.g. as a package-level var) and reuse the result.
+// bcrypt uses a random salt each call, so the hash differs across restarts — that is expected.
+dummy := auth.MustGenerateDummyBcryptHash("my-app-dummy-secret")
+// In your login handler:
+//   _ = bcrypt.CompareHashAndPassword(dummy, []byte(req.Password))
+// See AuthHandler.Login for the canonical usage pattern.
 
 // BcryptCost is the work factor used throughout the library (cost 12).
 // Use it when hashing passwords in your own code to stay consistent.
