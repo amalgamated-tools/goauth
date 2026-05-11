@@ -95,18 +95,25 @@ func extractToken(r *http.Request, cookieName string) (string, tokenSource, stri
 }
 
 // API key last-used throttling (process-local).
+
+type apiKeyTouchEntry struct {
+	touchedAt time.Time
+	seq       uint64
+}
+
+// defaultAPIKeyTouchMaxEntries caps the number of API key IDs tracked for
+// last-used throttling. When the cap is reached, FIFO eviction removes the
+// oldest-inserted entry before adding a new one, bounding memory growth.
+const defaultAPIKeyTouchMaxEntries = DefaultRateLimiterMaxVisitors
+
 var (
-	apiKeyTouchMu       sync.Mutex
-	apiKeyLastTouchedAt = make(map[string]time.Time)
+	apiKeyTouchMu      sync.Mutex
+	apiKeyTouchEntries = make(map[string]apiKeyTouchEntry)
+	apiKeyTouchOrder   []orderEntry[string]
+	apiKeyTouchSeq     uint64
 )
 
 const apiKeyTouchInterval = 5 * time.Minute
-
-// apiKeyTouchCacheMaxSize is the maximum number of API key IDs tracked in the
-// process-local last-touched cache. When the cache is at capacity after a stale
-// entry sweep, new touches are skipped to prevent unbounded heap growth under a
-// large or adversarially-rotated API key fleet.
-const apiKeyTouchCacheMaxSize = 10_000
 
 // defaultMiddlewareCacheTTL is the TTL used by AdminMiddleware, RequireRole,
 // and RequirePermission for their internal caching checkers.
@@ -116,28 +123,37 @@ func shouldTouchAPIKeyLastUsed(id string, now time.Time) bool {
 	apiKeyTouchMu.Lock()
 	defer apiKeyTouchMu.Unlock()
 
-	last, ok := apiKeyLastTouchedAt[id]
-	if ok && now.Sub(last) < apiKeyTouchInterval {
+	if e, ok := apiKeyTouchEntries[id]; ok && now.Sub(e.touchedAt) < apiKeyTouchInterval {
 		return false
 	}
 
-	// Sweep stale entries before inserting to keep the map bounded.
-	const sweepThreshold = 100
-	if len(apiKeyLastTouchedAt) >= sweepThreshold {
-		for k, v := range apiKeyLastTouchedAt {
-			if now.Sub(v) >= apiKeyTouchInterval {
-				delete(apiKeyLastTouchedAt, k)
+	// Always compact so stale re-insertion entries from renewals do not
+	// accumulate in the order queue between evictions.
+	apiKeyTouchOrder = compactOrderLocked(apiKeyTouchOrder, func(k string) (uint64, bool) {
+		e, ok := apiKeyTouchEntries[k]
+		return e.seq, ok
+	})
+
+	// Eviction is only needed when inserting a new key would grow the map.
+	if _, isRenewal := apiKeyTouchEntries[id]; !isRenewal && len(apiKeyTouchEntries) >= defaultAPIKeyTouchMaxEntries {
+		if len(apiKeyTouchOrder) == 0 {
+			for k := range apiKeyTouchEntries {
+				delete(apiKeyTouchEntries, k)
+				break
+			}
+		} else {
+			oldest := apiKeyTouchOrder[0]
+			apiKeyTouchOrder[0] = orderEntry[string]{}
+			apiKeyTouchOrder = apiKeyTouchOrder[1:]
+			if e, ok := apiKeyTouchEntries[oldest.key]; ok && e.seq == oldest.seq {
+				delete(apiKeyTouchEntries, oldest.key)
 			}
 		}
 	}
-	// If the cache is still at capacity after eviction, skip this touch.
-	// last_used_at is a best-effort field; it will be updated on the next
-	// eligible request once space becomes available.
-	if len(apiKeyLastTouchedAt) >= apiKeyTouchCacheMaxSize {
-		return false
-	}
 
-	apiKeyLastTouchedAt[id] = now
+	apiKeyTouchSeq++
+	apiKeyTouchEntries[id] = apiKeyTouchEntry{touchedAt: now, seq: apiKeyTouchSeq}
+	apiKeyTouchOrder = append(apiKeyTouchOrder, orderEntry[string]{key: id, seq: apiKeyTouchSeq})
 	return true
 }
 

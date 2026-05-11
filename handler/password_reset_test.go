@@ -416,3 +416,40 @@ func TestResetPassword_oidcOnlyUser(t *testing.T) {
 	w := postJSON(t, h.ResetPassword, `{"token":"sometoken","newPassword":"newpassword123"}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+func TestResetPassword_userDeletedAfterTokenIssued(t *testing.T) {
+	// If the user is deleted after the reset token was issued, FindByID returns
+	// ErrNotFound. The handler must respond 400 and must not call UpdatePassword
+	// or DeletePasswordResetToken.
+	updateCalled := false
+	deleteCalled := false
+
+	users := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		updatePasswordFunc: func(_ context.Context, _, _ string) error {
+			updateCalled = true
+			return nil
+		},
+	}
+	resets := &mockPasswordResetStore{
+		findFunc: func(_ context.Context, _ string) (*auth.PasswordResetToken, error) {
+			return &auth.PasswordResetToken{
+				ID:        "reset-id",
+				UserID:    "u1",
+				ExpiresAt: time.Now().Add(time.Hour),
+			}, nil
+		},
+		deleteFunc: func(_ context.Context, _ string) error {
+			deleteCalled = true
+			return nil
+		},
+	}
+	h := newPasswordResetHandler(users, resets)
+	w := postJSON(t, h.ResetPassword, `{"token":"sometoken","newPassword":"newpassword123"}`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.False(t, updateCalled, "UpdatePassword must not be called when user no longer exists")
+	require.False(t, deleteCalled, "DeletePasswordResetToken must not be called when user no longer exists")
+}

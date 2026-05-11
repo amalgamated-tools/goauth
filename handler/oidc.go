@@ -256,7 +256,7 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 	u, err := h.Users.FindByID(r.Context(), userID)
 	if err != nil {
 		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusConflict, "cannot link account")
+			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 		} else {
 			slog.ErrorContext(r.Context(), "failed to look up user during OIDC link", slog.Any("error", err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "server error")

@@ -26,7 +26,8 @@ type SessionDTO struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func toSessionDTO(s *auth.Session) SessionDTO {
+// ToSessionDTO converts an auth.Session to a SessionDTO.
+func ToSessionDTO(s *auth.Session) SessionDTO {
 	return SessionDTO{
 		ID:        s.ID,
 		UserAgent: s.UserAgent,
@@ -47,7 +48,7 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	dtos := make([]SessionDTO, len(sessions))
 	for i := range sessions {
-		dtos[i] = toSessionDTO(&sessions[i])
+		dtos[i] = ToSessionDTO(&sessions[i])
 	}
 	writeJSON(r.Context(), w, http.StatusOK, dtos)
 }
