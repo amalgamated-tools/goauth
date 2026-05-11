@@ -17,6 +17,11 @@ if err := h.Validate(); err != nil {
 }
 ```
 
+`Validate` returns an error if any of the three required fields — `TOTP`, `Users`, or `UsedCodes` — is `nil`. Call it once at server startup so misconfiguration surfaces immediately rather than at the first enroll or verify request.
+
+!!! warning "UsedCodes is required"
+    Omitting `UsedCodes` will cause `Validate` to return an error **and** will cause a runtime panic if `Enroll` or `Verify` is reached without it. Always initialize with `&auth.TOTPUsedCodeCache{}`.
+
 ## Routes
 
 All routes require auth middleware.
