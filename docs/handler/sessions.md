@@ -37,7 +37,7 @@ type SessionDTO struct {
 
 The `id` field can be passed to `Revoke` to force a remote sign-out.
 
-Use `handler.ToSessionDTO(s)` to convert an `auth.Session` to a `SessionDTO` in custom handlers or tests.
+Use `handler.ToSessionDTO(session)` to convert a `*auth.Session` to a `SessionDTO` in custom handlers or tests.
 
 ## HTTP status codes
 

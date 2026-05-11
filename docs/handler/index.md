@@ -56,7 +56,7 @@ type APIKeyDTO struct {
     CreatedAt  time.Time  `json:"created_at"`
 }
 
-// Convert an auth.APIKey to an APIKeyDTO (useful in custom handlers or tests).
+// Convert a *auth.APIKey to an APIKeyDTO (useful in custom handlers or tests).
 dto := handler.ToAPIKeyDTO(apiKey)
 ```
 
@@ -73,7 +73,7 @@ type SessionDTO struct {
     CreatedAt time.Time `json:"created_at"`
 }
 
-// Convert an auth.Session to a SessionDTO (useful in custom handlers or tests).
+// Convert a *auth.Session to a SessionDTO (useful in custom handlers or tests).
 dto := handler.ToSessionDTO(session)
 ```
 

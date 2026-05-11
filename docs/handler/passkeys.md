@@ -91,7 +91,7 @@ type PasskeyCredentialDTO struct {
 
 The `id` field can be passed to `DeleteCredential` to remove a specific passkey.
 
-Use `handler.ToPasskeyCredentialDTO(c)` to convert an `auth.PasskeyCredential` to a `PasskeyCredentialDTO` in custom handlers or tests.
+Use `handler.ToPasskeyCredentialDTO(credential)` to convert an `auth.PasskeyCredential` to a `PasskeyCredentialDTO` in custom handlers or tests.
 
 ## Disabling passkeys
 
