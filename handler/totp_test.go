@@ -64,6 +64,19 @@ func totpCode(t *testing.T, secret string) string {
 	return code
 }
 
+func TestTOTPValidate_missingUsedCodes_returnsError(t *testing.T) {
+	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
+	h.UsedCodes = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestTOTPValidate_usedCodesConfigured_ok(t *testing.T) {
+	h := newTOTPHandler(&mockTOTPStore{}, &mockUserStore{})
+
+	require.NoError(t, h.Validate())
+}
+
 // ---------------------------------------------------------------------------
 // Status
 // ---------------------------------------------------------------------------

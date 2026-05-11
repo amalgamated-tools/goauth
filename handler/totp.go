@@ -53,6 +53,23 @@ type totpVerifyBody struct {
 	Valid bool `json:"valid"`
 }
 
+// Validate checks that the handler is correctly configured and returns an
+// error when required dependencies are missing. Call Validate once at server
+// startup so misconfiguration is caught immediately rather than at the first
+// enroll/verify request.
+func (h *TOTPHandler) Validate() error {
+	if h.TOTP == nil {
+		return errors.New("TOTPHandler misconfigured: TOTP is required")
+	}
+	if h.Users == nil {
+		return errors.New("TOTPHandler misconfigured: Users is required")
+	}
+	if h.UsedCodes == nil {
+		return errors.New("TOTPHandler misconfigured: UsedCodes is required")
+	}
+	return nil
+}
+
 // isReplay returns true when code has already been used for userID within the
 // replay window.
 func (h *TOTPHandler) isReplay(userID, code string) bool {

@@ -11,6 +11,10 @@ h := &handler.TOTPHandler{
     Issuer:    "MyApp",
     UsedCodes: &auth.TOTPUsedCodeCache{}, // required; pointer to zero value; prevents replay attacks
 }
+
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
 ```
 
 ## Routes
