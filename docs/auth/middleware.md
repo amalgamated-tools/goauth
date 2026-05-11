@@ -83,12 +83,13 @@ token := auth.ExtractToken(r, "session")
 
 To reduce database write pressure on high-traffic deployments, the middleware calls `APIKeyStore.TouchAPIKeyLastUsed` at most once every **5 minutes** per key ID within a single process. The in-process state is stored in a plain `map` protected by a mutex and is not shared between processes.
 
+The throttle map is capped at **10,000 entries** (`defaultAPIKeyTouchMaxEntries`, equal to `DefaultRateLimiterMaxVisitors`). When the cap is reached, the oldest-inserted entry is evicted (FIFO) before the new key is added, keeping memory growth bounded even under API-key-flood conditions. Key renewals (a key that is already tracked re-triggering the 5-minute window) update the existing slot in-place and do not cause eviction.
+
 Practical implications:
 
 - The `last_used_at` value returned by `APIKeyHandler.List` lags behind real usage by up to 5 minutes.
 - In multi-process deployments (e.g. horizontal scaling), the 5-minute window is tracked independently per process, so the lag may appear shorter than 5 minutes from an external observer's perspective.
-- The throttle map is swept whenever it has at least 100 entries, removing entries whose last write was at least 5 minutes ago.
-- The map is capped at **10,000 entries** (`apiKeyTouchCacheMaxSize`). If the cap is still reached after a stale-entry sweep (e.g. all tracked keys are fresh), new `TouchAPIKeyLastUsed` calls are skipped rather than growing the map further. `last_used_at` is a best-effort field; a missed update is written on the next eligible request once space becomes available.
+- Under sustained load with more than 10,000 distinct API keys active within any 5-minute window, the oldest tracked keys will be evicted and their next request will trigger a `TouchAPIKeyLastUsed` call earlier than the normal 5-minute interval.
 
 If your application requires precise `last_used_at` timestamps, implement `TouchAPIKeyLastUsed` as a no-op and maintain a separate high-frequency audit log outside the library's throttle window.
 

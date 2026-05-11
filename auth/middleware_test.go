@@ -161,9 +161,11 @@ func TestExtractToken_emptyBearer(t *testing.T) {
 // --- shouldTouchAPIKeyLastUsed ------------------------------------------------
 
 func init() {
-	// Reset the global map before tests in this package run.
+	// Reset the global state before tests in this package run.
 	apiKeyTouchMu.Lock()
-	apiKeyLastTouchedAt = make(map[string]time.Time)
+	apiKeyTouchEntries = make(map[string]apiKeyTouchEntry)
+	apiKeyTouchOrder = nil
+	apiKeyTouchSeq = 0
 	apiKeyTouchMu.Unlock()
 }
 
@@ -190,36 +192,45 @@ func TestShouldTouchAPIKeyLastUsed_afterInterval(t *testing.T) {
 	require.True(t, shouldTouchAPIKeyLastUsed(id, now.Add(apiKeyTouchInterval+time.Second)))
 }
 
-func TestShouldTouchAPIKeyLastUsed_capPreventsBoundlessGrowth(t *testing.T) {
-	// Fill the cache to exactly the cap with fresh entries from the future,
-	// so the stale-entry sweep cannot evict them.
+func TestShouldTouchAPIKeyLastUsed_capEviction(t *testing.T) {
+	// Save and restore global state so this test doesn't affect others.
 	apiKeyTouchMu.Lock()
-	orig := apiKeyLastTouchedAt
-	apiKeyLastTouchedAt = make(map[string]time.Time, apiKeyTouchCacheMaxSize)
-	future := time.Now().Add(apiKeyTouchInterval * 2)
-	for i := range apiKeyTouchCacheMaxSize {
-		apiKeyLastTouchedAt[fmt.Sprintf("cap-fill-%d", i)] = future
+	origEntries := apiKeyTouchEntries
+	origOrder := apiKeyTouchOrder
+	origSeq := apiKeyTouchSeq
+	apiKeyTouchEntries = make(map[string]apiKeyTouchEntry)
+	apiKeyTouchOrder = nil
+	apiKeyTouchSeq = 0
+	now := time.Now()
+	for i := range defaultAPIKeyTouchMaxEntries {
+		apiKeyTouchSeq++
+		k := fmt.Sprintf("filler-%d", i)
+		apiKeyTouchEntries[k] = apiKeyTouchEntry{touchedAt: now, seq: apiKeyTouchSeq}
+		apiKeyTouchOrder = append(apiKeyTouchOrder, orderEntry[string]{key: k, seq: apiKeyTouchSeq})
 	}
 	apiKeyTouchMu.Unlock()
 
 	t.Cleanup(func() {
 		apiKeyTouchMu.Lock()
-		apiKeyLastTouchedAt = orig
+		apiKeyTouchEntries = origEntries
+		apiKeyTouchOrder = origOrder
+		apiKeyTouchSeq = origSeq
 		apiKeyTouchMu.Unlock()
 	})
 
-	// A new key must not be inserted when the cache is at capacity.
-	newID := "cap-new-key"
-	require.False(t, shouldTouchAPIKeyLastUsed(newID, time.Now()),
-		"shouldTouchAPIKeyLastUsed must return false when cache is at capacity")
+	require.Equal(t, defaultAPIKeyTouchMaxEntries, len(apiKeyTouchEntries))
+
+	// A new key should still be accepted; the oldest filler entry is evicted.
+	newKey := "new-key-cap-test"
+	require.True(t, shouldTouchAPIKeyLastUsed(newKey, now))
 
 	apiKeyTouchMu.Lock()
-	_, inserted := apiKeyLastTouchedAt[newID]
-	mapLen := len(apiKeyLastTouchedAt)
+	sz := len(apiKeyTouchEntries)
+	_, present := apiKeyTouchEntries[newKey]
 	apiKeyTouchMu.Unlock()
 
-	require.False(t, inserted, "new key must not be inserted into a full cache")
-	require.Equal(t, apiKeyTouchCacheMaxSize, mapLen, "cache must not grow beyond cap")
+	require.Equal(t, defaultAPIKeyTouchMaxEntries, sz, "map must not exceed cap")
+	require.True(t, present, "new key must be present after eviction")
 }
 
 // --- resolveUser --------------------------------------------------------------
