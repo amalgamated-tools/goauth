@@ -35,3 +35,16 @@ plaintext, err  := enc.Decrypt(ciphertext)
 ```
 
 The encrypter is obtained from a `JWTManager` — see [JWT Manager](jwt.md#aes-256-gcm-encryption).
+
+## Performance benchmarks
+
+The `auth` package ships benchmarks for the two most allocation-sensitive paths. Run them with:
+
+```sh
+go test -bench=BenchmarkSecretEncrypterEncrypt -benchmem ./auth/
+go test -bench=BenchmarkSecretEncrypterDecrypt -benchmem ./auth/
+# or run all auth benchmarks at once:
+go test -bench=. -benchmem ./auth/
+```
+
+Both benchmarks use `b.ReportAllocs()` to surface heap allocation counts alongside `ns/op`, and keep one-time setup (encrypter construction, pre-encryption) outside the timed loop so measurements reflect only per-call cost.
