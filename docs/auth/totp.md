@@ -70,4 +70,4 @@ go test -bench=BenchmarkHotpCodeWithMAC -benchmem ./auth/
 go test -bench=. -benchmem ./auth/
 ```
 
-Both benchmarks use `b.ReportAllocs()` to expose heap allocation counts alongside `ns/op`. Setup steps (HMAC initialisation, secret generation) run outside the timed loop so results reflect only per-call cost. `BenchmarkHotpCodeWithMAC` isolates the inner HMAC-reuse path independently of the base32 decode in `ValidateTOTP`.
+Both benchmarks use `b.ReportAllocs()` to expose heap allocation counts alongside `ns/op`. `BenchmarkValidateTOTP` measures the full per-call cost including base32 decode and HMAC-SHA1 initialisation; only secret generation is pre-loop. `BenchmarkHotpCodeWithMAC` pre-creates the `mac` object before `b.ResetTimer()`, isolating the inner HMAC-reuse path (write + sum + truncate) without the decode or initialisation overhead.
