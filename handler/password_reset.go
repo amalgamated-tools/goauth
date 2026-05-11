@@ -149,6 +149,10 @@ func (h *PasswordResetHandler) ResetPassword(w http.ResponseWriter, r *http.Requ
 	// Guard against resetting passwords on OIDC-only accounts.
 	user, err := h.Users.FindByID(r.Context(), resetToken.UserID)
 	if err != nil {
+		if errors.Is(err, auth.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired reset token")
+			return
+		}
 		slog.ErrorContext(r.Context(), "password reset: lookup user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
