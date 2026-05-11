@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -449,6 +450,25 @@ func TestClearAuthCookie_setsNegativeMaxAge(t *testing.T) {
 	require.NotNil(t, found)
 	require.Equal(t, -1, found.MaxAge)
 	require.Empty(t, found.Value)
+}
+
+// ---------------------------------------------------------------------------
+// password error strings in docs
+// ---------------------------------------------------------------------------
+
+func TestPasswordErrorStringsInDocs(t *testing.T) {
+	docs := []string{
+		"../README.md",
+		"../docs/handler/auth.md",
+		"../docs/handler/password-reset.md",
+	}
+	for _, path := range docs {
+		content, err := os.ReadFile(path)
+		require.NoErrorf(t, err, "reading %s", path)
+		s := string(content)
+		require.Containsf(t, s, errPasswordTooShort, "doc %s is out of sync with errPasswordTooShort", path)
+		require.Containsf(t, s, errPasswordTooLong, "doc %s is out of sync with errPasswordTooLong", path)
+	}
 }
 
 // ---------------------------------------------------------------------------
