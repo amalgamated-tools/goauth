@@ -81,11 +81,6 @@ func ToUserDTO(u *auth.User) UserDTO {
 	}
 }
 
-// issueTokens delegates to the package-level issueTokens helper.
-func (h *AuthHandler) issueTokens(w http.ResponseWriter, r *http.Request, userID string) (accessToken, refreshToken string, ok bool) {
-	return issueTokens(w, r, userID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
-}
-
 // Validate checks that the handler is correctly configured and returns an error
 // if any required fields are missing or incompatible. Call Validate once at
 // server startup, after setting all optional fields, so that misconfiguration
@@ -136,7 +131,7 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, refreshToken, ok := h.issueTokens(w, r, user.ID)
+	token, refreshToken, ok := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}
@@ -186,7 +181,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, refreshToken, ok := h.issueTokens(w, r, user.ID)
+	token, refreshToken, ok := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}
@@ -281,7 +276,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, refreshToken, ok := h.issueTokens(w, r, user.ID)
+	token, refreshToken, ok := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}

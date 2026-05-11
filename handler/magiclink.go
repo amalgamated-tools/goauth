@@ -130,7 +130,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	jwtToken, refreshToken, ok := h.issueTokens(w, r, user.ID)
+	jwtToken, refreshToken, ok := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}
@@ -138,11 +138,6 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	writeJSON(r.Context(), w, http.StatusOK, AuthResponse{Token: jwtToken, RefreshToken: refreshToken, User: ToUserDTO(user)})
-}
-
-// issueTokens delegates to the package-level issueTokens helper.
-func (h *MagicLinkHandler) issueTokens(w http.ResponseWriter, r *http.Request, userID string) (accessToken, refreshToken string, ok bool) {
-	return issueTokens(w, r, userID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 }
 
 // findOrCreateUser returns the existing user for the given email, or creates a
