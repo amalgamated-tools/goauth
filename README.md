@@ -38,7 +38,7 @@ authHandler := &handler.AuthHandler{
     SecureCookies:     true,
     Sessions:          sessionStore,      // enables server-side sessions + refresh tokens
     RefreshTokenTTL:   7 * 24 * time.Hour,
-    RefreshCookieName: "refresh",         // optional: deliver refresh token via cookie
+    RefreshCookieName: "refresh",         // required when Sessions is set
 }
 apiKeyHandler := &handler.APIKeyHandler{
     APIKeys:      apiKeyStore,
@@ -517,7 +517,7 @@ h := &handler.AuthHandler{
     DisableSignup:     false,    // set true to prevent self-registration
     Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
     RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // 7-day default (handler.DefaultRefreshTokenTTL); only used when Sessions is set
-    RefreshCookieName: "refresh",  // optional; stores refresh token in an HttpOnly cookie
+    RefreshCookieName: "refresh",  // required when Sessions is set; stores refresh token in an HttpOnly cookie
     RequireVerification: true,     // optional; rejects login for unverified email addresses
 }
 
