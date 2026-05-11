@@ -58,6 +58,12 @@ type totpVerifyBody struct {
 // startup so misconfiguration is caught immediately rather than at the first
 // enroll/verify request.
 func (h *TOTPHandler) Validate() error {
+	if h.TOTP == nil {
+		return errors.New("TOTPHandler misconfigured: TOTP is required")
+	}
+	if h.Users == nil {
+		return errors.New("TOTPHandler misconfigured: Users is required")
+	}
 	if h.UsedCodes == nil {
 		return errors.New("TOTPHandler misconfigured: UsedCodes is required")
 	}
