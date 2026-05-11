@@ -39,7 +39,7 @@ When `SMTP_FROM` includes a display name (e.g. `My App <sender@example.com>`), `
 params, err := cfg.Validate()
 if err != nil { /* ... */ }
 
-// smtp.Send injects "From: <params.FromHeader>" automatically.
+// smtp.Send automatically injects a "From: " header using params.FromHeader.
 // Only include To, Subject, and body headers in the message.
 msg := "To: recipient@example.com\r\n" +
     "Subject: Hello\r\n" +
