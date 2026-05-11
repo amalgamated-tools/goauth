@@ -198,13 +198,14 @@ func TestValidate_portBoundaries(t *testing.T) {
 // fakeSMTPServer is a minimal SMTP server for testing Send.
 type fakeSMTPServer struct {
 	listener net.Listener
+	received chan []byte // DATA payload sent via channel to avoid races
 }
 
 func newFakeSMTPServer(t *testing.T) *fakeSMTPServer {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	srv := &fakeSMTPServer{listener: ln}
+	srv := &fakeSMTPServer{listener: ln, received: make(chan []byte, 1)}
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -253,7 +254,8 @@ func (s *fakeSMTPServer) serveOne(t *testing.T) {
 			write("250 OK")
 		case cmd == "DATA":
 			write("354 Start mail input")
-			// Read until the lone "." terminator.
+			// Read until the lone "." terminator, capturing the body.
+			var body strings.Builder
 			for {
 				dl, err := r.ReadString('\n')
 				if err != nil {
@@ -262,7 +264,9 @@ func (s *fakeSMTPServer) serveOne(t *testing.T) {
 				if strings.TrimSpace(dl) == "." {
 					break
 				}
+				body.WriteString(dl)
 			}
+			s.received <- []byte(body.String())
 			write("250 Message accepted")
 		case cmd == "QUIT":
 			write("221 Bye")
@@ -285,10 +289,33 @@ func TestSend_success_none(t *testing.T) {
 	msg := []byte("Subject: Test\r\n\r\nHello\r\n")
 	err := Send(context.Background(), p, "to@example.com", msg)
 	require.NoError(t, err)
+	got := <-srv.received
+	wantPrefix := "From: sender@example.com\r\n"
+	require.GreaterOrEqual(t, len(got), len(wantPrefix), "received message too short")
+	require.Equal(t, wantPrefix, string(got[:len(wantPrefix)]))
+}
+
+func TestSend_injectsFromHeaderWithDisplayName(t *testing.T) {
+	srv := newFakeSMTPServer(t)
+	defer srv.close()
+
+	p := Params{
+		Addr:       srv.addr(),
+		From:       "no-reply@example.com",
+		FromHeader: `"My App" <no-reply@example.com>`,
+		TLS:        "none",
+	}
+
+	err := Send(context.Background(), p, "to@example.com", []byte("Subject: Hi\r\n\r\nBody\r\n"))
+	require.NoError(t, err)
+	got := <-srv.received
+	wantPrefix := "From: \"My App\" <no-reply@example.com>\r\n"
+	require.GreaterOrEqual(t, len(got), len(wantPrefix), "received message too short")
+	require.Equal(t, wantPrefix, string(got[:len(wantPrefix)]))
 }
 
 func TestSend_connectionRefused(t *testing.T) {
-	p := Params{Addr: "127.0.0.1:1", From: "a@b.com", TLS: "none"}
+	p := Params{Addr: "127.0.0.1:1", From: "a@b.com", FromHeader: "a@b.com", TLS: "none"}
 	err := Send(context.Background(), p, "to@example.com", []byte("msg"))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "smtp connection failed")
@@ -309,4 +336,35 @@ func TestSend_tlsModeConnectsAndFails(t *testing.T) {
 	p := Params{Addr: srv.addr(), From: "a@b.com", TLS: "tls"}
 	err := Send(context.Background(), p, "to@example.com", []byte("msg"))
 	require.Error(t, err)
+}
+
+func TestSend_emptyFromHeader(t *testing.T) {
+	p := Params{Addr: "127.0.0.1:1", From: "a@b.com", FromHeader: "", TLS: "none"}
+	err := Send(context.Background(), p, "to@example.com", []byte("msg"))
+	require.ErrorContains(t, err, "FromHeader is required")
+}
+
+func TestSend_crlfInFromHeader(t *testing.T) {
+	p := Params{Addr: "127.0.0.1:1", From: "a@b.com", FromHeader: "a@b.com\r\nBcc: evil@attacker.com", TLS: "none"}
+	err := Send(context.Background(), p, "to@example.com", []byte("msg"))
+	require.ErrorContains(t, err, "FromHeader contains invalid characters")
+}
+
+func TestSend_skipsFromHeaderIfAlreadyPresent(t *testing.T) {
+	srv := newFakeSMTPServer(t)
+	defer srv.close()
+
+	p := Params{
+		Addr:       srv.addr(),
+		From:       "sender@example.com",
+		FromHeader: "sender@example.com",
+		TLS:        "none",
+	}
+	// msg already has a From field — Send must not inject a second one.
+	msg := []byte("From: sender@example.com\r\nSubject: Test\r\n\r\nHello\r\n")
+	err := Send(context.Background(), p, "to@example.com", msg)
+	require.NoError(t, err)
+	got := <-srv.received
+	fromCount := strings.Count(string(got), "From:")
+	require.Equal(t, 1, fromCount, "expected exactly one From: field, got %d", fromCount)
 }
