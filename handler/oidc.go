@@ -121,7 +121,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	linkUserID := h.parseLinkState(cookie.Value)
+	linkUserID := parseLinkState(h.JWT, cookie.Value)
 
 	if errParam := r.URL.Query().Get("error"); errParam != "" {
 		writeError(r.Context(), w, http.StatusUnauthorized, "authentication failed")
@@ -177,11 +177,11 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if linkUserID != "" {
-		h.handleLinkCallback(w, r, linkUserID, claims.Sub)
+		handleLinkCallback(w, r, h.Users, linkUserID, claims.Sub, "/?oidc_linked=true", "oidc_link_error")
 		return
 	}
 
-	user, err := h.findOrCreateUser(r.Context(), claims.Sub, claims.Email, claims.Name)
+	user, err := findOrCreateUser(r.Context(), h.Users, claims.Sub, claims.Email, claims.Name)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "OIDC user resolution failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to process user")
@@ -193,14 +193,6 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/?oidc_login=1", http.StatusFound)
-}
-
-func (h *OIDCHandler) handleLinkCallback(w http.ResponseWriter, r *http.Request, linkUserID, subject string) {
-	handleLinkCallback(w, r, h.Users, linkUserID, subject, "/?oidc_linked=true", "oidc_link_error")
-}
-
-func (h *OIDCHandler) findOrCreateUser(ctx context.Context, subject, email, name string) (*auth.User, error) {
-	return findOrCreateUser(ctx, h.Users, subject, email, name)
 }
 
 // CreateLinkNonce issues a nonce for OIDC account linking.
@@ -238,7 +230,7 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusBadRequest, "missing nonce")
 		return
 	}
-	userID, err := h.consumeLinkNonce(r.Context(), nonceStr)
+	userID, err := consumeLinkNonce(r.Context(), h.LinkNonces, nonceStr)
 	if err != nil {
 		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired nonce")
@@ -270,7 +262,7 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	verifier := oauth2.GenerateVerifier()
-	signedState := h.signLinkState(state, userID)
+	signedState := signLinkState(h.JWT, state, userID)
 
 	for _, c := range []http.Cookie{
 		{Name: oidcStateCookieName, Value: signedState},
@@ -283,16 +275,4 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(signedState, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
-}
-
-func (h *OIDCHandler) consumeLinkNonce(ctx context.Context, nonce string) (string, error) {
-	return consumeLinkNonce(ctx, h.LinkNonces, nonce)
-}
-
-func (h *OIDCHandler) signLinkState(randomState, userID string) string {
-	return signLinkState(h.JWT, randomState, userID)
-}
-
-func (h *OIDCHandler) parseLinkState(state string) string {
-	return parseLinkState(h.JWT, state)
 }
