@@ -276,4 +276,3 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(signedState, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
 }
-
