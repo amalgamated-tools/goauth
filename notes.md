@@ -3,7 +3,7 @@
 ## Build/Test Commands (validated against CI config; network-blocked so cannot run locally)
 - Build: `go build ./...`
 - Test: `go test -v ./...`  (requires Go 1.26.1; firewall blocks proxy.golang.org)
-- Benchmarks: `go test -bench=. -benchmem ./auth/` (new benchmarks added 2026-05-07)
+- Benchmarks: `go test -bench=. -benchmem ./auth/` (benchmarks added via PR #223 MERGED)
 - Format: `go fmt ./...`
 - Hard format: `go tool gofumpt -w -l .`
 - Lint: `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@<pin> run ./...`
@@ -11,10 +11,9 @@
 - NOTE: Go 1.26.1 toolchain required; network is firewalled (proxy.golang.org blocked). Tests cannot be run locally.
 
 ## Efficiency Notes
-- No benchmarks exist in the codebase (confirmed by grep) — CHANGED 2026-05-07: added 4 benchmark functions.
-- hotpCode (auth/totp.go) is called 3× per ValidateTOTP on every login. Critical path.
+- hotpCode (auth/totp.go) is called 3× per ValidateTOTP on every login. Critical path. Fully optimised.
 - RateLimiter cleanup: lazy, once per 5-minute window — visitors map now bounded to DefaultRateLimiterMaxVisitors=10_000 (PR #213 MERGED).
-- apiKeyLastTouchedAt (auth/middleware.go): process-local map for TouchAPIKeyLastUsed throttling — now bounded to apiKeyTouchCacheMaxSize=10_000 (PR #227 submitted 2026-05-08).
+- apiKeyLastTouchedAt: bounded with FIFO eviction (PR #227 MERGED, then superseded by PR #236 with cleaner FIFO pattern from rbac.go). Both merged 2026-05-10.
 - cachingRoleChecker / cachingAdminChecker: well-designed with FIFO eviction and sweep.
 - TOTPUsedCodeCache: uses sync.Map with totpCacheKey struct (no string alloc per call).
 - cipher.AEAD (GCM) cached in SecretEncrypter — safe for concurrent use after init.
@@ -25,12 +24,9 @@
 - auth/totp.go: totpDigitsStr + totpPeriodStr precomputed vars added (PR #170 MERGED 2026-05-03).
 - handler/totp.go: totpHandlerEncoding precomputed var added (PR #170 MERGED 2026-05-03).
 - handler/helpers.go validatePassword: errPasswordTooShort/errPasswordTooLong now const (not var+fmt.Sprintf); fmt import removed (PR #211 MERGED 2026-05-07).
-- New OAuth2Handler (PR #203): login is unavoidably sequential (external API calls); no hot-path efficiency opportunities found.
-- auth/ratelimit.go: DefaultRateLimiterMaxVisitors=10_000 constant + maxVisitors field added (PR #213 MERGED 2026-05-07). New IPs blocked without map growth when at capacity.
-- maintenance/maintenance.go: slog.Default() called inline at each log site (PR #218 merged), NOT pre-captured at startup. No efficiency concern.
+- 2026-05-11: Recent commits (#257, #239, #259, docs) are refactoring/docs only; no new efficiency opportunities.
 - Full codebase rescan (2026-05-05): smtp/, maintenance/, auth/, handler/ all re-checked. No new efficiency opportunities. Hot-path optimisations exhausted.
-- Benchmarks added (2026-05-07): BenchmarkValidateTOTP, BenchmarkHotpCodeWithMAC (auth/totp_test.go); BenchmarkSecretEncrypterEncrypt, BenchmarkSecretEncrypterDecrypt (auth/crypto_test.go). PR submitted.
-- 2026-05-09 scan: recent commits #217 (JWT API cleanup) and #215 (missing 500 logs) are correctness/docs only; no new efficiency opportunities.
+- Benchmarks added (PR #223 MERGED 2026-05-10): BenchmarkValidateTOTP, BenchmarkHotpCodeWithMAC (auth/totp_test.go); BenchmarkSecretEncrypterEncrypt, BenchmarkSecretEncrypterDecrypt (auth/crypto_test.go).
 
 ## Optimisation Backlog
 | Priority | Focus Area | Opportunity | Estimated Impact | Status |
@@ -48,12 +44,11 @@
 | LOW | Code-Level | handler/totp.go Enroll + auth/totp.go TOTPProvisioningURI: precompute base32 encoding + strconv.Itoa constants | Save 3 allocs (~320 bytes) per TOTP enrollment | MERGED PR #170 |
 | LOW | Code-Level | handler/helpers.go validatePassword: var+fmt.Sprintf -> const strings + remove fmt import | Compile-time const literals; remove fmt init overhead | MERGED PR #211 |
 | MEDIUM | Code-Level | auth/ratelimit.go: visitors map unbounded between 5-min cleanup ticks | Memory+GC under IP flood; add maxVisitors FIFO cap | MERGED PR #213 |
-| LOW | Data | Benchmarks for energy-critical code paths (ValidateTOTP, SecretEncrypter) | Enables future evidence-based optimisation | PR #223 submitted 2026-05-07 |
-| MEDIUM | Code-Level | `auth/middleware.go` apiKeyLastTouchedAt: unbounded map when all keys fresh + large fleet | Bounded heap + GC (same pattern as PR #213) | PR #227 submitted 2026-05-08 |
+| LOW | Data | Benchmarks for energy-critical code paths (ValidateTOTP, SecretEncrypter) | Enables future evidence-based optimisation | MERGED PR #223 |
+| MEDIUM | Code-Level | auth/middleware.go apiKeyLastTouchedAt: unbounded map when all keys fresh + large fleet | Bounded heap + GC (same pattern as PR #213) | MERGED PR #227 (then superseded by PR #236) |
 
 ## Work In Progress
-- Benchmark PR #223 (branch: efficiency/add-energy-benchmarks-auth): CI all green; awaiting maintainer review
-- PR #227 (branch: efficiency/bound-apikey-touch-cache): adds apiKeyTouchCacheMaxSize=10_000; CI all green; awaiting maintainer review
+- None. All open PRs merged. Codebase hot-path optimisations exhausted.
 
 ## Completed Work
 - PR #39: MERGED 2026-04-20 — replace math.Pow10 with totpModulo=1_000_000 integer constant
@@ -70,13 +65,15 @@
 - PR #172: MERGED 2026-05-03 by veverkap — password error strings as var+fmt.Sprintf (not full const; follow-up is PR #211)
 - PR #211: MERGED 2026-05-07 by veverkap — const password error strings + remove fmt import from handler/helpers.go
 - PR #213: MERGED 2026-05-07 by veverkap — bound RateLimiter visitors map to DefaultRateLimiterMaxVisitors=10_000
+- PR #223: MERGED 2026-05-10 by veverkap — add energy benchmarks (BenchmarkValidateTOTP, BenchmarkHotpCodeWithMAC, BenchmarkSecretEncrypterEncrypt, BenchmarkSecretEncrypterDecrypt)
+- PR #227: MERGED 2026-05-10 by veverkap — bound apiKeyLastTouchedAt cache to apiKeyTouchCacheMaxSize=10_000; superseded by PR #236 with FIFO eviction
 
 ## Backlog Cursor
-- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-09)
-- Major hot-path optimisations exhausted; remaining items are infrastructure/low-priority
-- Last tasks run: Task 4 (both PRs CI green, no fixes), Task 2 (no new opportunities), Task 7 (updated issue #212)
-- Last run: 2026-05-09
+- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-12)
+- Major hot-path optimisations exhausted; all identified opportunities now merged
+- Last tasks run: Task 4 (noted PRs #223, #227 merged), Task 2 (no new opportunities from recent commits), Task 7 (create new monthly issue)
+- Last run: 2026-05-12
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED 2026-05-01)
-- May 2026: Issue #212 (OPEN — created 2026-05-03, updated 2026-05-09)
+- May 2026: Issue #212 (CLOSED 2026-05-11 by veverkap); new issue to be created this run
