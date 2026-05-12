@@ -34,10 +34,10 @@ func TestLinkState_roundTrip(t *testing.T) {
 	randomState := "somerandomstate1234"
 	userID := "user-abc"
 
-	signed := h.signLinkState(randomState, userID)
+	signed := signLinkState(h.JWT, randomState, userID)
 	require.NotEmpty(t, signed)
 
-	parsed := h.parseLinkState(signed)
+	parsed := parseLinkState(h.JWT, signed)
 	require.Equal(t, userID, parsed)
 }
 
@@ -50,31 +50,30 @@ func TestParseLinkState_invalidFormat(t *testing.T) {
 		"only-one-part",
 		"two.parts",
 	} {
-		require.Emptyf(t, h.parseLinkState(bad), "input %q", bad)
+		require.Emptyf(t, parseLinkState(h.JWT, bad), "input %q", bad)
 	}
 }
 
 func TestParseLinkState_tamperedSignature(t *testing.T) {
 	h := newTestOIDCHandler()
 
-	signed := h.signLinkState("randomstate", "user-1")
+	signed := signLinkState(h.JWT, "randomstate", "user-1")
 	// Corrupt the last character of the signature (third dot-separated part).
 	tampered := signed[:len(signed)-1] + "X"
-	require.Empty(t, h.parseLinkState(tampered))
+	require.Empty(t, parseLinkState(h.JWT, tampered))
 }
 
 func TestParseLinkState_wrongKey(t *testing.T) {
 	h1 := newTestOIDCHandler()
 	h2 := &OIDCHandler{
-		JWT:        newTestJWT(), // same secret, different derived key...
-		LinkNonces: &mockOIDCLinkNonceStore{},
+		JWT: newTestJWT(), // same secret, different derived key...
 	}
 	// Give h2 a different JWT manager (different secret).
 	mgr2, _ := auth.NewJWTManager("different-secret-32bytes-here!!!!", time.Hour, "test")
 	h2.JWT = mgr2
 
-	signed := h1.signLinkState("state123", "user-xyz")
-	require.Empty(t, h2.parseLinkState(signed))
+	signed := signLinkState(h1.JWT, "state123", "user-xyz")
+	require.Empty(t, parseLinkState(h2.JWT, signed))
 }
 
 // ---------------------------------------------------------------------------
@@ -97,12 +96,12 @@ func TestConsumeLinkNonce_deletesEntry(t *testing.T) {
 		},
 	}
 
-	got, err := h.consumeLinkNonce(context.Background(), nonce)
+	got, err := consumeLinkNonce(context.Background(), h.LinkNonces, nonce)
 	require.NoError(t, err)
 	require.Equal(t, "user-1", got)
 
 	// Second consumption of the same nonce should return ErrNotFound.
-	_, err = h.consumeLinkNonce(context.Background(), nonce)
+	_, err = consumeLinkNonce(context.Background(), h.LinkNonces, nonce)
 	require.ErrorIs(t, err, auth.ErrNotFound)
 }
 
@@ -116,13 +115,13 @@ func TestConsumeLinkNonce_expired(t *testing.T) {
 		},
 	}
 
-	_, err := h.consumeLinkNonce(context.Background(), nonce)
+	_, err := consumeLinkNonce(context.Background(), h.LinkNonces, nonce)
 	require.ErrorIs(t, err, auth.ErrNotFound)
 }
 
 func TestConsumeLinkNonce_notFound(t *testing.T) {
 	h := newTestOIDCHandler()
-	_, err := h.consumeLinkNonce(context.Background(), "does-not-exist")
+	_, err := consumeLinkNonce(context.Background(), h.LinkNonces, "does-not-exist")
 	require.ErrorIs(t, err, auth.ErrNotFound)
 }
 
@@ -141,7 +140,7 @@ func TestCreateLinkNonce_returnsNonce(t *testing.T) {
 	require.NotEmpty(t, nonce)
 
 	// The nonce should be consumable exactly once.
-	got, err := h.consumeLinkNonce(context.Background(), nonce)
+	got, err := consumeLinkNonce(context.Background(), h.LinkNonces, nonce)
 	require.NoError(t, err)
 	require.Equal(t, "user-42", got)
 }
@@ -188,7 +187,7 @@ func TestFindOrCreateUser_byOIDCSubject(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := h.findOrCreateUser(context.Background(), "sub1", "a@b.com", "Alice")
+	user, err := findOrCreateUser(context.Background(), h.Users, "sub1", "a@b.com", "Alice")
 	require.NoError(t, err)
 	require.Equal(t, "u1", user.ID)
 }
@@ -206,7 +205,7 @@ func TestFindOrCreateUser_byEmail(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := h.findOrCreateUser(context.Background(), "sub2", "b@c.com", "Bob")
+	user, err := findOrCreateUser(context.Background(), h.Users, "sub2", "b@c.com", "Bob")
 	require.NoError(t, err)
 	require.Equal(t, "u2", user.ID)
 }
@@ -231,7 +230,7 @@ func TestFindOrCreateUser_byEmailLinkError(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := h.findOrCreateUser(context.Background(), "sub3", "c@d.com", "Carol")
+	user, err := findOrCreateUser(context.Background(), h.Users, "sub3", "c@d.com", "Carol")
 	require.NoError(t, err)
 	require.Equal(t, "u3", user.ID)
 }
@@ -253,7 +252,7 @@ func TestFindOrCreateUser_byEmailAlreadyLinked(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := h.findOrCreateUser(context.Background(), "sub4", "d@e.com", "Dave")
+	user, err := findOrCreateUser(context.Background(), h.Users, "sub4", "d@e.com", "Dave")
 	require.NoError(t, err)
 	require.Equal(t, "u4", user.ID)
 }
@@ -285,7 +284,7 @@ func TestFindOrCreateUser_raceRetryLinkError(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := h.findOrCreateUser(context.Background(), "sub5", "e@f.com", "Eve")
+	user, err := findOrCreateUser(context.Background(), h.Users, "sub5", "e@f.com", "Eve")
 	require.NoError(t, err)
 	require.Equal(t, "u5", user.ID)
 }
@@ -315,7 +314,7 @@ func TestFindOrCreateUser_raceRetryAlreadyLinked(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := h.findOrCreateUser(context.Background(), "sub6", "f@g.com", "Frank")
+	user, err := findOrCreateUser(context.Background(), h.Users, "sub6", "f@g.com", "Frank")
 	require.NoError(t, err)
 	require.Equal(t, "u6", user.ID)
 }
@@ -335,7 +334,7 @@ func TestFindOrCreateUser_createsNew(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := h.findOrCreateUser(context.Background(), "sub-new", "new@example.com", "New User")
+	user, err := findOrCreateUser(context.Background(), h.Users, "sub-new", "new@example.com", "New User")
 	require.NoError(t, err)
 	require.Equal(t, "new-u", user.ID)
 }
@@ -358,7 +357,7 @@ func TestFindOrCreateUser_createError(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := h.findOrCreateUser(context.Background(), "sub-err", "err@example.com", "Err User")
+	user, err := findOrCreateUser(context.Background(), h.Users, "sub-err", "err@example.com", "Err User")
 	require.Error(t, err)
 	require.ErrorIs(t, err, dbErr)
 	require.Nil(t, user)
@@ -382,7 +381,7 @@ func TestHandleLinkCallback_success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
-	h.handleLinkCallback(w, req, "user-1", "oidc-sub")
+	handleLinkCallback(w, req, h.Users, "user-1", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
 
 	require.Equal(t, http.StatusFound, w.Code)
 	require.Equal(t, "/?oidc_linked=true", w.Header().Get("Location"))
@@ -399,7 +398,7 @@ func TestHandleLinkCallback_userNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
-	h.handleLinkCallback(w, req, "missing-user", "oidc-sub")
+	handleLinkCallback(w, req, h.Users, "missing-user", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
 
 	require.Equal(t, http.StatusFound, w.Code)
 	loc := w.Header().Get("Location")
@@ -418,7 +417,7 @@ func TestHandleLinkCallback_dbErrorOnFindByID(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
-	h.handleLinkCallback(w, req, "user-1", "oidc-sub")
+	handleLinkCallback(w, req, h.Users, "user-1", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
 
 	require.Equal(t, http.StatusFound, w.Code)
 	loc := w.Header().Get("Location")
@@ -446,7 +445,7 @@ func TestHandleLinkCallback_dbErrorOnFindByOIDCSubject(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
-	h.handleLinkCallback(w, req, "user-1", "oidc-sub")
+	handleLinkCallback(w, req, h.Users, "user-1", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
 
 	require.Equal(t, http.StatusFound, w.Code)
 	require.Contains(t, w.Header().Get("Location"), "oidc_link_error=")
@@ -466,7 +465,7 @@ func TestHandleLinkCallback_alreadyLinked(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
-	h.handleLinkCallback(w, req, "user-1", "other-sub")
+	handleLinkCallback(w, req, h.Users, "user-1", "other-sub", "/?oidc_linked=true", "oidc_link_error")
 
 	require.Equal(t, http.StatusFound, w.Code)
 	loc := w.Header().Get("Location")
