@@ -73,6 +73,23 @@ func generateOIDCState() (string, error) {
 	return auth.GenerateRandomBase64(32)
 }
 
+// redirectToProvider sets the OIDC flow cookies and redirects the browser to
+// the provider's authorization endpoint. state must already be signed when
+// used for account linking.
+func (h *OIDCHandler) redirectToProvider(w http.ResponseWriter, r *http.Request, state, verifier string) {
+	for _, pair := range [][2]string{
+		{oidcStateCookieName, state},
+		{oidcVerifierCookieName, verifier},
+	} {
+		http.SetCookie(w, &http.Cookie{
+			Name: pair[0], Value: pair[1], Path: "/",
+			MaxAge: int(oidcStateCookieTTL.Seconds()), HttpOnly: true,
+			SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
+		})
+	}
+	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
+}
+
 // Login redirects to the OIDC provider.
 func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
 	state, err := generateOIDCState()
@@ -83,17 +100,7 @@ func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	verifier := oauth2.GenerateVerifier()
 
-	for _, c := range []http.Cookie{
-		{Name: oidcStateCookieName, Value: state},
-		{Name: oidcVerifierCookieName, Value: verifier},
-	} {
-		http.SetCookie(w, &http.Cookie{
-			Name: c.Name, Value: c.Value, Path: "/",
-			MaxAge: int(oidcStateCookieTTL.Seconds()), HttpOnly: true,
-			SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
-		})
-	}
-	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
+	h.redirectToProvider(w, r, state, verifier)
 }
 
 // Callback handles the OIDC provider redirect.
@@ -264,15 +271,5 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 	verifier := oauth2.GenerateVerifier()
 	signedState := signLinkState(h.JWT, state, userID)
 
-	for _, c := range []http.Cookie{
-		{Name: oidcStateCookieName, Value: signedState},
-		{Name: oidcVerifierCookieName, Value: verifier},
-	} {
-		http.SetCookie(w, &http.Cookie{
-			Name: c.Name, Value: c.Value, Path: "/",
-			MaxAge: int(oidcStateCookieTTL.Seconds()), HttpOnly: true,
-			SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
-		})
-	}
-	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(signedState, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
+	h.redirectToProvider(w, r, signedState, verifier)
 }
