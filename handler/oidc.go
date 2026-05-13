@@ -47,13 +47,18 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 		return nil, fmt.Errorf("OIDC provider discovery: %w", err)
 	}
 	return &OIDCHandler{
-		Users: users, JWT: jwt, Provider: provider,
+		Users:    users,
+		JWT:      jwt,
+		Provider: provider,
 		OAuthConfig: oauth2.Config{
-			ClientID: clientID, ClientSecret: clientSecret,
-			RedirectURL: redirectURI, Endpoint: provider.Endpoint(),
-			Scopes: []string{oidc.ScopeOpenID, "email", "profile"},
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURL:  redirectURI,
+			Endpoint:     provider.Endpoint(),
+			Scopes:       []string{oidc.ScopeOpenID, "email", "profile"},
 		},
-		CookieName: cookieName, SecureCookies: secureCookies,
+		CookieName:    cookieName,
+		SecureCookies: secureCookies,
 	}, nil
 }
 
@@ -73,20 +78,40 @@ func generateOIDCState() (string, error) {
 	return auth.GenerateRandomBase64(32)
 }
 
+// setFlowCookie writes a short-lived HttpOnly cookie used during the OIDC flow.
+func (h *OIDCHandler) setFlowCookie(w http.ResponseWriter, name, value string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   int(oidcStateCookieTTL.Seconds()),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   h.SecureCookies,
+	})
+}
+
+// clearFlowCookies expires the OIDC state and verifier cookies.
+func (h *OIDCHandler) clearFlowCookies(w http.ResponseWriter) {
+	for _, name := range []string{oidcStateCookieName, oidcVerifierCookieName} {
+		http.SetCookie(w, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Secure:   h.SecureCookies,
+		})
+	}
+}
+
 // redirectToProvider sets the OIDC flow cookies and redirects the browser to
 // the provider's authorization endpoint. state must already be signed when
 // used for account linking.
 func (h *OIDCHandler) redirectToProvider(w http.ResponseWriter, r *http.Request, state, verifier string) {
-	for _, pair := range [][2]string{
-		{oidcStateCookieName, state},
-		{oidcVerifierCookieName, verifier},
-	} {
-		http.SetCookie(w, &http.Cookie{
-			Name: pair[0], Value: pair[1], Path: "/",
-			MaxAge: int(oidcStateCookieTTL.Seconds()), HttpOnly: true,
-			SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
-		})
-	}
+	h.setFlowCookie(w, oidcStateCookieName, state)
+	h.setFlowCookie(w, oidcVerifierCookieName, verifier)
 	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
 }
 
@@ -121,12 +146,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clear flow cookies.
-	for _, name := range []string{oidcStateCookieName, oidcVerifierCookieName} {
-		http.SetCookie(w, &http.Cookie{
-			Name: name, Value: "", Path: "/", MaxAge: -1,
-			HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
-		})
-	}
+	h.clearFlowCookies(w)
 
 	linkUserID := parseLinkState(h.JWT, cookie.Value)
 
