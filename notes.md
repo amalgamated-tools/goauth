@@ -24,7 +24,7 @@
 - auth/totp.go: totpDigitsStr + totpPeriodStr precomputed vars added (PR #170 MERGED 2026-05-03).
 - handler/totp.go: totpHandlerEncoding precomputed var added (PR #170 MERGED 2026-05-03).
 - handler/helpers.go validatePassword: errPasswordTooShort/errPasswordTooLong now const (not var+fmt.Sprintf); fmt import removed (PR #211 MERGED 2026-05-07).
-- 2026-05-13: Recent commits (#261, #265) are OIDC refactoring only; no new efficiency opportunities found.
+- 2026-05-14: Recent commits (#265) OIDC redirectToProvider refactor only; no new efficiency opportunities found.
 - Full codebase rescan (2026-05-05): smtp/, maintenance/, auth/, handler/ all re-checked. No new efficiency opportunities. Hot-path optimisations exhausted.
 - Benchmarks added (PR #223 MERGED 2026-05-10): BenchmarkValidateTOTP, BenchmarkHotpCodeWithMAC (auth/totp_test.go); BenchmarkSecretEncrypterEncrypt, BenchmarkSecretEncrypterDecrypt (auth/crypto_test.go).
 - LOW opportunity: OIDCHandler.Callback calls h.Provider.Verifier(...) on every callback — could cache at init. Low impact (once-per-OIDC-login, not per-request). Deferred.
@@ -71,10 +71,10 @@
 - PR #227: MERGED 2026-05-10 by veverkap — bound apiKeyLastTouchedAt cache to apiKeyTouchCacheMaxSize=10_000; superseded by PR #236 with FIFO eviction
 
 ## Backlog Cursor
-- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-13)
+- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-14)
 - Major hot-path optimisations exhausted; only deferred LOW item remains (OIDCHandler verifier caching)
-- Last tasks run: Task 2 (scanned OIDC refactor commits), Task 7 (updated monthly issue #264)
-- Last run: 2026-05-13
+- Last tasks run: Task 2 (scanned OIDC commit #265), Task 7 (updated monthly issue #264)
+- Last run: 2026-05-14
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED 2026-05-01)
