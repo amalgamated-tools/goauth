@@ -28,6 +28,9 @@ type OIDCHandler struct {
 	CookieName    string
 	SecureCookies bool
 	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
+	// idTokenVerifier is cached at construction / Validate() time to avoid
+	// recreating an identical verifier on every Callback invocation.
+	idTokenVerifier *oidc.IDTokenVerifier
 	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
 	// DefaultRefreshTokenTTL when Sessions is non-nil.
 	RefreshTokenTTL time.Duration
@@ -54,6 +57,7 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 			Scopes: []string{oidc.ScopeOpenID, "email", "profile"},
 		},
 		CookieName: cookieName, SecureCookies: secureCookies,
+		idTokenVerifier: provider.Verifier(&oidc.Config{ClientID: clientID}),
 	}, nil
 }
 
@@ -65,6 +69,9 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 func (h *OIDCHandler) Validate() error {
 	if h.Sessions != nil && h.RefreshCookieName == "" {
 		return errors.New("OIDCHandler misconfigured: Sessions requires RefreshCookieName")
+	}
+	if h.Provider != nil && h.idTokenVerifier == nil {
+		h.idTokenVerifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
 	}
 	return nil
 }
@@ -152,7 +159,10 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifier := h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
+	verifier := h.idTokenVerifier
+	if verifier == nil {
+		verifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
+	}
 	idToken, err := verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid id_token")
