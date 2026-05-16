@@ -24,15 +24,15 @@
 - auth/totp.go: totpDigitsStr + totpPeriodStr precomputed vars added (PR #170 MERGED 2026-05-03).
 - handler/totp.go: totpHandlerEncoding precomputed var added (PR #170 MERGED 2026-05-03).
 - handler/helpers.go validatePassword: errPasswordTooShort/errPasswordTooLong now const (not var+fmt.Sprintf); fmt import removed (PR #211 MERGED 2026-05-07).
-- 2026-05-14: Recent commits (#265) OIDC redirectToProvider refactor only; no new efficiency opportunities found.
+- 2026-05-16: No new commits since 2026-05-15; no new efficiency opportunities.
 - Full codebase rescan (2026-05-05): smtp/, maintenance/, auth/, handler/ all re-checked. No new efficiency opportunities. Hot-path optimisations exhausted.
 - Benchmarks added (PR #223 MERGED 2026-05-10): BenchmarkValidateTOTP, BenchmarkHotpCodeWithMAC (auth/totp_test.go); BenchmarkSecretEncrypterEncrypt, BenchmarkSecretEncrypterDecrypt (auth/crypto_test.go).
-- OIDCHandler: idTokenVerifier cached at init (PR created 2026-05-15). Saves 1 alloc per OIDC login.
+- OIDCHandler: idTokenVerifier cached at init (PR #274 open 2026-05-15). Saves 1 alloc per OIDC login.
 
 ## Optimisation Backlog
 | Priority | Focus Area | Opportunity | Estimated Impact | Status |
 |----------|-----------|-------------|-----------------|--------|
-| LOW | Code-Level | OIDCHandler: cache oidc.IDTokenVerifier at init time | 1 alloc saved per OIDC login | PR created 2026-05-15 |
+| LOW | Code-Level | OIDCHandler: cache oidc.IDTokenVerifier at init time | 1 alloc saved per OIDC login | PR #274 open |
 
 ## Work In Progress
 - None.
@@ -56,10 +56,10 @@
 - PR #227: MERGED 2026-05-10 by veverkap — bound apiKeyLastTouchedAt cache to apiKeyTouchCacheMaxSize=10_000; superseded by PR #236 with FIFO eviction
 
 ## Backlog Cursor
-- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-15)
-- All hot-path optimisations implemented; PR for LOW-priority OIDC verifier caching created 2026-05-15
-- Last tasks run: Task 3 (OIDC verifier caching PR), Task 7 (updated monthly issue #264)
-- Last run: 2026-05-15
+- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-16)
+- All hot-path optimisations implemented; PR #274 (LOW-priority OIDC verifier caching) open since 2026-05-15
+- Last tasks run: Task 4 (PR #274 CI check), Task 2 (no new commits), Task 7 (updated monthly issue #264)
+- Last run: 2026-05-16
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED 2026-05-01)
