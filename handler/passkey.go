@@ -47,6 +47,21 @@ type PasskeyHandler struct {
 // server startup, after setting all optional fields, so that misconfiguration
 // is caught immediately rather than at the first passkey ceremony completion.
 func (h *PasskeyHandler) Validate() error {
+	if h.Users == nil {
+		return errors.New("PasskeyHandler misconfigured: Users is required")
+	}
+	if h.Passkeys == nil {
+		return errors.New("PasskeyHandler misconfigured: Passkeys is required")
+	}
+	if h.WebAuthn == nil {
+		return errors.New("PasskeyHandler misconfigured: WebAuthn is required")
+	}
+	if h.JWT == nil {
+		return errors.New("PasskeyHandler misconfigured: JWT is required")
+	}
+	if h.URLParamFunc == nil {
+		return errors.New("PasskeyHandler misconfigured: URLParamFunc is required")
+	}
 	if h.Sessions != nil && h.RefreshCookieName == "" {
 		return errors.New("PasskeyHandler misconfigured: Sessions requires RefreshCookieName")
 	}

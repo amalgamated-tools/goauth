@@ -63,6 +63,15 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 // etc.), so that misconfiguration is caught immediately rather than at the
 // moment the first real user attempts to log in.
 func (h *OIDCHandler) Validate() error {
+	if h.Users == nil {
+		return errors.New("OIDCHandler misconfigured: Users is required")
+	}
+	if h.JWT == nil {
+		return errors.New("OIDCHandler misconfigured: JWT is required")
+	}
+	if h.Provider == nil {
+		return errors.New("OIDCHandler misconfigured: Provider is required")
+	}
 	if h.Sessions != nil && h.RefreshCookieName == "" {
 		return errors.New("OIDCHandler misconfigured: Sessions requires RefreshCookieName")
 	}
