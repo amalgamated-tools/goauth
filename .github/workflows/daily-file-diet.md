@@ -13,9 +13,7 @@ permissions:
   pull-requests: read
 
 tracker-id: daily-file-diet
-engine:
-  id: copilot
-  agent: "developer.instructions"
+engine: copilot
 
 imports:
   - uses: shared/skip-if-issue-open.md
@@ -240,9 +238,9 @@ Add comprehensive tests for each new file:
 <details>
 <summary>Additional Context</summary>
 
-- **Repository Guidelines**: Follow patterns in `.github/agents/developer.instructions.agent.md`
+- **Repository Guidelines**: Follow patterns
 - **Code Organization**: Prefer many small files grouped by functionality
-- **Testing**: Match existing test patterns in `pkg/workflow/*_test.go`
+- **Testing**: Match existing test patterns in `auth/`, `handler/`, etc
 
 </details>
 
