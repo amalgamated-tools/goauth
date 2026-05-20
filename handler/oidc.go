@@ -204,26 +204,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 // CreateLinkNonce issues a nonce for OIDC account linking.
 func (h *OIDCHandler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
-	if h.LinkNonces == nil {
-		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
-		return
-	}
-	userID := auth.UserIDFromContext(r.Context())
-	nonce, err := generateOIDCState()
-	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to generate OIDC link nonce", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate nonce")
-		return
-	}
-
-	nonceHash := auth.HashHighEntropyToken(nonce)
-	if _, err := h.LinkNonces.CreateLinkNonce(r.Context(), userID, nonceHash, time.Now().UTC().Add(oidcStateCookieTTL)); err != nil {
-		slog.ErrorContext(r.Context(), "failed to store link nonce", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store nonce")
-		return
-	}
-
-	writeJSON(r.Context(), w, http.StatusOK, nonceBody{Nonce: nonce})
+	createLinkNonce(w, r, h.LinkNonces, oidcStateCookieTTL)
 }
 
 // Link validates the nonce and redirects for account linking.

@@ -216,26 +216,7 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 // CreateLinkNonce issues a single-use nonce for OAuth2 account linking.
 // Requires auth middleware to be applied to the route.
 func (h *OAuth2Handler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
-	if h.LinkNonces == nil {
-		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
-		return
-	}
-	userID := auth.UserIDFromContext(r.Context())
-	nonce, err := auth.GenerateRandomBase64(32)
-	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to generate OAuth2 link nonce", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate nonce")
-		return
-	}
-
-	nonceHash := auth.HashHighEntropyToken(nonce)
-	if _, err := h.LinkNonces.CreateLinkNonce(r.Context(), userID, nonceHash, time.Now().UTC().Add(oauth2StateCookieTTL)); err != nil {
-		slog.ErrorContext(r.Context(), "failed to store link nonce", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store nonce")
-		return
-	}
-
-	writeJSON(r.Context(), w, http.StatusOK, nonceBody{Nonce: nonce})
+	createLinkNonce(w, r, h.LinkNonces, oauth2StateCookieTTL)
 }
 
 // Link validates the nonce and redirects the browser to the OAuth2 provider to
