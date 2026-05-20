@@ -169,6 +169,7 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	token, err := h.OAuthConfig.Exchange(r.Context(), code, oauth2.VerifierOption(verifierCookie.Value))
 	if err != nil {
+		slog.ErrorContext(r.Context(), "OAuth2 code exchange failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "failed to exchange code")
 		return
 	}
