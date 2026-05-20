@@ -66,14 +66,14 @@ func findOrCreateUser(ctx context.Context, users auth.UserStore, subject, email,
 }
 
 // createLinkNonce issues a single-use account-linking nonce.
-func createLinkNonce(w http.ResponseWriter, r *http.Request, store auth.OIDCLinkNonceStore, ttl time.Duration) {
+func createLinkNonce(w http.ResponseWriter, r *http.Request, store auth.OIDCLinkNonceStore, ttl time.Duration, generateNonce func() (string, error)) {
 	if store == nil {
 		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
 		return
 	}
 
 	userID := auth.UserIDFromContext(r.Context())
-	nonce, err := auth.GenerateRandomBase64(32)
+	nonce, err := generateNonce()
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to generate link nonce", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate nonce")

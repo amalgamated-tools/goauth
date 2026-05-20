@@ -204,7 +204,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 // CreateLinkNonce issues a nonce for OIDC account linking.
 func (h *OIDCHandler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
-	createLinkNonce(w, r, h.LinkNonces, oidcStateCookieTTL)
+	createLinkNonce(w, r, h.LinkNonces, oidcStateCookieTTL, generateOIDCState)
 }
 
 // Link validates the nonce and redirects for account linking.
