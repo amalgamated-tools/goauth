@@ -142,6 +142,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	oauth2Token, err := h.OAuthConfig.Exchange(r.Context(), code, oauth2.VerifierOption(verifierCookie.Value))
 	if err != nil {
+		slog.ErrorContext(r.Context(), "OIDC code exchange failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "failed to exchange code")
 		return
 	}
@@ -155,6 +156,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	verifier := h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
 	idToken, err := verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "OIDC id_token verification failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid id_token")
 		return
 	}
