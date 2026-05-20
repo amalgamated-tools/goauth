@@ -1573,7 +1573,12 @@ jobs:
               per_page: 100,
               labels: 'automation',
             });
-            const issuesToClose = openIssues.filter((issue) => !issue.pull_request && issue.number !== createdIssueNumber && typeof issue.title === 'string' && issue.title.startsWith(issuePrefix));
+            const issuesToClose = openIssues.filter((issue) => {
+              const isNotPullRequest = !issue.pull_request;
+              const isNotCurrentIssue = issue.number !== createdIssueNumber;
+              const hasMatchingPrefix = typeof issue.title === 'string' && issue.title.startsWith(issuePrefix);
+              return isNotPullRequest && isNotCurrentIssue && hasMatchingPrefix;
+            });
             for (const issue of issuesToClose) {
               await github.rest.issues.createComment({
                 owner,
