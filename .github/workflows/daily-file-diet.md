@@ -44,7 +44,6 @@ features:
 source: github/gh-aw/.github/workflows/daily-file-diet.md@91ec20513218373c2191ce92305f2ba8427c3840
 ---
 
-{{#runtime-import? .github/shared-instructions.md}}
 
 # Daily File Diet Agent 🏋️
 
