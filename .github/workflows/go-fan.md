@@ -1,4 +1,5 @@
 ---
+emoji: "🐹"
 name: Go Fan
 description: Daily Go module usage reviewer - analyzes direct dependencies prioritizing recently updated ones
 on:
@@ -48,7 +49,7 @@ tools:
 timeout-minutes: 30
 strict: true
 
-source: github/gh-aw/.github/workflows/go-fan.md@a70dd401e64b94aad51cc3aeb6c8e639873c1457
+source: github/gh-aw/.github/workflows/go-fan.md@7616aae2c73a761c139de5c6116be4c43936df99
 ---
 
 # Go Fan 🐹 - Daily Go Module Reviewer
