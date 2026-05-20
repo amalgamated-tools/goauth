@@ -1575,17 +1575,17 @@ jobs:
             });
             const issuesToClose = openIssues.filter((issue) => !issue.pull_request && issue.number !== createdIssueNumber && typeof issue.title === 'string' && issue.title.startsWith(issuePrefix));
             for (const issue of issuesToClose) {
-              await github.rest.issues.update({
-                owner,
-                repo,
-                issue_number: issue.number,
-                state: 'closed',
-              });
               await github.rest.issues.createComment({
                 owner,
                 repo,
                 issue_number: issue.number,
                 body: `Closing in favor of #${createdIssueNumber} to keep only one open Daily Grumpy Reviewer issue.`,
+              });
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                state: 'closed',
               });
             }
             core.info(`Closed ${issuesToClose.length} older Daily Grumpy Reviewer issue(s).`);
