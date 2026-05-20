@@ -356,7 +356,10 @@ jobs:
   agent:
     needs: activation
     runs-on: ubuntu-latest
-    permissions: read-all
+    permissions:
+      actions: read
+      contents: read
+      copilot-requests: write
     concurrency:
       group: "gh-aw-copilot-${{ github.workflow }}"
     env:
