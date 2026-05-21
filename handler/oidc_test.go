@@ -767,7 +767,7 @@ func TestOIDCCallback_verifyFailure_logsError(t *testing.T) {
 
 	discoveryMux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{
+		_, _ = fmt.Fprintf(w, `{
 			"issuer": %q,
 			"authorization_endpoint": %q,
 			"token_endpoint": %q,
@@ -777,12 +777,12 @@ func TestOIDCCallback_verifyFailure_logsError(t *testing.T) {
 	})
 	discoveryMux.HandleFunc("/jwks", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"keys":[]}`)
+		_, _ = fmt.Fprint(w, `{"keys":[]}`)
 	})
 	discoveryMux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		// id_token is not a valid JWT — Verify must reject it.
-		fmt.Fprint(w, `{"access_token":"tok","token_type":"bearer","id_token":"not.a.jwt"}`)
+		_, _ = fmt.Fprint(w, `{"access_token":"tok","token_type":"bearer","id_token":"not.a.jwt"}`)
 	})
 
 	provider, err := oidc.NewProvider(context.Background(), providerURL)
