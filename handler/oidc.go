@@ -28,9 +28,6 @@ type OIDCHandler struct {
 	CookieName    string
 	SecureCookies bool
 	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
-	// idTokenVerifier is cached at construction / Validate() time to avoid
-	// recreating an identical verifier on every Callback invocation.
-	idTokenVerifier *oidc.IDTokenVerifier
 	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
 	// DefaultRefreshTokenTTL when Sessions is non-nil.
 	RefreshTokenTTL time.Duration
@@ -41,6 +38,10 @@ type OIDCHandler struct {
 	// LinkNonces is the store used to persist single-use account-linking nonces.
 	// When nil, CreateLinkNonce and Link return HTTP 503.
 	LinkNonces auth.OIDCLinkNonceStore
+	// IDTokenVerifier is cached at construction / Validate() time to avoid
+	// recreating an identical verifier on every Callback invocation. Leave nil
+	// to let NewOIDCHandler or Validate populate it automatically.
+	IDTokenVerifier *oidc.IDTokenVerifier
 }
 
 // NewOIDCHandler creates an OIDCHandler by performing OIDC discovery.
@@ -57,7 +58,7 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 			Scopes: []string{oidc.ScopeOpenID, "email", "profile"},
 		},
 		CookieName: cookieName, SecureCookies: secureCookies,
-		idTokenVerifier: provider.Verifier(&oidc.Config{ClientID: clientID}),
+		IDTokenVerifier: provider.Verifier(&oidc.Config{ClientID: clientID}),
 	}, nil
 }
 
@@ -70,8 +71,8 @@ func (h *OIDCHandler) Validate() error {
 	if h.Sessions != nil && h.RefreshCookieName == "" {
 		return errors.New("OIDCHandler misconfigured: Sessions requires RefreshCookieName")
 	}
-	if h.Provider != nil && h.idTokenVerifier == nil {
-		h.idTokenVerifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
+	if h.Provider != nil && h.IDTokenVerifier == nil {
+		h.IDTokenVerifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
 	}
 	return nil
 }
@@ -159,7 +160,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifier := h.idTokenVerifier
+	verifier := h.IDTokenVerifier
 	if verifier == nil {
 		verifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
 	}
