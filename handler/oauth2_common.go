@@ -65,6 +65,31 @@ func findOrCreateUser(ctx context.Context, users auth.UserStore, subject, email,
 	return nil, fmt.Errorf("failed to resolve user after race retry: %w", err)
 }
 
+// createLinkNonce issues a single-use account-linking nonce.
+func createLinkNonce(w http.ResponseWriter, r *http.Request, store auth.OIDCLinkNonceStore, ttl time.Duration, generateNonce func() (string, error)) {
+	if store == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
+		return
+	}
+
+	userID := auth.UserIDFromContext(r.Context())
+	nonce, err := generateNonce()
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to generate link nonce", slog.Any("error", err), slog.String("user_id", userID))
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate nonce")
+		return
+	}
+
+	nonceHash := auth.HashHighEntropyToken(nonce)
+	if _, err := store.CreateLinkNonce(r.Context(), userID, nonceHash, time.Now().UTC().Add(ttl)); err != nil {
+		slog.ErrorContext(r.Context(), "failed to store link nonce", slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store nonce")
+		return
+	}
+
+	writeJSON(r.Context(), w, http.StatusOK, nonceBody{Nonce: nonce})
+}
+
 // signLinkState encodes userID and produces an HMAC-signed state value that
 // can be embedded in a redirect URL and later verified by parseLinkState.
 func signLinkState(jwtMgr *auth.JWTManager, randomState, userID string) string {
