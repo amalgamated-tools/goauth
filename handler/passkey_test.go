@@ -112,13 +112,6 @@ func newTestWebAuthn(t *testing.T) *webauthn.WebAuthn {
 	return wa
 }
 
-func TestPasskeyValidate_missingUsers_returnsError(t *testing.T) {
-	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
-	h.Users = nil
-
-	require.Error(t, h.Validate())
-}
-
 func TestPasskeyValidate_missingPasskeys_returnsError(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
 	h.Passkeys = nil
@@ -126,9 +119,19 @@ func TestPasskeyValidate_missingPasskeys_returnsError(t *testing.T) {
 	require.Error(t, h.Validate())
 }
 
-func TestPasskeyValidate_missingWebAuthn_returnsError(t *testing.T) {
+func TestPasskeyValidate_nilWebAuthn_ok(t *testing.T) {
+	// nil WebAuthn is a supported "not configured" state; ceremony endpoints
+	// return 503 and ListCredentials/DeleteCredential remain available.
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
 	// WebAuthn is nil by default in newPasskeyHandler.
+	require.NoError(t, h.Validate())
+}
+
+func TestPasskeyValidate_missingUsers_whenWebAuthnSet_returnsError(t *testing.T) {
+	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
+	h.WebAuthn = newTestWebAuthn(t)
+	h.Users = nil
+
 	require.Error(t, h.Validate())
 }
 
