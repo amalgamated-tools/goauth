@@ -234,6 +234,7 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 
 	credential, err := h.WebAuthn.FinishRegistration(waUser, challengeData.SessionData, r)
 	if err != nil {
+		slog.WarnContext(r.Context(), "webauthn finish registration failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusBadRequest, "registration verification failed")
 		return
 	}

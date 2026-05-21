@@ -286,6 +286,42 @@ func TestPasskey_finishRegistration_listCredentialsError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+func TestPasskey_finishRegistration_webauthnError(t *testing.T) {
+	wa, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "Test",
+		RPID:          "localhost",
+		RPOrigins:     []string{"http://localhost"},
+	})
+	require.NoError(t, err)
+
+	challengeJSON := `{"session_data":{"challenge":"dGVzdA","rpId":"localhost","user_id":null,"expires":"2099-01-01T00:00:00Z","userVerification":""},"name":"test-key"}`
+	store := &mockPasskeyStore{
+		getAndDeleteChallengeFunc: func(_ context.Context, _ string) (*auth.PasskeyChallenge, error) {
+			return &auth.PasskeyChallenge{
+				ID:          "sess-1",
+				SessionData: challengeJSON,
+				ExpiresAt:   time.Now().Add(5 * time.Minute),
+			}, nil
+		},
+	}
+	users := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return &auth.User{ID: "u1", Email: "test@example.com"}, nil
+		},
+	}
+
+	h := newPasskeyHandler(store, users)
+	h.WebAuthn = wa
+
+	// Sending an empty body causes WebAuthn.FinishRegistration to fail.
+	req := httptest.NewRequest(http.MethodPost, "/passkeys/register/finish?session_id=sess-1", strings.NewReader("garbage"))
+	req = withUserID(req, "u1")
+	w := httptest.NewRecorder()
+	h.FinishRegistration(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestPasskey_beginAuthentication_notConfigured(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
 	req := httptest.NewRequest(http.MethodPost, "/passkeys/auth/begin", nil)
