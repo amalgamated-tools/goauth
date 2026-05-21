@@ -75,7 +75,7 @@ func createLinkNonce(w http.ResponseWriter, r *http.Request, store auth.OIDCLink
 	userID := auth.UserIDFromContext(r.Context())
 	nonce, err := generateNonce()
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to generate link nonce", slog.Any("error", err))
+		slog.ErrorContext(r.Context(), "failed to generate link nonce", slog.Any("error", err), slog.String("user_id", userID))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate nonce")
 		return
 	}
