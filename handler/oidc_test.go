@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 )
@@ -22,6 +24,23 @@ func newTestOIDCHandler() *OIDCHandler {
 		SecureCookies: false,
 		LinkNonces:    &mockOIDCLinkNonceStore{},
 	}
+}
+
+// newMockOIDCProvider creates a real *oidc.Provider backed by a local httptest
+// server that serves a minimal OpenID Connect discovery document.
+func newMockOIDCProvider(t *testing.T) *oidc.Provider {
+	t.Helper()
+	var srvURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"issuer":%q,"authorization_endpoint":%q,"token_endpoint":%q,"jwks_uri":%q}`,
+			srvURL, srvURL+"/auth", srvURL+"/token", srvURL+"/keys")
+	}))
+	t.Cleanup(srv.Close)
+	srvURL = srv.URL
+	p, err := oidc.NewProvider(context.Background(), srv.URL)
+	require.NoError(t, err)
+	return p
 }
 
 // ---------------------------------------------------------------------------
@@ -721,8 +740,29 @@ func TestOIDCCallback_missingCode(t *testing.T) {
 // Validate
 // ---------------------------------------------------------------------------
 
+func TestValidate_missingUsers_returnsError(t *testing.T) {
+	h := newTestOIDCHandler()
+	h.Users = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestValidate_missingJWT_returnsError(t *testing.T) {
+	h := newTestOIDCHandler()
+	h.JWT = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestValidate_missingProvider_returnsError(t *testing.T) {
+	h := newTestOIDCHandler()
+	// Provider is nil by default in newTestOIDCHandler.
+	require.Error(t, h.Validate())
+}
+
 func TestValidate_sessionsWithoutRefreshCookieName_returnsError(t *testing.T) {
 	h := newTestOIDCHandler()
+	h.Provider = newMockOIDCProvider(t)
 	h.Sessions = &mockSessionStore{}
 	// h.RefreshCookieName is "" (zero value)
 
@@ -731,6 +771,7 @@ func TestValidate_sessionsWithoutRefreshCookieName_returnsError(t *testing.T) {
 
 func TestValidate_sessionsWithRefreshCookieName_ok(t *testing.T) {
 	h := newTestOIDCHandler()
+	h.Provider = newMockOIDCProvider(t)
 	h.Sessions = &mockSessionStore{}
 	h.RefreshCookieName = "refresh"
 
@@ -739,6 +780,7 @@ func TestValidate_sessionsWithRefreshCookieName_ok(t *testing.T) {
 
 func TestValidate_noSessions_ok(t *testing.T) {
 	h := newTestOIDCHandler()
+	h.Provider = newMockOIDCProvider(t)
 	// Sessions is nil — RefreshCookieName is not required.
 	require.NoError(t, h.Validate())
 }

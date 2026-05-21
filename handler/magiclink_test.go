@@ -40,6 +40,34 @@ func newMagicLinkHandlerWithSessions(users auth.UserStore, links auth.MagicLinkS
 // noopSender is a MagicLinkSender that always succeeds without doing anything.
 func noopSender(_ context.Context, _, _ string) error { return nil }
 
+func TestMagicLinkValidate_missingUsers_returnsError(t *testing.T) {
+	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
+	h.Users = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestMagicLinkValidate_missingMagicLinks_returnsError(t *testing.T) {
+	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
+	h.MagicLinks = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestMagicLinkValidate_missingJWT_returnsError(t *testing.T) {
+	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
+	h.JWT = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestMagicLinkValidate_missingSender_returnsError(t *testing.T) {
+	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
+	h.Sender = nil
+
+	require.Error(t, h.Validate())
+}
+
 func TestMagicLinkValidate_sessionsWithoutRefreshCookieName_returnsError(t *testing.T) {
 	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
 	h.Sessions = &mockSessionStore{}
