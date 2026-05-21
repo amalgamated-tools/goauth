@@ -33,7 +33,7 @@ func newMockOIDCProvider(t *testing.T) *oidc.Provider {
 	var srvURL string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"issuer":%q,"authorization_endpoint":%q,"token_endpoint":%q,"jwks_uri":%q}`,
+		_, _ = fmt.Fprintf(w, `{"issuer":%q,"authorization_endpoint":%q,"token_endpoint":%q,"jwks_uri":%q}`,
 			srvURL, srvURL+"/auth", srvURL+"/token", srvURL+"/keys")
 	}))
 	t.Cleanup(srv.Close)
