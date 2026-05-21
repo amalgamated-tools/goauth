@@ -38,6 +38,18 @@ type OIDCHandler struct {
 	// LinkNonces is the store used to persist single-use account-linking nonces.
 	// When nil, CreateLinkNonce and Link return HTTP 503.
 	LinkNonces auth.OIDCLinkNonceStore
+	// Logger is the structured logger used by the handler. When nil, the
+	// process-wide slog.Default() logger is used.
+	Logger *slog.Logger
+}
+
+// log returns the handler's logger, falling back to slog.Default() when Logger
+// is nil.
+func (h *OIDCHandler) log() *slog.Logger {
+	if h.Logger != nil {
+		return h.Logger
+	}
+	return slog.Default()
 }
 
 // NewOIDCHandler creates an OIDCHandler by performing OIDC discovery.
@@ -142,7 +154,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	oauth2Token, err := h.OAuthConfig.Exchange(r.Context(), code, oauth2.VerifierOption(verifierCookie.Value))
 	if err != nil {
-		slog.ErrorContext(r.Context(), "OIDC code exchange failed", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "OIDC code exchange failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "failed to exchange code")
 		return
 	}
@@ -156,7 +168,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	verifier := h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
 	idToken, err := verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "OIDC id_token verification failed", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "OIDC id_token verification failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid id_token")
 		return
 	}

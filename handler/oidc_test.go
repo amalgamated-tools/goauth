@@ -743,9 +743,7 @@ func TestOIDCCallback_exchangeFailure_logsError(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	prev := slog.Default()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError})))
-	defer slog.SetDefault(prev)
+	h.Logger = slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&code=authcode", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
@@ -803,9 +801,7 @@ func TestOIDCCallback_verifyFailure_logsError(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	prev := slog.Default()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError})))
-	defer slog.SetDefault(prev)
+	h.Logger = slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&code=authcode", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
