@@ -63,10 +63,11 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 }
 
 // Validate checks that the handler is correctly configured and returns an error
-// if any required fields are missing or incompatible. Call Validate once at
-// server startup, after setting all optional fields (Sessions, RefreshCookieName,
-// etc.), so that misconfiguration is caught immediately rather than at the
-// moment the first real user attempts to log in.
+// if any required fields are missing or incompatible. It also initializes
+// IDTokenVerifier from Provider when the field is nil, so callers that do not
+// use NewOIDCHandler still benefit from the cached verifier. Call Validate once
+// at server startup, before the handler begins serving requests, after setting
+// all optional fields (Sessions, RefreshCookieName, etc.).
 func (h *OIDCHandler) Validate() error {
 	if h.Sessions != nil && h.RefreshCookieName == "" {
 		return errors.New("OIDCHandler misconfigured: Sessions requires RefreshCookieName")
