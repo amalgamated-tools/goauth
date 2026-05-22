@@ -69,10 +69,13 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 // at server startup, before the handler begins serving requests, after setting
 // all optional fields (Sessions, RefreshCookieName, etc.).
 func (h *OIDCHandler) Validate() error {
+	if h.Provider == nil {
+		return errors.New("OIDCHandler misconfigured: Provider is required")
+	}
 	if h.Sessions != nil && h.RefreshCookieName == "" {
 		return errors.New("OIDCHandler misconfigured: Sessions requires RefreshCookieName")
 	}
-	if h.Provider != nil && h.IDTokenVerifier == nil {
+	if h.IDTokenVerifier == nil {
 		h.IDTokenVerifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
 	}
 	return nil
