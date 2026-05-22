@@ -56,7 +56,6 @@ imports:
 source: github/gh-aw/.github/workflows/daily-doc-updater.md@a70dd401e64b94aad51cc3aeb6c8e639873c1457
 ---
 
-{{#runtime-import? .github/shared-instructions.md}}
 
 # Daily Documentation Updater
 

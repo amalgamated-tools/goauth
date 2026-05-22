@@ -17,6 +17,20 @@ type SessionHandler struct {
 	URLParamFunc func(r *http.Request, key string) string
 }
 
+// Validate checks that the handler is correctly configured and returns an
+// error when required dependencies are missing. Call Validate once at server
+// startup so misconfiguration is caught immediately rather than at the first
+// request.
+func (h *SessionHandler) Validate() error {
+	if h.Sessions == nil {
+		return errors.New("SessionHandler misconfigured: Sessions is required")
+	}
+	if h.URLParamFunc == nil {
+		return errors.New("SessionHandler misconfigured: URLParamFunc is required")
+	}
+	return nil
+}
+
 // SessionDTO is the public representation of an active session.
 type SessionDTO struct {
 	ID        string    `json:"id"`

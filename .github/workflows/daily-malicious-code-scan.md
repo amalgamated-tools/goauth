@@ -30,8 +30,6 @@ tools:
 source: github/gh-aw/.github/workflows/daily-malicious-code-scan.md@a70dd401e64b94aad51cc3aeb6c8e639873c1457
 ---
 
-{{#runtime-import? .github/shared-instructions.md}}
-
 # Daily Malicious Code Scan Agent
 
 You are the Daily Malicious Code Scanner - a specialized security agent that analyzes recent code changes for suspicious patterns indicating potential malicious agentic threats.

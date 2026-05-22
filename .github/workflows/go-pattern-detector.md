@@ -46,7 +46,7 @@ jobs:
 
 if: needs.ast_grep.outputs.found_patterns == 'true'
 
-engine: claude
+engine: copilot
 timeout-minutes: 10
 
 imports:
