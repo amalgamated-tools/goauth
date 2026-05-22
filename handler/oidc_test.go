@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -734,6 +736,98 @@ func TestOIDCCallback_missingCode(t *testing.T) {
 	h.Callback(w, req)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// ---------------------------------------------------------------------------
+// Callback — Exchange and Verify failures log via slog.ErrorContext
+// ---------------------------------------------------------------------------
+
+func TestOIDCCallback_exchangeFailure_logsError(t *testing.T) {
+	// Fake token endpoint that always returns HTTP 400 (provider/network error).
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad_request", http.StatusBadRequest)
+	}))
+	defer tokenServer.Close()
+
+	h := newTestOIDCHandler()
+	h.OAuthConfig = oauth2.Config{
+		ClientID:    "test-client",
+		RedirectURL: "http://localhost/callback",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://example.com/authorize",
+			TokenURL: tokenServer.URL + "/token",
+		},
+	}
+
+	var buf bytes.Buffer
+	h.Logger = slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&code=authcode", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
+	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "someverifier"})
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, buf.String(), "OIDC code exchange failed")
+}
+
+func TestOIDCCallback_verifyFailure_logsError(t *testing.T) {
+	// Fake OIDC discovery + JWKS server.  The token endpoint returns a
+	// syntactically valid JSON body but with an id_token that is not a real JWT,
+	// so verifier.Verify() will fail.
+	var providerURL string
+	discoveryMux := http.NewServeMux()
+	providerServer := httptest.NewServer(discoveryMux)
+	defer providerServer.Close()
+	providerURL = providerServer.URL
+
+	discoveryMux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{
+			"issuer": %q,
+			"authorization_endpoint": %q,
+			"token_endpoint": %q,
+			"jwks_uri": %q,
+			"id_token_signing_alg_values_supported": ["RS256"]
+		}`, providerURL, providerURL+"/auth", providerURL+"/token", providerURL+"/jwks")
+	})
+	discoveryMux.HandleFunc("/jwks", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"keys":[]}`)
+	})
+	discoveryMux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// id_token is not a valid JWT — Verify must reject it.
+		_, _ = fmt.Fprint(w, `{"access_token":"tok","token_type":"bearer","id_token":"not.a.jwt"}`)
+	})
+
+	provider, err := oidc.NewProvider(context.Background(), providerURL)
+	require.NoError(t, err)
+
+	h := newTestOIDCHandler()
+	h.Provider = provider
+	h.OAuthConfig = oauth2.Config{
+		ClientID:    "test-client",
+		RedirectURL: "http://localhost/callback",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   providerURL + "/auth",
+			TokenURL:  providerURL + "/token",
+			AuthStyle: oauth2.AuthStyleInHeader,
+		},
+	}
+
+	var buf bytes.Buffer
+	h.Logger = slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&code=authcode", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
+	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "someverifier"})
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, buf.String(), "OIDC id_token verification failed")
 }
 
 // ---------------------------------------------------------------------------
