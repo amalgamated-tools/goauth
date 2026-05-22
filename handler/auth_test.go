@@ -26,6 +26,20 @@ func newAuthHandler(store auth.UserStore) *AuthHandler {
 	}
 }
 
+func TestAuthValidate_missingUsers_returnsError(t *testing.T) {
+	h := newAuthHandler(&mockUserStore{})
+	h.Users = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestAuthValidate_missingJWT_returnsError(t *testing.T) {
+	h := newAuthHandler(&mockUserStore{})
+	h.JWT = nil
+
+	require.Error(t, h.Validate())
+}
+
 func TestAuthValidate_sessionsWithoutRefreshCookieName_returnsError(t *testing.T) {
 	h := newAuthHandler(&mockUserStore{})
 	h.Sessions = &mockSessionStore{}

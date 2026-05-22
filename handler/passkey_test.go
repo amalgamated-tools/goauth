@@ -100,8 +100,60 @@ func newPasskeyHandler(passkeys auth.PasskeyStore, users auth.UserStore) *Passke
 	}
 }
 
+// newTestWebAuthn creates a minimal *webauthn.WebAuthn for use in Validate tests.
+func newTestWebAuthn(t *testing.T) *webauthn.WebAuthn {
+	t.Helper()
+	wa, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "Test",
+		RPID:          "localhost",
+		RPOrigins:     []string{"http://localhost"},
+	})
+	require.NoError(t, err)
+	return wa
+}
+
+func TestPasskeyValidate_missingPasskeys_returnsError(t *testing.T) {
+	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
+	h.Passkeys = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestPasskeyValidate_nilWebAuthn_ok(t *testing.T) {
+	// nil WebAuthn is a supported "not configured" state; ceremony endpoints
+	// return 503 and ListCredentials/DeleteCredential remain available.
+	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
+	// WebAuthn is nil by default in newPasskeyHandler.
+	require.NoError(t, h.Validate())
+}
+
+func TestPasskeyValidate_missingUsers_whenWebAuthnSet_returnsError(t *testing.T) {
+	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
+	h.WebAuthn = newTestWebAuthn(t)
+	h.Users = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestPasskeyValidate_missingJWT_returnsError(t *testing.T) {
+	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
+	h.WebAuthn = newTestWebAuthn(t)
+	h.JWT = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestPasskeyValidate_missingURLParamFunc_returnsError(t *testing.T) {
+	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
+	h.WebAuthn = newTestWebAuthn(t)
+	h.URLParamFunc = nil
+
+	require.Error(t, h.Validate())
+}
+
 func TestPasskeyValidate_sessionsWithoutRefreshCookieName_returnsError(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
+	h.WebAuthn = newTestWebAuthn(t)
 	h.Sessions = &mockSessionStore{}
 
 	require.Error(t, h.Validate())
@@ -109,6 +161,7 @@ func TestPasskeyValidate_sessionsWithoutRefreshCookieName_returnsError(t *testin
 
 func TestPasskeyValidate_sessionsWithRefreshCookieName_ok(t *testing.T) {
 	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
+	h.WebAuthn = newTestWebAuthn(t)
 	h.Sessions = &mockSessionStore{}
 	h.RefreshCookieName = "refresh"
 
@@ -116,7 +169,9 @@ func TestPasskeyValidate_sessionsWithRefreshCookieName_ok(t *testing.T) {
 }
 
 func TestPasskeyValidate_noSessions_ok(t *testing.T) {
-	require.NoError(t, newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{}).Validate())
+	h := newPasskeyHandler(&mockPasskeyStore{}, &mockUserStore{})
+	h.WebAuthn = newTestWebAuthn(t)
+	require.NoError(t, h.Validate())
 }
 
 // ---------------------------------------------------------------------------
