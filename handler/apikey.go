@@ -97,8 +97,7 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return the full key only on creation — it's never retrievable again.
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
+	setNoCacheHeaders(w)
 	writeJSON(r.Context(), w, http.StatusCreated, apiKeyCreateResponse{
 		APIKeyDTO: ToAPIKeyDTO(apiKey),
 		Key:       fullKey,
