@@ -107,7 +107,7 @@ Both `Login` and `Link` use the same underlying redirect mechanism: they set sho
 
 | Endpoint | HTTP status | Response body |
 |---|---|---|
-| `Login` | 302 Found | *(redirect to provider — no body)* |
+| `Login` | 302 Found | *(redirect to provider — sets state and PKCE verifier cookies, no body)* |
 | `Callback` | 302 Found | *(login: redirects to `/?<LoginRedirect>`; link: redirects to `/?oauth2_linked=true` — JWT and optional refresh token in `HttpOnly` cookies on the login path)* |
 | `CreateLinkNonce` | 200 OK | `{"nonce": "<nonce>"}` |
 | `Link` | 302 Found | *(redirect to provider — sets state and PKCE verifier cookies, no body)* |
