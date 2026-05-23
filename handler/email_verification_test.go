@@ -55,6 +55,37 @@ func newEmailVerificationHandler(users auth.UserStore, store auth.EmailVerificat
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Validate
+// ---------------------------------------------------------------------------
+
+func TestEmailVerificationValidate_nilUsers_returnsError(t *testing.T) {
+	h := newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{})
+	h.Users = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestEmailVerificationValidate_nilVerifications_returnsError(t *testing.T) {
+	h := newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{})
+	h.Verifications = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestEmailVerificationValidate_nilSendEmail_returnsError(t *testing.T) {
+	h := newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{})
+	h.SendEmail = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestEmailVerificationValidate_fullyConfigured_ok(t *testing.T) {
+	h := newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{})
+
+	require.NoError(t, h.Validate())
+}
+
 // validToken is a 64-hex-char plaintext token (32 bytes).
 const validToken = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
 
