@@ -29,12 +29,12 @@ func TestRedirectToOAuthProvider_setsCookiesAndRedirects(t *testing.T) {
 		case "state_cookie":
 			sawState = true
 			require.Equal(t, "state-value", c.Value)
-			require.Equal(t, int((5*time.Minute).Seconds()), c.MaxAge)
+			require.Equal(t, int((5 * time.Minute).Seconds()), c.MaxAge)
 			require.True(t, c.Secure)
 		case "verifier_cookie":
 			sawVerifier = true
 			require.Equal(t, "verifier-value", c.Value)
-			require.Equal(t, int((5*time.Minute).Seconds()), c.MaxAge)
+			require.Equal(t, int((5 * time.Minute).Seconds()), c.MaxAge)
 			require.True(t, c.Secure)
 		}
 	}
