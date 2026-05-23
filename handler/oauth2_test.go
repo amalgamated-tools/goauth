@@ -643,6 +643,26 @@ func TestOAuth2Link_success(t *testing.T) {
 	// Should redirect to the OAuth2 provider.
 	require.Equal(t, http.StatusFound, w.Code)
 	require.Contains(t, w.Header().Get("Location"), "https://example.com/authorize")
+
+	var stateCookie, verifierCookie bool
+	for _, c := range w.Result().Cookies() {
+		switch c.Name {
+		case oauth2StateCookieName:
+			stateCookie = true
+			require.NotEmpty(t, c.Value)
+			require.True(t, c.HttpOnly)
+			require.Equal(t, http.SameSiteLaxMode, c.SameSite)
+			require.Equal(t, int(oauth2StateCookieTTL.Seconds()), c.MaxAge)
+		case oauth2VerifierCookieName:
+			verifierCookie = true
+			require.NotEmpty(t, c.Value)
+			require.True(t, c.HttpOnly)
+			require.Equal(t, http.SameSiteLaxMode, c.SameSite)
+			require.Equal(t, int(oauth2StateCookieTTL.Seconds()), c.MaxAge)
+		}
+	}
+	require.True(t, stateCookie, "missing oauth2_state cookie")
+	require.True(t, verifierCookie, "missing oauth2_verifier cookie")
 }
 
 // ---------------------------------------------------------------------------
