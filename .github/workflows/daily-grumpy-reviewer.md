@@ -37,7 +37,6 @@ engine:
   id: copilot
   model: claude-sonnet-4.6
 name: Daily Grumpy Reviewer
-source: amalgamated-tools/biblioteka/.github/workflows/daily-grumpy-reviewer.md@e57c0770d45486035356a3fbcef4183773851162
 timeout-minutes: 30
 tools:
   bash: true
