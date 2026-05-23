@@ -16,7 +16,7 @@ if err := h.Validate(); err != nil {
 }
 ```
 
-`Validate` returns an error if `APIKeys` or `URLParamFunc` is `nil`. Call it once at server startup so misconfiguration surfaces immediately rather than at the first request — in particular, a nil `URLParamFunc` would otherwise cause a runtime panic on the first `Delete` call.
+`Validate()` returns a descriptive error such as `"APIKeyHandler misconfigured: URLParamFunc is required"` so the cause is immediately obvious in logs. `Delete` also includes a defensive nil guard for `URLParamFunc` and returns HTTP 500 if it is nil at request time, but calling `Validate()` at startup is strongly preferred.
 
 ## Routes
 
@@ -79,7 +79,7 @@ The `Create` response also sets `Cache-Control: no-store` and `Pragma: no-cache`
 | `Delete` | 204 No Content | Success |
 | `Delete` | 400 Bad Request | Missing key ID |
 | `Delete` | 404 Not Found | API key not found or not owned by the authenticated user |
-| `Delete` | 500 Internal Server Error | Store failure |
+| `Delete` | 500 Internal Server Error | `URLParamFunc` is nil; store failure |
 
 ## Observability
 
