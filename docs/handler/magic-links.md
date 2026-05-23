@@ -55,7 +55,10 @@ GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → A
 
 ## Session tracking
 
-Session tracking and refresh token rotation work identically to `AuthHandler` — set `Sessions`, `RefreshTokenTTL`, and `RefreshCookieName` to enable them. `RefreshCookieName` is **required** when `Sessions` is set; call `h.Validate()` at startup to catch this misconfiguration before any `VerifyMagicLink` request reaches token issuance. See [AuthHandler — Session tracking](auth.md#session-tracking-and-refresh-token-rotation) for details.
+Session tracking and refresh token rotation work identically to `AuthHandler` — set `Sessions`, `RefreshTokenTTL`, and `RefreshCookieName` to enable them. See [AuthHandler — Session tracking](auth.md#session-tracking-and-refresh-token-rotation) for details.
+
+!!! warning "Sessions requires RefreshCookieName"
+    When `Sessions` is set, `RefreshCookieName` must also be non-empty. Call `h.Validate()` at server startup to catch this misconfiguration before any `VerifyMagicLink` request reaches token issuance.
 
 ## HTTP status codes
 
