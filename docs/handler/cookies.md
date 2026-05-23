@@ -28,7 +28,7 @@ All handlers that issue tokens (`AuthHandler`, `MagicLinkHandler`, `OAuth2Handle
 4. Sets the refresh token in an `HttpOnly` cookie using `SetRefreshCookie`.
 5. Sets the access token in an `HttpOnly` cookie using `SetAuthCookie`.
 
-When `Sessions` is nil, only steps 3 and 5 apply — `CreateToken` is used (no `jti` claim) and no refresh cookie is set.
+When `Sessions` is nil, only token creation and step 5 apply — `CreateToken` is used instead (no `jti` claim) and no refresh cookie is set.
 
 The `RefreshTokenTTL` field controls the refresh cookie `Max-Age` and session expiry. When unset (or ≤ 0), it defaults to `handler.DefaultRefreshTokenTTL` (7 days).
 
