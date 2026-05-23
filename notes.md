@@ -28,6 +28,7 @@
 - Full codebase rescan (2026-05-05): smtp/, maintenance/, auth/, handler/ all re-checked. No new efficiency opportunities. Hot-path optimisations exhausted.
 - Benchmarks added (PR #223 MERGED 2026-05-10): BenchmarkValidateTOTP, BenchmarkHotpCodeWithMAC (auth/totp_test.go); BenchmarkSecretEncrypterEncrypt, BenchmarkSecretEncrypterDecrypt (auth/crypto_test.go).
 - OIDCHandler: idTokenVerifier cached at init (PR #274 MERGED 2026-05-23). Saves 1 alloc per OIDC login.
+- PR #340 MERGED 2026-05-23: fail-fast Validate() checks in EmailVerification, PasswordReset, APIKey handlers — clean code, no efficiency issues.
 
 ## Optimisation Backlog
 All identified opportunities have been implemented. No open backlog items.
@@ -51,15 +52,15 @@ All identified opportunities have been implemented. No open backlog items.
 - PR #211: MERGED 2026-05-07 by veverkap — const password error strings + remove fmt import from handler/helpers.go
 - PR #213: MERGED 2026-05-07 by veverkap — bound RateLimiter visitors map to DefaultRateLimiterMaxVisitors=10_000
 - PR #223: MERGED 2026-05-10 by veverkap — add energy benchmarks (BenchmarkValidateTOTP, BenchmarkHotpCodeWithMAC, BenchmarkSecretEncrypterEncrypt, BenchmarkSecretEncrypterDecrypt)
-- PR #227: MERGED 2026-05-10 by veverkap — bound apiKeyLastTouchedAt cache to apiKeyTouchCacheMaxSize=10_000; superseded by PR #236 with FIFO eviction
+- PR #227: MERGED 2026-05-10 by veverkap — bound apiKeyLastTouchedAt cache to 10,000 entries with FIFO eviction
 - PR #274: MERGED 2026-05-23 by veverkap — cache oidc.IDTokenVerifier at init to avoid per-callback alloc
 
 ## Backlog Cursor
 - Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-23)
 - All hot-path optimisations implemented and merged; backlog fully empty
-- Last tasks run: Task 7 (created new monthly issue for May 2026)
-- Last run: 2026-05-23 15:50 UTC
+- Last tasks run: Task 4 (no open PRs), Task 7 (updated monthly issue #332)
+- Last run: 2026-05-23 20:46 UTC
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED 2026-05-01)
-- May 2026: Issue #212 (CLOSED by veverkap); Issue #264 (CLOSED by veverkap); Issue #332 (OPEN, created 2026-05-23 15:50 UTC)
+- May 2026: Issue #212 (CLOSED by veverkap); Issue #264 (CLOSED by veverkap); Issue #332 (OPEN, updated 2026-05-23 20:46 UTC)
