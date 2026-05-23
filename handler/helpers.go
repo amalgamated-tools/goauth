@@ -82,9 +82,7 @@ func issueTokens(
 			return "", "", false
 		}
 
-		if refreshCookieName != "" {
-			SetRefreshCookie(w, rawRefresh, refreshCookieName, secureCookies, int(ttl.Seconds()))
-		}
+		SetRefreshCookie(w, rawRefresh, refreshCookieName, secureCookies, int(ttl.Seconds()))
 		SetAuthCookie(w, accessToken, cookieName, secureCookies)
 		return accessToken, rawRefresh, true
 	}
