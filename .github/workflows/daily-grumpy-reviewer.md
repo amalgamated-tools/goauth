@@ -394,7 +394,7 @@ After generating the report, update the memory cache files:
 
 ## Step 7: Create Issues
 
-Create at most one GitHub Issue for the single most important immediate fix, include the "bug" label, and assign it to copilot. Use a title that starts with `[daily-grumpy-reviewer] ` and reference the discussion report for context.
+Create at most one GitHub Issue for the single most important immediate fix. Let the workflow's configured issue metadata be applied automatically, and reference the discussion report for context.
 
 ---
 
