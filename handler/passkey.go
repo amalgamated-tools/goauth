@@ -372,8 +372,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
+	setNoCacheHeaders(w)
 	writeJSON(r.Context(), w, http.StatusOK, AuthResponse{Token: token, RefreshToken: refreshToken, User: ToUserDTO(authedUser)})
 }
 

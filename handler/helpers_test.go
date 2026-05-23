@@ -366,6 +366,15 @@ func TestWriteError_writesErrorField(t *testing.T) {
 	require.Equal(t, "bad input", body["error"])
 }
 
+func TestSetNoCacheHeaders_setsNoCacheHeaders(t *testing.T) {
+	w := httptest.NewRecorder()
+
+	setNoCacheHeaders(w)
+
+	require.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+	require.Equal(t, "no-cache", w.Header().Get("Pragma"))
+}
+
 // ---------------------------------------------------------------------------
 // decodeJSON
 // ---------------------------------------------------------------------------

@@ -147,8 +147,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
+	setNoCacheHeaders(w)
 	writeJSON(r.Context(), w, http.StatusOK, AuthResponse{Token: jwtToken, RefreshToken: refreshToken, User: ToUserDTO(user)})
 }
 

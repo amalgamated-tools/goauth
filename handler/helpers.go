@@ -132,6 +132,12 @@ func writeError(ctx context.Context, w http.ResponseWriter, status int, message 
 	writeJSON(ctx, w, status, errorBody{Error: message})
 }
 
+// setNoCacheHeaders prevents browsers and proxies from caching sensitive auth responses.
+func setNoCacheHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+}
+
 // decodeJSON reads and decodes the JSON request body.
 func decodeJSON(r *http.Request, w http.ResponseWriter, v any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
