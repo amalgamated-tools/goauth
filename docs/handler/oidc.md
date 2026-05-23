@@ -44,7 +44,7 @@ Both `Login` and `Link` set two short-lived `HttpOnly` cookies before redirectin
 
 | Cookie | Value | Purpose |
 |---|---|---|
-| `oidc_state` | random 32-byte base64 string (or HMAC-signed state for link flows) | CSRF token |
+| `oidc_state` | base64url-encoded state derived from 32 random bytes (~43 chars, no padding); link flows use a dot-delimited HMAC-signed state token | CSRF token |
 | `oidc_verifier` | PKCE code verifier (S256 challenge method) | PKCE replay protection |
 
 Cookie attributes: `Path=/`, `HttpOnly`, `SameSite=Lax`, `MaxAge=300` (5 minutes), `Secure` when `SecureCookies` is `true`.
