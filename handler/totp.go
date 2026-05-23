@@ -73,11 +73,17 @@ func (h *TOTPHandler) Validate() error {
 // isReplay returns true when code has already been used for userID within the
 // replay window.
 func (h *TOTPHandler) isReplay(userID, code string) bool {
+	if h.UsedCodes == nil {
+		panic("TOTPHandler misconfigured: UsedCodes is nil; call Validate() at server startup")
+	}
 	return h.UsedCodes.WasUsed(userID, code)
 }
 
 // recordUsed marks code as used for userID to prevent future replays.
 func (h *TOTPHandler) recordUsed(userID, code string) {
+	if h.UsedCodes == nil {
+		panic("TOTPHandler misconfigured: UsedCodes is nil; call Validate() at server startup")
+	}
 	h.UsedCodes.MarkUsed(userID, code)
 }
 
