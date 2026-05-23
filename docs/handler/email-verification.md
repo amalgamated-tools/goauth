@@ -11,7 +11,13 @@ h := &handler.EmailVerificationHandler{
     SendEmail:     func(ctx context.Context, to, token string) error { /* send email */ return nil },
     TokenTTL:      24 * time.Hour, // defaults to 24 hours
 }
+
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
 ```
+
+`Validate` returns an error if `Users` or `Verifications` is `nil`. Call it once at server startup so missing dependencies surface immediately rather than at the first request.
 
 When `SendEmail` is `nil`, `SendVerification` returns HTTP 503 before any database write — treat a missing sender as a misconfiguration error. To skip email delivery in tests, supply a no-op `SendEmail` function instead.
 

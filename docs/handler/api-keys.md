@@ -10,7 +10,13 @@ h := &handler.APIKeyHandler{
     Prefix:       "myapp_",   // prepended to the random hex token
     URLParamFunc: chi.URLParam,
 }
+
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
 ```
+
+`Validate` returns an error if `APIKeys` or `URLParamFunc` is `nil`. Call it once at server startup so misconfiguration surfaces immediately rather than at the first request — in particular, a nil `URLParamFunc` would otherwise cause a runtime panic on the first `Delete` call.
 
 ## Routes
 
