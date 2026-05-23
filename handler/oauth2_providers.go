@@ -9,6 +9,13 @@ import (
 	"golang.org/x/oauth2"
 )
 
+func resolveHTTPClient(client *http.Client) *http.Client {
+	if client != nil {
+		return client
+	}
+	return http.DefaultClient
+}
+
 // GitHubProvider is a ready-to-use OAuth2IdentityProvider for GitHub. It calls
 // the GitHub REST API to fetch the authenticated user's profile and primary
 // verified email. Subjects are prefixed with "github:" (e.g. "github:12345")
@@ -18,13 +25,6 @@ import (
 type GitHubProvider struct {
 	// HTTPClient is used for API requests. Defaults to http.DefaultClient when nil.
 	HTTPClient *http.Client
-}
-
-func (p *GitHubProvider) httpClient() *http.Client {
-	if p.HTTPClient != nil {
-		return p.HTTPClient
-	}
-	return http.DefaultClient
 }
 
 // FetchUserInfo fetches the GitHub user profile and primary verified email.
@@ -63,7 +63,7 @@ func (p *GitHubProvider) fetchGitHubUser(ctx context.Context, token *oauth2.Toke
 	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := p.httpClient().Do(req)
+	resp, err := resolveHTTPClient(p.HTTPClient).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (p *GitHubProvider) fetchGitHubPrimaryEmail(ctx context.Context, token *oau
 	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := p.httpClient().Do(req)
+	resp, err := resolveHTTPClient(p.HTTPClient).Do(req)
 	if err != nil {
 		return "", false, err
 	}
@@ -124,13 +124,6 @@ type GoogleOAuth2Provider struct {
 	HTTPClient *http.Client
 }
 
-func (p *GoogleOAuth2Provider) httpClient() *http.Client {
-	if p.HTTPClient != nil {
-		return p.HTTPClient
-	}
-	return http.DefaultClient
-}
-
 type googleUserInfo struct {
 	Sub           string `json:"sub"`
 	Email         string `json:"email"`
@@ -146,7 +139,7 @@ func (p *GoogleOAuth2Provider) FetchUserInfo(ctx context.Context, token *oauth2.
 	}
 	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
 
-	resp, err := p.httpClient().Do(req)
+	resp, err := resolveHTTPClient(p.HTTPClient).Do(req)
 	if err != nil {
 		return nil, err
 	}
