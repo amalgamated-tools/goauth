@@ -13,7 +13,9 @@ permissions:
   pull-requests: read
 
 tracker-id: daily-file-diet
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 
 imports:
   - uses: shared/skip-if-issue-open.md

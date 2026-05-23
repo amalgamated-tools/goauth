@@ -8,7 +8,9 @@ permissions:
   actions: read
   security-events: read
 tracker-id: malicious-code-scan
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 safe-outputs:
   create-code-scanning-alert:
     driver: "Malicious Code Scanner"

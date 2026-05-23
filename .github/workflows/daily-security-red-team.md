@@ -8,7 +8,9 @@ permissions:
   issues: read
   security-events: read
 tracker-id: security-red-team
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 strict: true
 tools:
   cli-proxy: true

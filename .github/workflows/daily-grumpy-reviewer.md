@@ -32,7 +32,9 @@ safe-outputs:
   noop:
     report-as-issue: false
 description: Daily codebase grumpy reviewer that scans the entire codebase for non-linter issues, focusing on code quality, maintainability, and convention consistency with a sarcastic and grumpy tone
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 name: Daily Grumpy Reviewer
 source: amalgamated-tools/biblioteka/.github/workflows/daily-grumpy-reviewer.md@e57c0770d45486035356a3fbcef4183773851162
 timeout-minutes: 30

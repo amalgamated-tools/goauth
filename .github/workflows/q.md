@@ -13,7 +13,9 @@ permissions:
   issues: read
   pull-requests: read
   discussions: read
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 imports:
   - shared/observability-otlp.md
 tools:

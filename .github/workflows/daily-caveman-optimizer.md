@@ -12,7 +12,9 @@ permissions:
   issues: read
 
 tracker-id: daily-caveman-optimizer
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 strict: true
 
 network:

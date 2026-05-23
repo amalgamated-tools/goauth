@@ -46,7 +46,9 @@ jobs:
 
 if: needs.ast_grep.outputs.found_patterns == 'true'
 
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 timeout-minutes: 10
 
 imports:

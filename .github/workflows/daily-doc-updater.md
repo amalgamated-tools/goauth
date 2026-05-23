@@ -13,7 +13,9 @@ permissions:
   pull-requests: read
 
 tracker-id: daily-doc-updater
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 strict: true
 
 network:
