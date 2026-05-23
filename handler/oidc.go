@@ -38,6 +38,10 @@ type OIDCHandler struct {
 	// LinkNonces is the store used to persist single-use account-linking nonces.
 	// When nil, CreateLinkNonce and Link return HTTP 503.
 	LinkNonces auth.OIDCLinkNonceStore
+	// IDTokenVerifier is cached at construction / Validate() time to avoid
+	// recreating an identical verifier on every Callback invocation. Leave nil
+	// to let NewOIDCHandler or Validate populate it automatically.
+	IDTokenVerifier *oidc.IDTokenVerifier
 	// Logger is the structured logger used by the handler. When nil, the
 	// process-wide slog.Default() logger is used.
 	Logger *slog.Logger
@@ -66,14 +70,16 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 			Scopes: []string{oidc.ScopeOpenID, "email", "profile"},
 		},
 		CookieName: cookieName, SecureCookies: secureCookies,
+		IDTokenVerifier: provider.Verifier(&oidc.Config{ClientID: clientID}),
 	}, nil
 }
 
 // Validate checks that the handler is correctly configured and returns an error
-// if any required fields are missing or incompatible. Call Validate once at
-// server startup, after setting all optional fields (Sessions, RefreshCookieName,
-// etc.), so that misconfiguration is caught immediately rather than at the
-// moment the first real user attempts to log in.
+// if any required fields are missing or incompatible. It also initializes
+// IDTokenVerifier from Provider when the field is nil, so callers that do not
+// use NewOIDCHandler still benefit from the cached verifier. Call Validate once
+// at server startup, before the handler begins serving requests, after setting
+// all optional fields (Sessions, RefreshCookieName, etc.).
 func (h *OIDCHandler) Validate() error {
 	if h.Users == nil {
 		return errors.New("OIDCHandler misconfigured: Users is required")
@@ -86,6 +92,9 @@ func (h *OIDCHandler) Validate() error {
 	}
 	if h.Sessions != nil && h.RefreshCookieName == "" {
 		return errors.New("OIDCHandler misconfigured: Sessions requires RefreshCookieName")
+	}
+	if h.IDTokenVerifier == nil {
+		h.IDTokenVerifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
 	}
 	return nil
 }
@@ -174,7 +183,10 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifier := h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
+	verifier := h.IDTokenVerifier
+	if verifier == nil {
+		verifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
+	}
 	idToken, err := verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
 		h.log().ErrorContext(r.Context(), "OIDC id_token verification failed", slog.Any("error", err))
