@@ -11,6 +11,11 @@ permissions:
   pull-requests: read
 
 tracker-id: code-simplifier
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
+  env:
+    DEBUG_MODE: "true"  
 
 imports:
   - uses: shared/skip-if-issue-open.md
