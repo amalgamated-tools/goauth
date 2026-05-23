@@ -15,6 +15,16 @@ h := &handler.EmailVerificationHandler{
 
 When `SendEmail` is `nil`, `SendVerification` returns HTTP 503 before any database write — treat a missing sender as a misconfiguration error. To skip email delivery in tests, supply a no-op `SendEmail` function instead.
 
+Call `Validate()` at server startup to catch all three required-field checks (`Users`, `Verifications`, `SendEmail`) before the first request:
+
+```go
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
+```
+
+`Validate()` returns a descriptive error such as `"EmailVerificationHandler misconfigured: SendEmail is required"` so the cause is immediately obvious in logs.
+
 !!! note "Token retention on email delivery failure"
     If `SendEmail` is non-nil but returns an error, `SendVerification` logs the failure server-side and returns HTTP 200 — the stored token is **not** deleted. The user can re-request verification and the token will expire naturally after 24 hours (or the configured `TokenTTL`). This differs from `PasswordResetHandler`, which deletes the reset token when email delivery fails.
 
