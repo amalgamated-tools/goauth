@@ -38,6 +38,22 @@ POST /auth/oidc/link-nonce             → h.CreateLinkNonce    // issue nonce f
 GET  /auth/oidc/link?nonce=<nonce>     → h.Link               // start link flow (requires auth)
 ```
 
+## Login flow and CSRF/PKCE protection
+
+Both `Login` and `Link` set two short-lived `HttpOnly` cookies before redirecting the browser to the provider, then validate them when the provider redirects back to `Callback`:
+
+| Cookie | Value | Purpose |
+|---|---|---|
+| `oidc_state` | base64url-encoded state derived from 32 random bytes (~43 chars, no padding); link flows use a dot-delimited HMAC-signed state token | CSRF token |
+| `oidc_verifier` | PKCE code verifier (S256 challenge method) | PKCE replay protection |
+
+Cookie attributes: `Path=/`, `HttpOnly`, `SameSite=Lax`, `MaxAge=300` (5 minutes), `Secure` when `SecureCookies` is `true`.
+
+`Callback` clears both cookies immediately (by setting `MaxAge=-1`) before processing the authorization code.
+
+!!! tip "Debugging cookie issues"
+    If `Callback` returns HTTP 400 `"missing state cookie"` or `"missing PKCE verifier cookie"`, check that your reverse proxy preserves `Set-Cookie` headers from the `Login` / `Link` response and that the `Secure` cookie attribute is not stripped for HTTPS traffic.
+
 ## Response types
 
 | Endpoint | HTTP status | Response body |
