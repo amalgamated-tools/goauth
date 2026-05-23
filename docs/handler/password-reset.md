@@ -12,10 +12,13 @@ h := &handler.PasswordResetHandler{
     TokenTTL:       time.Hour, // defaults to 1 hour
     RateLimiter:    rl,        // optional; recommended to limit abuse
 }
+
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
 ```
 
-!!! warning "SendResetEmail is required"
-    If `SendResetEmail` is `nil`, `RequestReset` returns HTTP 503 (`password reset sending is not configured`) without touching the database. Configure `SendResetEmail` before mounting this handler in production. To skip email delivery in tests, supply a no-op function instead of leaving the field nil.
+`Validate()` returns an error if `Users`, `Resets`, or `SendResetEmail` is `nil`, with a descriptive message such as `"PasswordResetHandler misconfigured: SendResetEmail is required"` so the cause is immediately obvious in logs. Call it once at server startup so missing dependencies surface immediately rather than at the first request.
 
 ## Routes
 
