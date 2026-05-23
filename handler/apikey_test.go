@@ -25,6 +25,30 @@ func newAPIKeyHandler(store auth.APIKeyStore) *APIKeyHandler {
 }
 
 // ---------------------------------------------------------------------------
+// Validate
+// ---------------------------------------------------------------------------
+
+func TestAPIKeyValidate_nilAPIKeys_returnsError(t *testing.T) {
+	h := newAPIKeyHandler(&mockAPIKeyStore{})
+	h.APIKeys = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestAPIKeyValidate_nilURLParamFunc_returnsError(t *testing.T) {
+	h := newAPIKeyHandler(&mockAPIKeyStore{})
+	h.URLParamFunc = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestAPIKeyValidate_fullyConfigured_ok(t *testing.T) {
+	h := newAPIKeyHandler(&mockAPIKeyStore{})
+
+	require.NoError(t, h.Validate())
+}
+
+// ---------------------------------------------------------------------------
 // List
 // ---------------------------------------------------------------------------
 

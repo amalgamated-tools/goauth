@@ -34,6 +34,19 @@ type PasswordResetHandler struct {
 	RateLimiter *auth.RateLimiter
 }
 
+// Validate checks that the handler is correctly configured and returns an error
+// when required dependencies are missing. Call Validate once at server startup
+// so misconfiguration is caught immediately rather than at the first request.
+func (h *PasswordResetHandler) Validate() error {
+	if h.Users == nil {
+		return errors.New("PasswordResetHandler misconfigured: Users is required")
+	}
+	if h.Resets == nil {
+		return errors.New("PasswordResetHandler misconfigured: Resets is required")
+	}
+	return nil
+}
+
 type requestResetRequest struct {
 	Email string `json:"email"`
 }

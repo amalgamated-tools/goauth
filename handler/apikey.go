@@ -21,6 +21,19 @@ type APIKeyHandler struct {
 	URLParamFunc func(r *http.Request, key string) string
 }
 
+// Validate checks that the handler is correctly configured and returns an error
+// when required dependencies are missing. Call Validate once at server startup
+// so misconfiguration is caught immediately rather than at the first request.
+func (h *APIKeyHandler) Validate() error {
+	if h.APIKeys == nil {
+		return errors.New("APIKeyHandler misconfigured: APIKeys is required")
+	}
+	if h.URLParamFunc == nil {
+		return errors.New("APIKeyHandler misconfigured: URLParamFunc is required")
+	}
+	return nil
+}
+
 // APIKeyDTO is the public representation of an API key.
 type APIKeyDTO struct {
 	ID         string     `json:"id"`

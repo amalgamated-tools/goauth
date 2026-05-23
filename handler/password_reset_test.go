@@ -22,6 +22,30 @@ func newPasswordResetHandler(users auth.UserStore, resets auth.PasswordResetStor
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Validate
+// ---------------------------------------------------------------------------
+
+func TestPasswordResetValidate_nilUsers_returnsError(t *testing.T) {
+	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
+	h.Users = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestPasswordResetValidate_nilResets_returnsError(t *testing.T) {
+	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
+	h.Resets = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestPasswordResetValidate_fullyConfigured_ok(t *testing.T) {
+	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
+
+	require.NoError(t, h.Validate())
+}
+
 // validResetStore returns a mockPasswordResetStore whose FindPasswordResetToken
 // returns a non-expired token for the given userID.
 func validResetStore(userID string) *mockPasswordResetStore {
