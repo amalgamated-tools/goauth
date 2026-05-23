@@ -20,6 +20,7 @@ safe-outputs:
     labels:
     - automation
     max: 1
+    title-prefix: "[daily-grumpy-reviewer] "
   create-pull-request:
     auto-merge: true
     draft: false
@@ -393,7 +394,7 @@ After generating the report, update the memory cache files:
 
 ## Step 7: Create Issues
 
-For the top grumpies that require immediate attention, create GitHub Issues with the "bug" label and assign to the copilot. Reference the discussion report for context.
+Create at most one GitHub Issue for the single most important immediate fix. Let the workflow's configured issue metadata be applied automatically, and reference the discussion report for context.
 
 ---
 
