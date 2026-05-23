@@ -13,7 +13,9 @@ permissions:
   pull-requests: read
 
 tracker-id: daily-doc-updater
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 strict: true
 
 network:
@@ -56,7 +58,6 @@ imports:
 source: github/gh-aw/.github/workflows/daily-doc-updater.md@a70dd401e64b94aad51cc3aeb6c8e639873c1457
 ---
 
-{{#runtime-import? .github/shared-instructions.md}}
 
 # Daily Documentation Updater
 

@@ -23,6 +23,29 @@ func newSessionHandler(sessions auth.SessionStore) *SessionHandler {
 }
 
 // ---------------------------------------------------------------------------
+// Validate
+// ---------------------------------------------------------------------------
+
+func TestSessionValidate_nilSessions_returnsError(t *testing.T) {
+	h := newSessionHandler(nil)
+
+	require.Error(t, h.Validate())
+}
+
+func TestSessionValidate_nilURLParamFunc_returnsError(t *testing.T) {
+	h := newSessionHandler(&mockSessionStore{})
+	h.URLParamFunc = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestSessionValidate_fullyConfigured_ok(t *testing.T) {
+	h := newSessionHandler(&mockSessionStore{})
+
+	require.NoError(t, h.Validate())
+}
+
+// ---------------------------------------------------------------------------
 // List
 // ---------------------------------------------------------------------------
 

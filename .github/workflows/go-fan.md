@@ -15,7 +15,9 @@ permissions:
 
 tracker-id: go-fan-daily
 
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 
 network:
   allowed:

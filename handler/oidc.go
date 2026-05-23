@@ -38,6 +38,22 @@ type OIDCHandler struct {
 	// LinkNonces is the store used to persist single-use account-linking nonces.
 	// When nil, CreateLinkNonce and Link return HTTP 503.
 	LinkNonces auth.OIDCLinkNonceStore
+	// IDTokenVerifier is cached at construction / Validate() time to avoid
+	// recreating an identical verifier on every Callback invocation. Leave nil
+	// to let NewOIDCHandler or Validate populate it automatically.
+	IDTokenVerifier *oidc.IDTokenVerifier
+	// Logger is the structured logger used by the handler. When nil, the
+	// process-wide slog.Default() logger is used.
+	Logger *slog.Logger
+}
+
+// log returns the handler's logger, falling back to slog.Default() when Logger
+// is nil.
+func (h *OIDCHandler) log() *slog.Logger {
+	if h.Logger != nil {
+		return h.Logger
+	}
+	return slog.Default()
 }
 
 // NewOIDCHandler creates an OIDCHandler by performing OIDC discovery.
@@ -54,17 +70,31 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 			Scopes: []string{oidc.ScopeOpenID, "email", "profile"},
 		},
 		CookieName: cookieName, SecureCookies: secureCookies,
+		IDTokenVerifier: provider.Verifier(&oidc.Config{ClientID: clientID}),
 	}, nil
 }
 
 // Validate checks that the handler is correctly configured and returns an error
-// if any required fields are missing or incompatible. Call Validate once at
-// server startup, after setting all optional fields (Sessions, RefreshCookieName,
-// etc.), so that misconfiguration is caught immediately rather than at the
-// moment the first real user attempts to log in.
+// if any required fields are missing or incompatible. It also initializes
+// IDTokenVerifier from Provider when the field is nil, so callers that do not
+// use NewOIDCHandler still benefit from the cached verifier. Call Validate once
+// at server startup, before the handler begins serving requests, after setting
+// all optional fields (Sessions, RefreshCookieName, etc.).
 func (h *OIDCHandler) Validate() error {
+	if h.Users == nil {
+		return errors.New("OIDCHandler misconfigured: Users is required")
+	}
+	if h.JWT == nil {
+		return errors.New("OIDCHandler misconfigured: JWT is required")
+	}
+	if h.Provider == nil {
+		return errors.New("OIDCHandler misconfigured: Provider is required")
+	}
 	if h.Sessions != nil && h.RefreshCookieName == "" {
 		return errors.New("OIDCHandler misconfigured: Sessions requires RefreshCookieName")
+	}
+	if h.IDTokenVerifier == nil {
+		h.IDTokenVerifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
 	}
 	return nil
 }
@@ -94,7 +124,7 @@ func (h *OIDCHandler) redirectToProvider(w http.ResponseWriter, r *http.Request,
 func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
 	state, err := generateOIDCState()
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to generate OIDC login state", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to generate OIDC login state", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate login")
 		return
 	}
@@ -142,6 +172,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	oauth2Token, err := h.OAuthConfig.Exchange(r.Context(), code, oauth2.VerifierOption(verifierCookie.Value))
 	if err != nil {
+		h.log().ErrorContext(r.Context(), "OIDC code exchange failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "failed to exchange code")
 		return
 	}
@@ -152,9 +183,13 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifier := h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
+	verifier := h.IDTokenVerifier
+	if verifier == nil {
+		verifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
+	}
 	idToken, err := verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
+		h.log().ErrorContext(r.Context(), "OIDC id_token verification failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid id_token")
 		return
 	}
@@ -166,7 +201,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		EmailVerified *bool  `json:"email_verified"`
 	}
 	if err := idToken.Claims(&claims); err != nil {
-		slog.ErrorContext(r.Context(), "failed to parse OIDC claims", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to parse OIDC claims", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to parse claims")
 		return
 	}
@@ -190,7 +225,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	user, err := findOrCreateUser(r.Context(), h.Users, claims.Sub, claims.Email, claims.Name)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "OIDC user resolution failed", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "OIDC user resolution failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to process user")
 		return
 	}
@@ -204,26 +239,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 // CreateLinkNonce issues a nonce for OIDC account linking.
 func (h *OIDCHandler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
-	if h.LinkNonces == nil {
-		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
-		return
-	}
-	userID := auth.UserIDFromContext(r.Context())
-	nonce, err := generateOIDCState()
-	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to generate OIDC link nonce", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate nonce")
-		return
-	}
-
-	nonceHash := auth.HashHighEntropyToken(nonce)
-	if _, err := h.LinkNonces.CreateLinkNonce(r.Context(), userID, nonceHash, time.Now().UTC().Add(oidcStateCookieTTL)); err != nil {
-		slog.ErrorContext(r.Context(), "failed to store link nonce", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store nonce")
-		return
-	}
-
-	writeJSON(r.Context(), w, http.StatusOK, nonceBody{Nonce: nonce})
+	createLinkNonce(w, r, h.LinkNonces, oidcStateCookieTTL, generateOIDCState)
 }
 
 // Link validates the nonce and redirects for account linking.
@@ -242,7 +258,7 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired nonce")
 		} else {
-			slog.ErrorContext(r.Context(), "failed to consume link nonce", slog.Any("error", err))
+			h.log().ErrorContext(r.Context(), "failed to consume link nonce", slog.Any("error", err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "failed to validate nonce")
 		}
 		return
@@ -252,7 +268,7 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 		} else {
-			slog.ErrorContext(r.Context(), "failed to look up user during OIDC link", slog.Any("error", err))
+			h.log().ErrorContext(r.Context(), "failed to look up user during OIDC link", slog.Any("error", err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "server error")
 		}
 		return
@@ -264,7 +280,7 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 
 	state, err := generateOIDCState()
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to generate OIDC link state", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to generate OIDC link state", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate link")
 		return
 	}

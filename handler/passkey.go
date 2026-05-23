@@ -47,6 +47,23 @@ type PasskeyHandler struct {
 // server startup, after setting all optional fields, so that misconfiguration
 // is caught immediately rather than at the first passkey ceremony completion.
 func (h *PasskeyHandler) Validate() error {
+	if h.Passkeys == nil {
+		return errors.New("PasskeyHandler misconfigured: Passkeys is required")
+	}
+	if h.URLParamFunc == nil {
+		return errors.New("PasskeyHandler misconfigured: URLParamFunc is required")
+	}
+	// Users and JWT are only required when WebAuthn is configured; without
+	// WebAuthn the handler runs in a degraded mode where ceremony endpoints
+	// return 503 and only ListCredentials/DeleteCredential remain available.
+	if h.WebAuthn != nil {
+		if h.Users == nil {
+			return errors.New("PasskeyHandler misconfigured: Users is required when WebAuthn is configured")
+		}
+		if h.JWT == nil {
+			return errors.New("PasskeyHandler misconfigured: JWT is required when WebAuthn is configured")
+		}
+	}
 	if h.Sessions != nil && h.RefreshCookieName == "" {
 		return errors.New("PasskeyHandler misconfigured: Sessions requires RefreshCookieName")
 	}
@@ -234,6 +251,7 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 
 	credential, err := h.WebAuthn.FinishRegistration(waUser, challengeData.SessionData, r)
 	if err != nil {
+		slog.WarnContext(r.Context(), "webauthn finish registration failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusBadRequest, "registration verification failed")
 		return
 	}

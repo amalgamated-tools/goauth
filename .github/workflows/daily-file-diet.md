@@ -15,7 +15,7 @@ permissions:
 tracker-id: daily-file-diet
 engine:
   id: copilot
-  agent: "developer.instructions"
+  model: claude-sonnet-4.6
 
 imports:
   - uses: shared/skip-if-issue-open.md
@@ -46,7 +46,6 @@ features:
 source: github/gh-aw/.github/workflows/daily-file-diet.md@91ec20513218373c2191ce92305f2ba8427c3840
 ---
 
-{{#runtime-import? .github/shared-instructions.md}}
 
 # Daily File Diet Agent 🏋️
 
@@ -240,9 +239,9 @@ Add comprehensive tests for each new file:
 <details>
 <summary>Additional Context</summary>
 
-- **Repository Guidelines**: Follow patterns in `.github/agents/developer.instructions.agent.md`
+- **Repository Guidelines**: Follow patterns
 - **Code Organization**: Prefer many small files grouped by functionality
-- **Testing**: Match existing test patterns in `pkg/workflow/*_test.go`
+- **Testing**: Match existing test patterns in `auth/`, `handler/`, etc
 
 </details>
 

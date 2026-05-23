@@ -6,6 +6,10 @@ description: |
   plain English), ensures single source of truth, and creates draft PRs with documentation
   updates. Supports documentation-as-code philosophy.
 
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
+
 on:
   push:
     branches: [main]

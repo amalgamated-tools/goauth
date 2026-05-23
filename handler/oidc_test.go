@@ -1,15 +1,19 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 )
@@ -22,6 +26,23 @@ func newTestOIDCHandler() *OIDCHandler {
 		SecureCookies: false,
 		LinkNonces:    &mockOIDCLinkNonceStore{},
 	}
+}
+
+// newMockOIDCProvider creates a real *oidc.Provider backed by a local httptest
+// server that serves a minimal OpenID Connect discovery document.
+func newMockOIDCProvider(t *testing.T) *oidc.Provider {
+	t.Helper()
+	var srvURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"issuer":%q,"authorization_endpoint":%q,"token_endpoint":%q,"jwks_uri":%q}`,
+			srvURL, srvURL+"/auth", srvURL+"/token", srvURL+"/keys")
+	}))
+	t.Cleanup(srv.Close)
+	srvURL = srv.URL
+	p, err := oidc.NewProvider(context.Background(), srv.URL)
+	require.NoError(t, err)
+	return p
 }
 
 // ---------------------------------------------------------------------------
@@ -718,11 +739,124 @@ func TestOIDCCallback_missingCode(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Callback — Exchange and Verify failures log via slog.ErrorContext
+// ---------------------------------------------------------------------------
+
+func TestOIDCCallback_exchangeFailure_logsError(t *testing.T) {
+	// Fake token endpoint that always returns HTTP 400 (provider/network error).
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad_request", http.StatusBadRequest)
+	}))
+	defer tokenServer.Close()
+
+	h := newTestOIDCHandler()
+	h.OAuthConfig = oauth2.Config{
+		ClientID:    "test-client",
+		RedirectURL: "http://localhost/callback",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://example.com/authorize",
+			TokenURL: tokenServer.URL + "/token",
+		},
+	}
+
+	var buf bytes.Buffer
+	h.Logger = slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&code=authcode", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
+	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "someverifier"})
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, buf.String(), "OIDC code exchange failed")
+}
+
+func TestOIDCCallback_verifyFailure_logsError(t *testing.T) {
+	// Fake OIDC discovery + JWKS server.  The token endpoint returns a
+	// syntactically valid JSON body but with an id_token that is not a real JWT,
+	// so verifier.Verify() will fail.
+	var providerURL string
+	discoveryMux := http.NewServeMux()
+	providerServer := httptest.NewServer(discoveryMux)
+	defer providerServer.Close()
+	providerURL = providerServer.URL
+
+	discoveryMux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{
+			"issuer": %q,
+			"authorization_endpoint": %q,
+			"token_endpoint": %q,
+			"jwks_uri": %q,
+			"id_token_signing_alg_values_supported": ["RS256"]
+		}`, providerURL, providerURL+"/auth", providerURL+"/token", providerURL+"/jwks")
+	})
+	discoveryMux.HandleFunc("/jwks", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"keys":[]}`)
+	})
+	discoveryMux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// id_token is not a valid JWT — Verify must reject it.
+		_, _ = fmt.Fprint(w, `{"access_token":"tok","token_type":"bearer","id_token":"not.a.jwt"}`)
+	})
+
+	provider, err := oidc.NewProvider(context.Background(), providerURL)
+	require.NoError(t, err)
+
+	h := newTestOIDCHandler()
+	h.Provider = provider
+	h.OAuthConfig = oauth2.Config{
+		ClientID:    "test-client",
+		RedirectURL: "http://localhost/callback",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   providerURL + "/auth",
+			TokenURL:  providerURL + "/token",
+			AuthStyle: oauth2.AuthStyleInHeader,
+		},
+	}
+
+	var buf bytes.Buffer
+	h.Logger = slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&code=authcode", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
+	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "someverifier"})
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, buf.String(), "OIDC id_token verification failed")
+}
+
+// ---------------------------------------------------------------------------
 // Validate
 // ---------------------------------------------------------------------------
 
+func TestValidate_missingUsers_returnsError(t *testing.T) {
+	h := newTestOIDCHandler()
+	h.Users = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestValidate_missingJWT_returnsError(t *testing.T) {
+	h := newTestOIDCHandler()
+	h.JWT = nil
+
+	require.Error(t, h.Validate())
+}
+
+func TestValidate_missingProvider_returnsError(t *testing.T) {
+	h := newTestOIDCHandler()
+	// Provider is nil by default in newTestOIDCHandler.
+	require.Error(t, h.Validate())
+}
+
 func TestValidate_sessionsWithoutRefreshCookieName_returnsError(t *testing.T) {
 	h := newTestOIDCHandler()
+	h.Provider = newMockOIDCProvider(t)
 	h.Sessions = &mockSessionStore{}
 	// h.RefreshCookieName is "" (zero value)
 
@@ -731,6 +865,7 @@ func TestValidate_sessionsWithoutRefreshCookieName_returnsError(t *testing.T) {
 
 func TestValidate_sessionsWithRefreshCookieName_ok(t *testing.T) {
 	h := newTestOIDCHandler()
+	h.Provider = newMockOIDCProvider(t)
 	h.Sessions = &mockSessionStore{}
 	h.RefreshCookieName = "refresh"
 
@@ -739,6 +874,7 @@ func TestValidate_sessionsWithRefreshCookieName_ok(t *testing.T) {
 
 func TestValidate_noSessions_ok(t *testing.T) {
 	h := newTestOIDCHandler()
+	h.Provider = newMockOIDCProvider(t)
 	// Sessions is nil — RefreshCookieName is not required.
 	require.NoError(t, h.Validate())
 }

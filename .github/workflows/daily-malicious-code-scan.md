@@ -8,7 +8,9 @@ permissions:
   actions: read
   security-events: read
 tracker-id: malicious-code-scan
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 safe-outputs:
   create-code-scanning-alert:
     driver: "Malicious Code Scanner"
@@ -29,8 +31,6 @@ tools:
 
 source: github/gh-aw/.github/workflows/daily-malicious-code-scan.md@a70dd401e64b94aad51cc3aeb6c8e639873c1457
 ---
-
-{{#runtime-import? .github/shared-instructions.md}}
 
 # Daily Malicious Code Scan Agent
 

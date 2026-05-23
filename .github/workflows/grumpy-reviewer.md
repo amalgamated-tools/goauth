@@ -6,6 +6,11 @@ on:
     name: grumpy
     events: [pull_request_comment, pull_request_review_comment]
   reaction: "eyes"
+
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
+    
 concurrency:
   group: "gh-aw-gr-${{ github.workflow }}-pr-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}"
   cancel-in-progress: true

@@ -9,6 +9,10 @@ on:
   workflow_dispatch:
   reaction: "eyes"
 
+engine:
+  id: copilot
+  model: claude-sonnet-4.6  
+
 timeout-minutes: 60
 
 permissions: read-all
