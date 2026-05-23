@@ -10,11 +10,7 @@ h := &handler.APIKeyHandler{
     Prefix:       "myapp_",   // prepended to the random hex token
     URLParamFunc: chi.URLParam,
 }
-```
 
-Call `Validate()` at server startup to catch missing required fields (`APIKeys`, `URLParamFunc`) before the first request:
-
-```go
 if err := h.Validate(); err != nil {
     log.Fatal(err)
 }
