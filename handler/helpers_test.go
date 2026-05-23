@@ -549,6 +549,12 @@ func TestValidateSessionConfig(t *testing.T) {
 
 		require.NoError(t, err)
 	})
+
+	t.Run("allows no sessions with refresh cookie name set", func(t *testing.T) {
+		err := validateSessionConfig("AuthHandler", nil, "refresh")
+
+		require.NoError(t, err)
+	})
 }
 
 func TestIssueTokens_withSessions_refreshCookie(t *testing.T) {
