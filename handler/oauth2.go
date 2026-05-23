@@ -217,9 +217,7 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 // CreateLinkNonce issues a single-use nonce for OAuth2 account linking.
 // Requires auth middleware to be applied to the route.
 func (h *OAuth2Handler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
-	createLinkNonce(w, r, h.LinkNonces, oauth2StateCookieTTL, func() (string, error) {
-		return auth.GenerateRandomBase64(32)
-	})
+	createLinkNonce(w, r, h.LinkNonces, oauth2StateCookieTTL)
 }
 
 // Link validates the nonce and redirects the browser to the OAuth2 provider to
