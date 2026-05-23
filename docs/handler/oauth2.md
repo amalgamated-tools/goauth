@@ -112,7 +112,7 @@ Both `Login` and `Link` set two short-lived `HttpOnly` cookies before redirectin
 
 Cookie attributes: `Path=/`, `HttpOnly`, `SameSite=Lax`, `MaxAge=300` (5 minutes), `Secure` when `SecureCookies` is `true`.
 
-`Callback` clears both cookies immediately (by setting `MaxAge=-1`) before processing the authorisation code.
+`Callback` clears both cookies immediately (by setting `MaxAge=-1`) before processing the authorization code.
 
 !!! tip "Debugging cookie issues"
     If `Callback` returns HTTP 400 `"missing state cookie"` or `"missing PKCE verifier cookie"`, check that your reverse proxy preserves `Set-Cookie` headers from the `Login` / `Link` response and that the `Secure` cookie attribute is not stripped for HTTPS traffic.
