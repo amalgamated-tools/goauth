@@ -101,6 +101,8 @@ POST /auth/github/link-nonce             → h.CreateLinkNonce    // issue nonce
 GET  /auth/github/link?nonce=<nonce>     → h.Link               // start link flow (requires auth)
 ```
 
+Both `Login` and `Link` use the same underlying redirect mechanism: they set short-lived `HttpOnly` state and PKCE verifier cookies (`SameSite=Lax`, 5-minute TTL) before redirecting the browser to the provider. `Callback` validates both cookies regardless of whether the request originated from a login or link flow.
+
 ## Response types
 
 | Endpoint | HTTP status | Response body |
@@ -108,7 +110,7 @@ GET  /auth/github/link?nonce=<nonce>     → h.Link               // start link 
 | `Login` | 302 Found | *(redirect to provider — no body)* |
 | `Callback` | 302 Found | *(login: redirects to `/?<LoginRedirect>`; link: redirects to `/?oauth2_linked=true` — JWT and optional refresh token in `HttpOnly` cookies on the login path)* |
 | `CreateLinkNonce` | 200 OK | `{"nonce": "<nonce>"}` |
-| `Link` | 302 Found | *(redirect to provider — no body)* |
+| `Link` | 302 Found | *(redirect to provider — sets state and PKCE verifier cookies, no body)* |
 
 ## Callback behaviour
 
@@ -128,7 +130,7 @@ For normal login flows, `FetchUserInfo` must return `EmailVerified: true`. The c
 
 ## Account linking
 
-The linking flow reuses `auth.OIDCLinkNonceStore` for nonce persistence and the same HMAC-signed state mechanism as `OIDCHandler`.
+The linking flow reuses `auth.OIDCLinkNonceStore` for nonce persistence and the same HMAC-signed state and PKCE mechanism as `OIDCHandler`. `Link` sets the same `oauth2_state` and `oauth2_verifier` cookies as `Login`; `Callback` validates them identically for both flows.
 
 !!! info "Shared nonce storage"
     `OAuth2Handler` requires a `LinkNonces auth.OIDCLinkNonceStore` for account linking. In a multi-instance deployment the store must be backed by a shared external database. When `LinkNonces` is `nil`, `CreateLinkNonce` and `Link` return HTTP 503 `"account linking not configured"`. Register `linkNonceStore.DeleteExpiredLinkNonces` with `maintenance.StartCleanup` to prune stale entries.
