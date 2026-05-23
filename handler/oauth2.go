@@ -101,6 +101,23 @@ func (h *OAuth2Handler) loginRedirectURL() string {
 	return "/?" + h.LoginRedirect
 }
 
+// redirectToProvider sets the OAuth2 flow cookies and redirects the browser to
+// the provider's authorization endpoint. state must already be signed when
+// used for account linking.
+func (h *OAuth2Handler) redirectToProvider(w http.ResponseWriter, r *http.Request, state, verifier string) {
+	for _, pair := range [][2]string{
+		{oauth2StateCookieName, state},
+		{oauth2VerifierCookieName, verifier},
+	} {
+		http.SetCookie(w, &http.Cookie{
+			Name: pair[0], Value: pair[1], Path: "/",
+			MaxAge: int(oauth2StateCookieTTL.Seconds()), HttpOnly: true,
+			SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
+		})
+	}
+	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
+}
+
 // Login redirects the browser to the OAuth2 provider's authorisation endpoint.
 // It sets short-lived HttpOnly state and PKCE verifier cookies (SameSite=Lax,
 // 5-minute TTL) for CSRF and PKCE protection.
@@ -113,17 +130,7 @@ func (h *OAuth2Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	verifier := oauth2.GenerateVerifier()
 
-	for _, c := range []http.Cookie{
-		{Name: oauth2StateCookieName, Value: state},
-		{Name: oauth2VerifierCookieName, Value: verifier},
-	} {
-		http.SetCookie(w, &http.Cookie{
-			Name: c.Name, Value: c.Value, Path: "/",
-			MaxAge: int(oauth2StateCookieTTL.Seconds()), HttpOnly: true,
-			SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
-		})
-	}
-	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
+	h.redirectToProvider(w, r, state, verifier)
 }
 
 // Callback handles the OAuth2 provider redirect. It validates the CSRF state
@@ -266,15 +273,5 @@ func (h *OAuth2Handler) Link(w http.ResponseWriter, r *http.Request) {
 	verifier := oauth2.GenerateVerifier()
 	signedState := signLinkState(h.JWT, state, userID)
 
-	for _, c := range []http.Cookie{
-		{Name: oauth2StateCookieName, Value: signedState},
-		{Name: oauth2VerifierCookieName, Value: verifier},
-	} {
-		http.SetCookie(w, &http.Cookie{
-			Name: c.Name, Value: c.Value, Path: "/",
-			MaxAge: int(oauth2StateCookieTTL.Seconds()), HttpOnly: true,
-			SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
-		})
-	}
-	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(signedState, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
+	h.redirectToProvider(w, r, signedState, verifier)
 }
