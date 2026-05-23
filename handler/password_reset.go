@@ -44,6 +44,9 @@ func (h *PasswordResetHandler) Validate() error {
 	if h.Resets == nil {
 		return errors.New("PasswordResetHandler misconfigured: Resets is required")
 	}
+	if h.SendResetEmail == nil {
+		return errors.New("PasswordResetHandler misconfigured: SendResetEmail is required")
+	}
 	return nil
 }
 

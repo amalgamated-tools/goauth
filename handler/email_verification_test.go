@@ -73,6 +73,13 @@ func TestEmailVerificationValidate_nilVerifications_returnsError(t *testing.T) {
 	require.Error(t, h.Validate())
 }
 
+func TestEmailVerificationValidate_nilSendEmail_returnsError(t *testing.T) {
+	h := newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{})
+	h.SendEmail = nil
+
+	require.Error(t, h.Validate())
+}
+
 func TestEmailVerificationValidate_fullyConfigured_ok(t *testing.T) {
 	h := newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{})
 

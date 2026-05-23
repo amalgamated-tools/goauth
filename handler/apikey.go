@@ -119,6 +119,10 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Delete removes an API key.
 func (h *APIKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	if h.URLParamFunc == nil {
+		writeError(r.Context(), w, http.StatusInternalServerError, "handler misconfigured: URLParamFunc is required")
+		return
+	}
 	id := h.URLParamFunc(r, "id")
 	if id == "" {
 		writeError(r.Context(), w, http.StatusBadRequest, "invalid API key ID")

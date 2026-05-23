@@ -40,6 +40,13 @@ func TestPasswordResetValidate_nilResets_returnsError(t *testing.T) {
 	require.Error(t, h.Validate())
 }
 
+func TestPasswordResetValidate_nilSendResetEmail_returnsError(t *testing.T) {
+	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
+	h.SendResetEmail = nil
+
+	require.Error(t, h.Validate())
+}
+
 func TestPasswordResetValidate_fullyConfigured_ok(t *testing.T) {
 	h := newPasswordResetHandler(&mockUserStore{}, &mockPasswordResetStore{})
 

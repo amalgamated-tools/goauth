@@ -46,6 +46,9 @@ func (h *EmailVerificationHandler) Validate() error {
 	if h.Verifications == nil {
 		return errors.New("EmailVerificationHandler misconfigured: Verifications is required")
 	}
+	if h.SendEmail == nil {
+		return errors.New("EmailVerificationHandler misconfigured: SendEmail is required")
+	}
 	return nil
 }
 
