@@ -92,8 +92,8 @@ func (h *AuthHandler) Validate() error {
 	if h.JWT == nil {
 		return errors.New("AuthHandler misconfigured: JWT is required")
 	}
-	if h.Sessions != nil && h.RefreshCookieName == "" {
-		return errors.New("AuthHandler misconfigured: Sessions requires RefreshCookieName")
+	if err := validateSessionConfig("AuthHandler", h.Sessions, h.RefreshCookieName); err != nil {
+		return err
 	}
 	return nil
 }

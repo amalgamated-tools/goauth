@@ -531,6 +531,32 @@ func TestIssueTokens_noSessions(t *testing.T) {
 	}
 }
 
+func TestValidateSessionConfig(t *testing.T) {
+	t.Run("requires refresh cookie when sessions enabled", func(t *testing.T) {
+		err := validateSessionConfig("AuthHandler", &mockSessionStore{}, "")
+
+		require.EqualError(t, err, "AuthHandler misconfigured: Sessions requires RefreshCookieName")
+	})
+
+	t.Run("allows sessions with refresh cookie", func(t *testing.T) {
+		err := validateSessionConfig("AuthHandler", &mockSessionStore{}, "refresh")
+
+		require.NoError(t, err)
+	})
+
+	t.Run("allows no sessions without refresh cookie", func(t *testing.T) {
+		err := validateSessionConfig("AuthHandler", nil, "")
+
+		require.NoError(t, err)
+	})
+
+	t.Run("allows no sessions with refresh cookie name set", func(t *testing.T) {
+		err := validateSessionConfig("AuthHandler", nil, "refresh")
+
+		require.NoError(t, err)
+	})
+}
+
 func TestIssueTokens_withSessions_refreshCookie(t *testing.T) {
 	sessions := &mockSessionStore{}
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
