@@ -57,8 +57,8 @@ func (h *MagicLinkHandler) Validate() error {
 	if h.Sender == nil {
 		return errors.New("MagicLinkHandler misconfigured: Sender is required")
 	}
-	if h.Sessions != nil && h.RefreshCookieName == "" {
-		return errors.New("MagicLinkHandler misconfigured: Sessions requires RefreshCookieName")
+	if err := validateSessionConfig("MagicLinkHandler", h.Sessions, h.RefreshCookieName); err != nil {
+		return err
 	}
 	return nil
 }

@@ -90,8 +90,8 @@ func (h *OIDCHandler) Validate() error {
 	if h.Provider == nil {
 		return errors.New("OIDCHandler misconfigured: Provider is required")
 	}
-	if h.Sessions != nil && h.RefreshCookieName == "" {
-		return errors.New("OIDCHandler misconfigured: Sessions requires RefreshCookieName")
+	if err := validateSessionConfig("OIDCHandler", h.Sessions, h.RefreshCookieName); err != nil {
+		return err
 	}
 	if h.IDTokenVerifier == nil {
 		h.IDTokenVerifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})

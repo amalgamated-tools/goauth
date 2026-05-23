@@ -64,8 +64,8 @@ func (h *PasskeyHandler) Validate() error {
 			return errors.New("PasskeyHandler misconfigured: JWT is required when WebAuthn is configured")
 		}
 	}
-	if h.Sessions != nil && h.RefreshCookieName == "" {
-		return errors.New("PasskeyHandler misconfigured: Sessions requires RefreshCookieName")
+	if err := validateSessionConfig("PasskeyHandler", h.Sessions, h.RefreshCookieName); err != nil {
+		return err
 	}
 	return nil
 }

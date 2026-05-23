@@ -20,6 +20,13 @@ type tokenCreator interface {
 	CreateTokenWithSession(userID, sessionID string) (string, error)
 }
 
+func validateSessionConfig(handlerName string, sessions auth.SessionStore, refreshCookieName string) error {
+	if sessions != nil && refreshCookieName == "" {
+		return fmt.Errorf("%s misconfigured: Sessions requires RefreshCookieName", handlerName)
+	}
+	return nil
+}
+
 // issueTokens creates an access JWT and, when sessions is non-nil, a session
 // record with a refresh token. It writes auth/refresh cookies and returns the
 // tokens for inclusion in the response body. On any error it writes an HTTP
