@@ -339,7 +339,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		return &passkeyUser{user: user, credentials: loadWebAuthnCredentials(r.Context(), userCreds)}, nil
 	})
 
-	updatedCred, _, err := h.WebAuthn.FinishPasskeyLogin(handler, challengeData.SessionData, r)
+	_, updatedCred, err := h.WebAuthn.FinishPasskeyLogin(handler, challengeData.SessionData, r)
 	if err != nil {
 		if listCredsErr != nil {
 			slog.ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", listCredsErr))
