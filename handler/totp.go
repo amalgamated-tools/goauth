@@ -124,8 +124,7 @@ func (h *TOTPHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uri := auth.TOTPProvisioningURI(secret, user.Email, h.Issuer)
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
+	setNoCacheHeaders(w)
 	writeJSON(r.Context(), w, http.StatusOK, totpGenerateResponse{
 		Secret:          secret,
 		ProvisioningURI: uri,
