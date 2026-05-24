@@ -108,7 +108,7 @@ type webAuthnProvider interface {
 
 `*webauthn.WebAuthn` from `github.com/go-webauthn/webauthn` satisfies this interface. In tests you can substitute a struct double that implements the same methods, allowing you to simulate ceremony outcomes without a real authenticator device.
 
-`FinishAuthentication` uses the **second** return value of `FinishPasskeyLogin` (the updated `*webauthn.Credential`) when persisting the signature counter. Mocks must return a non-nil `*webauthn.Credential` on success for the counter-update path to be exercised.
+`FinishAuthentication` uses the **second** return value of `FinishPasskeyLogin` (the updated `*webauthn.Credential`) when persisting the signature counter. Mocks must return a valid, non-nil `*webauthn.Credential` on success — returning `nil` does **not** skip the counter-update path, because `json.Marshal(nil)` produces `"null"` (no error), causing `UpdateCredentialData` to be called with corrupt credential data.
 
 ## Disabling passkeys
 
