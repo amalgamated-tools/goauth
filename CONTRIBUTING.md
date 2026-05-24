@@ -146,10 +146,10 @@ goauth uses a two-track release model: automated release management via [Release
 
 The `.github/workflows/release-please.yml` workflow runs on every push to `main`. Release Please parses [Conventional Commits](https://www.conventionalcommits.org/) in the commit history and:
 
-1. Opens or updates a "Release PR" that bumps the version in `release-please-manifest.json` and updates `CHANGELOG.md`.
+1. Opens or updates a "Release PR" that bumps the version in `.release-please-manifest.json` and updates `CHANGELOG.md`.
 2. When that PR is merged, creates a GitHub release with auto-generated release notes.
 
-The workflow requires a `RELEASE_PLEASE_TOKEN` repository secret (a PAT with `contents: write` and `pull-requests: write` scope) and two configuration files at the repository root:
+The workflow requires a `RELEASE_PLEASE_TOKEN` repository secret (a PAT with `contents: write`, `pull-requests: write`, and `issues: write` scope) and two configuration files at the repository root:
 
 | File | Purpose |
 |---|---|
