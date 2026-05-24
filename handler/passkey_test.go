@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/require"
 )
@@ -553,4 +554,120 @@ func TestLoadWebAuthnCredentials_skipsCorrupted(t *testing.T) {
 	}
 	result := loadWebAuthnCredentials(context.Background(), creds)
 	require.Len(t, result, 0)
+}
+
+// ---------------------------------------------------------------------------
+// mockWebAuthnProvider
+// ---------------------------------------------------------------------------
+
+type mockWebAuthnProvider struct {
+	beginDiscoverableLoginFunc func(opts ...webauthn.LoginOption) (*protocol.CredentialAssertion, *webauthn.SessionData, error)
+	finishPasskeyLoginFunc     func(handler webauthn.DiscoverableUserHandler, session webauthn.SessionData, response *http.Request) (webauthn.User, *webauthn.Credential, error)
+	beginRegistrationFunc      func(user webauthn.User, opts ...webauthn.RegistrationOption) (*protocol.CredentialCreation, *webauthn.SessionData, error)
+	finishRegistrationFunc     func(user webauthn.User, session webauthn.SessionData, request *http.Request) (*webauthn.Credential, error)
+}
+
+func (m *mockWebAuthnProvider) BeginDiscoverableLogin(opts ...webauthn.LoginOption) (*protocol.CredentialAssertion, *webauthn.SessionData, error) {
+	if m.beginDiscoverableLoginFunc != nil {
+		return m.beginDiscoverableLoginFunc(opts...)
+	}
+	return nil, nil, errors.New("not configured")
+}
+
+func (m *mockWebAuthnProvider) FinishPasskeyLogin(handler webauthn.DiscoverableUserHandler, session webauthn.SessionData, response *http.Request) (webauthn.User, *webauthn.Credential, error) {
+	if m.finishPasskeyLoginFunc != nil {
+		return m.finishPasskeyLoginFunc(handler, session, response)
+	}
+	return nil, nil, errors.New("not configured")
+}
+
+func (m *mockWebAuthnProvider) BeginRegistration(user webauthn.User, opts ...webauthn.RegistrationOption) (*protocol.CredentialCreation, *webauthn.SessionData, error) {
+	if m.beginRegistrationFunc != nil {
+		return m.beginRegistrationFunc(user, opts...)
+	}
+	return nil, nil, errors.New("not configured")
+}
+
+func (m *mockWebAuthnProvider) FinishRegistration(user webauthn.User, session webauthn.SessionData, request *http.Request) (*webauthn.Credential, error) {
+	if m.finishRegistrationFunc != nil {
+		return m.finishRegistrationFunc(user, session, request)
+	}
+	return nil, errors.New("not configured")
+}
+
+// ---------------------------------------------------------------------------
+// FinishAuthentication — credential update path
+// ---------------------------------------------------------------------------
+
+// TestPasskey_finishAuthentication_updatesCredentialDataWithSignCount verifies
+// that the updated credential returned by FinishPasskeyLogin (the 2nd return
+// value) is the one persisted via UpdateCredentialData, so a counter/signCount
+// change from the authenticator is not silently discarded.
+func TestPasskey_finishAuthentication_updatesCredentialDataWithSignCount(t *testing.T) {
+	const userID = "u1"
+	// base64.RawURLEncoding.EncodeToString([]byte("cred")) == "Y3JlZA"
+	const credBase64 = "Y3JlZA"
+
+	updatedCred := &webauthn.Credential{
+		ID: []byte("cred"),
+		Authenticator: webauthn.Authenticator{
+			SignCount: 42,
+		},
+	}
+
+	var capturedUserID, capturedCredID, capturedData string
+
+	challengeJSON := `{"session_data":{"challenge":"AA","rpId":"localhost","allowCredentials":[],"userVerification":"discouraged"},"name":""}`
+	store := &mockPasskeyStore{
+		getAndDeleteChallengeFunc: func(_ context.Context, _ string) (*auth.PasskeyChallenge, error) {
+			return &auth.PasskeyChallenge{
+				ID:          "sess-1",
+				SessionData: challengeJSON,
+				ExpiresAt:   time.Now().Add(5 * time.Minute),
+			}, nil
+		},
+		findCredentialByCredIDFunc: func(_ context.Context, _ string) (*auth.PasskeyCredential, error) {
+			return &auth.PasskeyCredential{ID: "cred-1", UserID: userID}, nil
+		},
+		listCredentialsByUserFunc: func(_ context.Context, _ string) ([]auth.PasskeyCredential, error) {
+			return nil, nil
+		},
+		updateCredentialDataFunc: func(_ context.Context, uid, cid, data string) error {
+			capturedUserID = uid
+			capturedCredID = cid
+			capturedData = data
+			return nil
+		},
+	}
+	users := &mockUserStore{
+		findByIDFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return &auth.User{ID: userID, Email: "test@example.com"}, nil
+		},
+	}
+
+	mockWA := &mockWebAuthnProvider{
+		finishPasskeyLoginFunc: func(handler webauthn.DiscoverableUserHandler, _ webauthn.SessionData, _ *http.Request) (webauthn.User, *webauthn.Credential, error) {
+			// Drive the discoverable-user handler so authedUserID/authedCredentialID are populated.
+			u, err := handler([]byte("cred"), []byte(userID))
+			if err != nil {
+				return nil, nil, err
+			}
+			return u, updatedCred, nil
+		},
+	}
+
+	h := newPasskeyHandler(store, users)
+	h.WebAuthn = mockWA
+
+	req := httptest.NewRequest(http.MethodPost, "/passkeys/auth/finish?session_id=sess-1", nil)
+	w := httptest.NewRecorder()
+	h.FinishAuthentication(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, userID, capturedUserID)
+	require.Equal(t, credBase64, capturedCredID)
+
+	var stored webauthn.Credential
+	require.NoError(t, json.Unmarshal([]byte(capturedData), &stored))
+	require.Equal(t, uint32(42), stored.Authenticator.SignCount)
 }
