@@ -217,9 +217,10 @@ type OIDCLinkNonceStore interface {
 // EmailVerificationStore defines data access for email verification tokens.
 //
 // Expiry enforcement contract: the store does not enforce token expiry itself.
-// ConsumeEmailVerification returns only ErrNotFound (when no record matches
-// the hash); callers are responsible for checking ExpiresAt on the returned
-// token and treating an expired token as invalid.
+// ConsumeEmailVerification must not return ErrExpiredToken for an expired
+// but otherwise valid token; callers are responsible for checking ExpiresAt
+// on the returned token and treating an expired token as invalid. Storage
+// and other operational errors may still be returned.
 type EmailVerificationStore interface {
 	// CreateEmailVerification stores a new hashed token for the given user.
 	CreateEmailVerification(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*EmailVerificationToken, error)

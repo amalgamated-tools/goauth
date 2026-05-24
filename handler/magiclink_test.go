@@ -205,13 +205,14 @@ func TestVerifyMagicLink_setsAuthCookie(t *testing.T) {
 }
 
 func TestVerifyMagicLink_autoProvision(t *testing.T) {
-	var createdEmail string
+	var createdEmail, createdName string
 	userStore := &mockUserStore{
 		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
 			return nil, auth.ErrNotFound
 		},
 		createUserFunc: func(_ context.Context, name, email, _ string) (*auth.User, error) {
 			createdEmail = email
+			createdName = name
 			return &auth.User{ID: "new-id", Name: name, Email: email}, nil
 		},
 	}
@@ -223,6 +224,7 @@ func TestVerifyMagicLink_autoProvision(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "new@example.com", createdEmail)
+	require.Equal(t, "", createdName)
 }
 
 func TestVerifyMagicLink_autoProvisionRace(t *testing.T) {

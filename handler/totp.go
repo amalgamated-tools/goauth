@@ -56,7 +56,9 @@ type totpVerifyBody struct {
 // Validate checks that the handler is correctly configured and returns an
 // error when required dependencies are missing. Call Validate once at server
 // startup so misconfiguration is caught immediately rather than at the first
-// enroll/verify request.
+// enroll/verify request. In particular, if UsedCodes is nil and Validate is
+// not called, Enroll and Verify will panic with a nil-pointer dereference
+// rather than returning a diagnosable error.
 func (h *TOTPHandler) Validate() error {
 	if h.TOTP == nil {
 		return errors.New("TOTPHandler misconfigured: TOTP is required")

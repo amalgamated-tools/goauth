@@ -131,7 +131,7 @@ func (h *OAuth2Handler) redirectToProvider(w http.ResponseWriter, r *http.Reques
 func (h *OAuth2Handler) Login(w http.ResponseWriter, r *http.Request) {
 	state, err := auth.GenerateRandomBase64(32)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to generate OAuth2 login state", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to generate OAuth2 login state", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate login")
 		return
 	}
@@ -153,14 +153,14 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	token, err := h.OAuthConfig.Exchange(r.Context(), flow.Code, oauth2.VerifierOption(flow.VerifierValue))
 	if err != nil {
-		slog.ErrorContext(r.Context(), "OAuth2 code exchange failed", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "OAuth2 code exchange failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "failed to exchange code")
 		return
 	}
 
 	info, err := h.Provider.FetchUserInfo(r.Context(), token)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "OAuth2 FetchUserInfo failed", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "OAuth2 FetchUserInfo failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "failed to fetch user info")
 		return
 	}
@@ -186,7 +186,7 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	user, err := findOrCreateUser(r.Context(), h.Users, info.Subject, info.Email, info.Name)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "OAuth2 user resolution failed", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "OAuth2 user resolution failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to process user")
 		return
 	}
