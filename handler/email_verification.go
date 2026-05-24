@@ -24,8 +24,7 @@ const (
 // SendEmail is called with the recipient address and the plaintext token.
 // Consuming applications are responsible for formatting the email body and
 // sending it via the smtp package (or any other mechanism).
-// If SendEmail is nil, SendVerification returns HTTP 503 before any database
-// write, treating a missing sender as a misconfiguration error.
+// SendEmail must not be nil; Validate() enforces this at startup.
 type EmailVerificationHandler struct {
 	Users         auth.UserStore
 	Verifications auth.EmailVerificationStore
@@ -64,9 +63,8 @@ type sendVerificationRequest struct {
 }
 
 // SendVerification creates a verification token for the given email address
-// and calls SendEmail if configured. Returns 503 if SendEmail is nil
-// (misconfiguration); otherwise always returns 200 to avoid leaking whether
-// an address is registered.
+// and calls SendEmail. Always returns 200 to avoid leaking whether an address
+// is registered. Requires SendEmail to be non-nil (enforced by Validate()).
 //
 // Route: POST /verify-email/send
 func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *http.Request) {
@@ -77,11 +75,6 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 	req.Email = strings.TrimSpace(req.Email)
 	if req.Email == "" {
 		writeError(r.Context(), w, http.StatusBadRequest, "email is required")
-		return
-	}
-
-	if h.SendEmail == nil {
-		writeError(r.Context(), w, http.StatusServiceUnavailable, "email verification sending is not configured")
 		return
 	}
 

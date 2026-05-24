@@ -341,7 +341,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		userCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), user.ID)
 		if err != nil {
 			listCredsErr = err
-			return nil, fmt.Errorf("%w: %v", errListCredentials, err)
+			return nil, fmt.Errorf("%w: %w", errListCredentials, err)
 		}
 		authedUserID = user.ID
 		authedCredentialID = credID

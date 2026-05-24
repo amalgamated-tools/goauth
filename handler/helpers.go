@@ -152,17 +152,17 @@ const (
 )
 
 var (
-	errPasswordTooShort = fmt.Sprintf("password must be at least %d bytes", minPasswordLength)
-	errPasswordTooLong  = fmt.Sprintf("password must be at most %d bytes", maxPasswordLength)
+	msgPasswordTooShort = fmt.Sprintf("password must be at least %d bytes", minPasswordLength)
+	msgPasswordTooLong  = fmt.Sprintf("password must be at most %d bytes", maxPasswordLength)
 )
 
 func validatePassword(ctx context.Context, w http.ResponseWriter, password string) bool {
 	if len(password) < minPasswordLength {
-		writeError(ctx, w, http.StatusBadRequest, errPasswordTooShort)
+		writeError(ctx, w, http.StatusBadRequest, msgPasswordTooShort)
 		return false
 	}
 	if len(password) > maxPasswordLength {
-		writeError(ctx, w, http.StatusBadRequest, errPasswordTooLong)
+		writeError(ctx, w, http.StatusBadRequest, msgPasswordTooLong)
 		return false
 	}
 	return true

@@ -215,6 +215,12 @@ type OIDCLinkNonceStore interface {
 }
 
 // EmailVerificationStore defines data access for email verification tokens.
+//
+// Expiry enforcement contract: the store does not enforce token expiry itself.
+// ConsumeEmailVerification must not return ErrExpiredToken for an expired
+// but otherwise valid token; callers are responsible for checking ExpiresAt
+// on the returned token and treating an expired token as invalid. Storage
+// and other operational errors may still be returned.
 type EmailVerificationStore interface {
 	// CreateEmailVerification stores a new hashed token for the given user.
 	CreateEmailVerification(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*EmailVerificationToken, error)
@@ -246,6 +252,13 @@ type TOTPStore interface {
 }
 
 // PasswordResetStore defines data access for email-based password reset token operations.
+//
+// Expiry enforcement contract: FindPasswordResetToken does not filter out
+// expired records — it may return an expired token successfully. Callers are
+// responsible for checking ExpiresAt and treating expired tokens as invalid.
+// Stores may optionally return ErrExpiredToken for expired records as an
+// optimisation, but callers must not rely on this and must always check
+// ExpiresAt themselves.
 type PasswordResetStore interface {
 	// CreatePasswordResetToken stores a hashed reset token for userID, expiring at expiresAt.
 	CreatePasswordResetToken(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*PasswordResetToken, error)
