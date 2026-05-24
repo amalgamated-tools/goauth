@@ -31,6 +31,7 @@ package main
 
 import (
     "context"
+    "fmt"
     "sync"
     "time"
 
@@ -270,7 +271,6 @@ package main
 
 import (
     "context"
-    "fmt"
     "log"
     "net/http"
     "time"
