@@ -79,11 +79,6 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if h.Sender == nil {
-		writeError(r.Context(), w, http.StatusServiceUnavailable, "magic link sending is not configured")
-		return
-	}
-
 	token, err := auth.GenerateRandomBase64(32)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to generate magic link token", slog.Any("error", err))
@@ -162,8 +157,9 @@ func (h *MagicLinkHandler) findOrCreateUser(ctx context.Context, email string) (
 		return nil, err
 	}
 
-	// Auto-provision: use the email address as the initial display name.
-	created, err := h.Users.CreateUser(ctx, email, email, "")
+	// Auto-provision: leave the display name blank so the consuming app can
+	// prompt the user on first login.
+	created, err := h.Users.CreateUser(ctx, "", email, "")
 	if err != nil {
 		if errors.Is(err, auth.ErrEmailExists) {
 			// Race condition: another request created the user concurrently.

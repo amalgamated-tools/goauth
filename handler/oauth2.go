@@ -72,6 +72,9 @@ type OAuth2Handler struct {
 	// callback (e.g. "github_login=1" → redirects to "/?github_login=1").
 	// Defaults to "oauth2_login=1" when empty.
 	LoginRedirect string
+	// Logger is the structured logger used by the handler. When nil, the
+	// process-wide slog.Default() logger is used.
+	Logger *slog.Logger
 }
 
 // Validate checks that the handler is correctly configured and returns an error
@@ -95,6 +98,9 @@ func (h *OAuth2Handler) Validate() error {
 }
 
 func (h *OAuth2Handler) log() *slog.Logger {
+	if h.Logger != nil {
+		return h.Logger
+	}
 	return slog.Default()
 }
 

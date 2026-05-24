@@ -80,11 +80,6 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 		return
 	}
 
-	if h.SendEmail == nil {
-		writeError(r.Context(), w, http.StatusServiceUnavailable, "email verification sending is not configured")
-		return
-	}
-
 	// Look up user – always return 200 even when not found to avoid
 	// leaking account existence.
 	user, err := h.Users.FindByEmail(r.Context(), req.Email)
