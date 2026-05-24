@@ -13,6 +13,7 @@ Thank you for considering a contribution to goauth! This guide covers everything
 - [Full pre-PR check](#full-pre-pr-check)
 - [Coding conventions](#coding-conventions)
 - [Submitting changes](#submitting-changes)
+- [Release process](#release-process)
 
 ---
 
@@ -132,3 +133,52 @@ All changes must go through a pull request. The `main` branch is protected.
 4. Ensure the CI checks (lint, format, tests) pass on your PR.
 
 For significant API changes or new features, open an issue first to discuss the design before investing time in an implementation.
+
+---
+
+## Release process
+
+goauth uses [Release Please](https://github.com/googleapis/release-please) to automate version bumps, changelog generation, and GitHub Releases. Releases are created automatically when pull requests are merged into `main`.
+
+### Conventional Commits
+
+All commits merged into `main` **must** follow the [Conventional Commits](https://www.conventionalcommits.org/) specification. Release Please parses commit messages to determine the next semantic version and to generate the `CHANGELOG.md`.
+
+| Commit type | When to use | Version bump |
+|---|---|---|
+| `feat: …` | A new feature visible to library consumers | Minor (`0.x.0`) |
+| `fix: …` | A bug fix | Patch (`0.0.x`) |
+| `docs: …` | Documentation-only changes | None |
+| `refactor: …` | Code change that is neither a fix nor a feature | None |
+| `test: …` | Adding or updating tests | None |
+| `chore: …` | Build process, dependency updates, tooling | None |
+| `feat!: …` or `BREAKING CHANGE:` footer | Backwards-incompatible change | Major (`x.0.0`) |
+
+**Examples:**
+
+```
+feat: add WebAuthn conditional-mediation support
+fix: prevent session cookie from being set on OIDC link errors
+docs: clarify RefreshCookieName requirement in PasskeyHandler
+feat!: remove deprecated LegacyAuth field from AuthHandler
+
+BREAKING CHANGE: LegacyAuth was removed; migrate to AuthHandler.Sessions.
+```
+
+### How releases work
+
+1. Every push to `main` triggers the Release Please GitHub Actions workflow.
+2. Release Please opens (or updates) a **Release PR** that bumps `go.mod` (if configured), updates `CHANGELOG.md`, and proposes the next version tag.
+3. Merging the Release PR creates a Git tag and a GitHub Release with the generated changelog.
+
+> **Note:** You do not need to manually create tags or edit `CHANGELOG.md`. Both are managed entirely by Release Please.
+
+### Commit message scope (optional)
+
+Add an optional scope in parentheses to clarify which package or area is affected:
+
+```
+feat(handler): add conditional-mediation option to PasskeyHandler
+fix(auth): correct TOTP window drift calculation
+```
+
