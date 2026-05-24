@@ -19,6 +19,9 @@ h.Sessions          = sessionStore
 h.RefreshTokenTTL   = handler.DefaultRefreshTokenTTL // default 7 days
 h.RefreshCookieName = "refresh"
 
+// Optional: inject a custom structured logger. When nil, slog.Default() is used.
+h.Logger = myLogger
+
 // Validate configuration at startup (returns an error if Sessions is set
 // without RefreshCookieName).
 if err := h.Validate(); err != nil {
@@ -140,7 +143,7 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 
 ## Observability
 
-`OIDCHandler` emits structured log events via `slog` with the request context for trace correlation.
+`OIDCHandler` emits structured log events via `slog` with the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. To route `OIDCHandler` log events to a separate destination (e.g. a dedicated handler in a multi-tenant application), set `h.Logger` to a `*slog.Logger` backed by the desired handler.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
