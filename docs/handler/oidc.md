@@ -148,6 +148,8 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
 | OIDC state generation failure | `ERROR` | `"failed to generate OIDC login state"` | `Login` |
+| Authorization code exchange failure | `ERROR` | `"OIDC code exchange failed"` | `Callback` |
+| `id_token` verification failure | `ERROR` | `"OIDC id_token verification failed"` | `Callback` |
 | `id_token` claims parsing failure | `ERROR` | `"failed to parse OIDC claims"` | `Callback` |
 | User resolution / creation failure | `ERROR` | `"OIDC user resolution failed"` | `Callback` |
 | Best-effort subject link failure | `WARN` | `"failed to link OIDC subject to email-matched user"` | `Callback` |
@@ -164,4 +166,4 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | OIDC subject lookup failure (link callback) | `ERROR` | `"failed to look up OIDC subject during link"` | `Callback` (link flow) |
 | OIDC subject linking failure | `ERROR` | `"failed to link OIDC subject"` | `Callback` (link flow) |
 
-The `WARN`-level best-effort link event does not produce an HTTP error — login still succeeds. `ERROR`-level events in `Login`, `Callback`, `CreateLinkNonce`, and `Link` are followed by an HTTP 500 response. `ERROR`-level events in the `Callback` link flow are followed by a redirect with `oidc_link_error`.
+The `WARN`-level best-effort link event does not produce an HTTP error — login still succeeds. The `"OIDC code exchange failed"` and `"OIDC id_token verification failed"` events are followed by HTTP 401. All other `ERROR`-level events in `Login`, `Callback`, `CreateLinkNonce`, and `Link` are followed by an HTTP 500 response. `ERROR`-level events in the `Callback` link flow are followed by a redirect with `oidc_link_error`.

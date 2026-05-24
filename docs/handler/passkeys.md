@@ -155,6 +155,7 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 | Credential listing store failure | `ERROR` | `"failed to list credentials"` | `BeginRegistration`, `FinishRegistration`, `FinishAuthentication`, `ListCredentials` |
 | WebAuthn registration ceremony failure | `ERROR` | `"failed to begin registration"` | `BeginRegistration` |
 | Challenge persistence failure | `ERROR` | `"failed to store challenge"` | `BeginRegistration`, `BeginAuthentication` |
+| WebAuthn finish-registration ceremony failure | `WARN` | `"webauthn finish registration failed"` | `FinishRegistration` |
 | Credential marshalling failure | `ERROR` | `"failed to marshal credential"` | `FinishRegistration` |
 | Credential persistence failure | `ERROR` | `"failed to store credential"` | `FinishRegistration` |
 | WebAuthn authentication ceremony failure | `ERROR` | `"failed to begin login"` | `BeginAuthentication` |
@@ -167,4 +168,4 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 | Session creation store failure | `ERROR` | `"failed to create session"` | `FinishAuthentication` |
 | Access token creation failure | `ERROR` | `"failed to create token"` | `FinishAuthentication` |
 
-`WARN`-level events for counter updates do not fail the authentication — the user is logged in successfully. The `WARN` for a corrupted credential skips that credential silently during listing.
+`WARN`-level events for counter updates do not fail the authentication — the user is logged in successfully. The `WARN` for a corrupted credential skips that credential silently during listing. The `"webauthn finish registration failed"` `WARN` returns HTTP 400 and does not persist any credential.
