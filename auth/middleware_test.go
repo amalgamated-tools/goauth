@@ -23,18 +23,22 @@ type mockAPIKeyStore struct {
 func (m *mockAPIKeyStore) CreateAPIKey(ctx context.Context, userID, name, keyHash, keyPrefix string) (*APIKey, error) {
 	return nil, nil
 }
+
 func (m *mockAPIKeyStore) ListAPIKeysByUser(ctx context.Context, userID string) ([]APIKey, error) {
 	return nil, nil
 }
+
 func (m *mockAPIKeyStore) FindAPIKeyByIDAndUser(ctx context.Context, id, userID string) (*APIKey, error) {
 	return nil, nil
 }
+
 func (m *mockAPIKeyStore) ValidateAPIKey(ctx context.Context, keyHash string) (string, string, error) {
 	if m.validateFunc != nil {
 		return m.validateFunc(ctx, keyHash)
 	}
 	return "", "", ErrNotFound
 }
+
 func (m *mockAPIKeyStore) TouchAPIKeyLastUsed(ctx context.Context, id string) error {
 	if m.touchFunc != nil {
 		return m.touchFunc(ctx, id)
@@ -61,36 +65,42 @@ func (m *mockSessionStore) FindSessionByID(ctx context.Context, id string) (*Ses
 	}
 	return nil, ErrNotFound
 }
+
 func (m *mockSessionStore) FindSessionByRefreshTokenHash(ctx context.Context, hash string) (*Session, error) {
 	if m.findByRefreshTokenFunc != nil {
 		return m.findByRefreshTokenFunc(ctx, hash)
 	}
 	return nil, ErrNotFound
 }
+
 func (m *mockSessionStore) CreateSession(ctx context.Context, userID, refreshTokenHash, userAgent, ipAddress string, expiresAt time.Time) (*Session, error) {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, userID, refreshTokenHash, userAgent, ipAddress, expiresAt)
 	}
 	return &Session{ID: "sess-id", UserID: userID, ExpiresAt: expiresAt}, nil
 }
+
 func (m *mockSessionStore) ListSessionsByUser(ctx context.Context, userID string) ([]Session, error) {
 	if m.listFunc != nil {
 		return m.listFunc(ctx, userID)
 	}
 	return nil, nil
 }
+
 func (m *mockSessionStore) DeleteSession(ctx context.Context, id, userID string) error {
 	if m.deleteFunc != nil {
 		return m.deleteFunc(ctx, id, userID)
 	}
 	return nil
 }
+
 func (m *mockSessionStore) DeleteAllSessionsByUser(ctx context.Context, userID string) error {
 	if m.deleteAllFunc != nil {
 		return m.deleteAllFunc(ctx, userID)
 	}
 	return nil
 }
+
 func (m *mockSessionStore) DeleteExpiredSessions(ctx context.Context) error {
 	if m.deleteExpiredFunc != nil {
 		return m.deleteExpiredFunc(ctx)

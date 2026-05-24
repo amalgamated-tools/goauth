@@ -212,7 +212,7 @@ func TestHandleLinkInitiation_stateGenerationError(t *testing.T) {
 		nil,
 		func() (string, error) { return "", errors.New("entropy source failed") },
 		func(http.ResponseWriter, *http.Request, string, string) {
-			t.Fatal("redirect should not be called when state generation fails")
+			require.Fail(t, "redirect should not be called when state generation fails")
 		},
 	)
 
