@@ -82,6 +82,9 @@ h := &handler.OAuth2Handler{
 
     // Optional: customise the post-login redirect query parameter.
     LoginRedirect: "github_login=1", // redirects to /?github_login=1
+
+    // Optional: structured logger; defaults to slog.Default() when nil.
+    Logger: slog.Default(),
 }
 
 if err := h.Validate(); err != nil {

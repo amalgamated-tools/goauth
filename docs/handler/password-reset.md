@@ -46,10 +46,10 @@ Password constraints: 8–72 bytes. A password shorter than 8 bytes returns `{"e
 Reset tokens are consumed (deleted) after successful use.
 
 !!! warning "SendResetEmail is required"
-    If `SendResetEmail` is `nil`, `RequestReset` returns HTTP 503 (`password reset sending is not configured`) before any database write. Configure `SendResetEmail` before mounting this handler in production.
+    A nil `SendResetEmail` is caught by `Validate()` at startup. Configure `SendResetEmail` before mounting this handler in production.
 
 !!! info "Email enumeration prevention"
-    Beyond `400`, `429`, and `503` cases, `RequestReset` always returns HTTP 200 with the following response, regardless of whether the email is registered:
+    Beyond the `400` and `429` cases, `RequestReset` always returns HTTP 200 with the following response, regardless of whether the email is registered:
 
     ```json
     {"message": "if that email is registered, a reset link has been sent"}
@@ -65,10 +65,9 @@ Reset tokens are consumed (deleted) after successful use.
 
 | Endpoint | Status | Condition |
 |---|---|---|
-| `RequestReset` | 200 OK | Normal success response when not rate-limited and `SendResetEmail` is configured (even if email is unregistered or account is OIDC-only) |
+| `RequestReset` | 200 OK | Normal success response when not rate-limited (even if email is unregistered or account is OIDC-only) |
 | `RequestReset` | 400 Bad Request | Missing `email` field |
 | `RequestReset` | 429 Too Many Requests | Rate limit exceeded (only when `RateLimiter` is configured) |
-| `RequestReset` | 503 Service Unavailable | `SendResetEmail` is `nil` (not configured) |
 | `RequestReset` | 500 Internal Server Error | Store failure during user lookup, token creation, or token generation |
 | `ResetPassword` | 200 OK | `{"message": "password reset successfully"}` |
 | `ResetPassword` | 400 Bad Request | Missing `token` or `newPassword`; password outside 8–72 bytes; invalid or expired token; OIDC-only account (no password set) |

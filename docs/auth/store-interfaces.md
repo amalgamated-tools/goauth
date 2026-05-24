@@ -187,6 +187,9 @@ type EmailVerificationStore interface {
 
 `ConsumeEmailVerification` atomically looks up and deletes the token. Returns `auth.ErrNotFound` when not found.
 
+!!! note "Expiry enforcement contract"
+    The store must **not** return `auth.ErrExpiredToken` for an expired token. Instead, return the record normally (or `auth.ErrNotFound` if already cleaned up). `EmailVerificationHandler` checks `ExpiresAt` on the returned record and treats an expired token as invalid itself. Schedule periodic cleanup of expired records (e.g. via a background job) to prevent unbounded accumulation.
+
 ### EmailVerificationToken struct
 
 ```go
