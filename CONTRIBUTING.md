@@ -13,6 +13,7 @@ Thank you for considering a contribution to goauth! This guide covers everything
 - [Full pre-PR check](#full-pre-pr-check)
 - [Coding conventions](#coding-conventions)
 - [Submitting changes](#submitting-changes)
+- [Releasing](#releasing)
 
 ---
 
@@ -132,3 +133,55 @@ All changes must go through a pull request. The `main` branch is protected.
 4. Ensure the CI checks (lint, format, tests) pass on your PR.
 
 For significant API changes or new features, open an issue first to discuss the design before investing time in an implementation.
+
+---
+
+## Releasing
+
+> Releasing is a maintainer-only operation. Only repository members with write access to `main` can create and push release tags.
+
+goauth uses a two-track release model: automated release management via [Release Please](https://github.com/googleapis/release-please) and a helper script for manual tag creation.
+
+### Automated releases (Release Please)
+
+The `.github/workflows/release-please.yml` workflow runs on every push to `main`. Release Please parses [Conventional Commits](https://www.conventionalcommits.org/) in the commit history and:
+
+1. Opens or updates a "Release PR" that bumps the version in `release-please-manifest.json` and updates `CHANGELOG.md`.
+2. When that PR is merged, creates a GitHub release with auto-generated release notes.
+
+The workflow requires a `RELEASE_PLEASE_TOKEN` repository secret (a PAT with `contents: write` and `pull-requests: write` scope) and two configuration files at the repository root:
+
+| File | Purpose |
+|---|---|
+| `release-please-config.json` | Release Please component configuration |
+| `.release-please-manifest.json` | Tracks the current version for each component |
+
+No manual steps are needed for routine releases — merge the Release Please PR to publish.
+
+### Manual tag creation (`script/release`)
+
+For cases where an out-of-band tag is required (hot-fix, pre-release, etc.), use the helper script:
+
+```sh
+./script/release v1.2.3
+```
+
+The script:
+
+1. Validates that `VERSION` follows the `vX.Y.Z` format.
+2. Checks that the tag does not already exist.
+3. Ensures the working tree is clean (no uncommitted or untracked files).
+4. Creates an annotated tag locally and pushes it to `origin`.
+
+```sh
+# Examples
+./script/release v1.0.0     # initial stable release
+./script/release v1.2.3     # patch release
+
+# The following will be rejected
+./script/release 1.0.0      # missing 'v' prefix
+./script/release v1.0       # not semver — must be X.Y.Z
+```
+
+After the tag is pushed, the GitHub Actions release pipeline picks it up and publishes the GitHub release automatically.
+
