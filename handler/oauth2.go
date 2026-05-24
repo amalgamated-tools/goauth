@@ -105,17 +105,14 @@ func (h *OAuth2Handler) loginRedirectURL() string {
 // the provider's authorization endpoint. state must already be signed when
 // used for account linking.
 func (h *OAuth2Handler) redirectToProvider(w http.ResponseWriter, r *http.Request, state, verifier string) {
-	for _, pair := range [][2]string{
-		{oauth2StateCookieName, state},
-		{oauth2VerifierCookieName, verifier},
-	} {
-		http.SetCookie(w, &http.Cookie{
-			Name: pair[0], Value: pair[1], Path: "/",
-			MaxAge: int(oauth2StateCookieTTL.Seconds()), HttpOnly: true,
-			SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
-		})
-	}
-	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
+	redirectToOAuthProvider(
+		w, r,
+		oauth2StateCookieName, oauth2VerifierCookieName,
+		oauth2StateCookieTTL,
+		h.SecureCookies,
+		&h.OAuthConfig,
+		state, verifier,
+	)
 }
 
 // Login redirects the browser to the OAuth2 provider's authorisation endpoint.
@@ -139,42 +136,12 @@ func (h *OAuth2Handler) Login(w http.ResponseWriter, r *http.Request) {
 //
 // On success it redirects to "/?<LoginRedirect>". All error responses are JSON.
 func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
-	stateCookie, err := r.Cookie(oauth2StateCookieName)
-	if err != nil || stateCookie.Value == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "missing state cookie")
-		return
-	}
-	if r.URL.Query().Get("state") != stateCookie.Value {
-		writeError(r.Context(), w, http.StatusBadRequest, "invalid state parameter")
-		return
-	}
-	verifierCookie, err := r.Cookie(oauth2VerifierCookieName)
-	if err != nil || verifierCookie.Value == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "missing PKCE verifier cookie")
+	flow, ok := validateOAuthCallbackFlow(w, r, h.JWT, oauth2StateCookieName, oauth2VerifierCookieName, h.SecureCookies)
+	if !ok {
 		return
 	}
 
-	// Clear flow cookies.
-	for _, name := range []string{oauth2StateCookieName, oauth2VerifierCookieName} {
-		http.SetCookie(w, &http.Cookie{
-			Name: name, Value: "", Path: "/", MaxAge: -1,
-			HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
-		})
-	}
-
-	linkUserID := parseLinkState(h.JWT, stateCookie.Value)
-
-	if errParam := r.URL.Query().Get("error"); errParam != "" {
-		writeError(r.Context(), w, http.StatusUnauthorized, "authentication failed")
-		return
-	}
-	code := r.URL.Query().Get("code")
-	if code == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "missing authorization code")
-		return
-	}
-
-	token, err := h.OAuthConfig.Exchange(r.Context(), code, oauth2.VerifierOption(verifierCookie.Value))
+	token, err := h.OAuthConfig.Exchange(r.Context(), flow.Code, oauth2.VerifierOption(flow.VerifierValue))
 	if err != nil {
 		slog.ErrorContext(r.Context(), "OAuth2 code exchange failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "failed to exchange code")
@@ -197,13 +164,13 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	// For normal login flows the email must be verified; linking flows skip
 	// this check because the user is already authenticated.
-	if linkUserID == "" && !info.EmailVerified {
+	if flow.LinkUserID == "" && !info.EmailVerified {
 		writeError(r.Context(), w, http.StatusUnauthorized, "OAuth2 email must be verified")
 		return
 	}
 
-	if linkUserID != "" {
-		handleLinkCallback(w, r, h.Users, linkUserID, info.Subject, "/?oauth2_linked=true", "oauth2_link_error")
+	if flow.LinkUserID != "" {
+		handleLinkCallback(w, r, h.Users, flow.LinkUserID, info.Subject, "/?oauth2_linked=true", "oauth2_link_error")
 		return
 	}
 

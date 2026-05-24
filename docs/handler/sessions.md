@@ -11,6 +11,16 @@ h := &handler.SessionHandler{
 }
 ```
 
+Call `Validate()` at server startup to catch missing required fields (`Sessions`, `URLParamFunc`) before the first request:
+
+```go
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
+```
+
+`Validate()` returns a descriptive error such as `"SessionHandler misconfigured: URLParamFunc is required"` so the cause is immediately obvious in logs.
+
 ## Routes
 
 All routes require auth middleware.

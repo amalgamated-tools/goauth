@@ -107,17 +107,14 @@ func generateOIDCState() (string, error) {
 // the provider's authorization endpoint. state must already be signed when
 // used for account linking.
 func (h *OIDCHandler) redirectToProvider(w http.ResponseWriter, r *http.Request, state, verifier string) {
-	for _, pair := range [][2]string{
-		{oidcStateCookieName, state},
-		{oidcVerifierCookieName, verifier},
-	} {
-		http.SetCookie(w, &http.Cookie{
-			Name: pair[0], Value: pair[1], Path: "/",
-			MaxAge: int(oidcStateCookieTTL.Seconds()), HttpOnly: true,
-			SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
-		})
-	}
-	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
+	redirectToOAuthProvider(
+		w, r,
+		oidcStateCookieName, oidcVerifierCookieName,
+		oidcStateCookieTTL,
+		h.SecureCookies,
+		&h.OAuthConfig,
+		state, verifier,
+	)
 }
 
 // Login redirects to the OIDC provider.
@@ -135,42 +132,12 @@ func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Callback handles the OIDC provider redirect.
 func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie(oidcStateCookieName)
-	if err != nil || cookie.Value == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "missing state cookie")
-		return
-	}
-	if r.URL.Query().Get("state") != cookie.Value {
-		writeError(r.Context(), w, http.StatusBadRequest, "invalid state parameter")
-		return
-	}
-	verifierCookie, err := r.Cookie(oidcVerifierCookieName)
-	if err != nil || verifierCookie.Value == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "missing PKCE verifier cookie")
+	flow, ok := validateOAuthCallbackFlow(w, r, h.JWT, oidcStateCookieName, oidcVerifierCookieName, h.SecureCookies)
+	if !ok {
 		return
 	}
 
-	// Clear flow cookies.
-	for _, name := range []string{oidcStateCookieName, oidcVerifierCookieName} {
-		http.SetCookie(w, &http.Cookie{
-			Name: name, Value: "", Path: "/", MaxAge: -1,
-			HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
-		})
-	}
-
-	linkUserID := parseLinkState(h.JWT, cookie.Value)
-
-	if errParam := r.URL.Query().Get("error"); errParam != "" {
-		writeError(r.Context(), w, http.StatusUnauthorized, "authentication failed")
-		return
-	}
-	code := r.URL.Query().Get("code")
-	if code == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "missing authorization code")
-		return
-	}
-
-	oauth2Token, err := h.OAuthConfig.Exchange(r.Context(), code, oauth2.VerifierOption(verifierCookie.Value))
+	oauth2Token, err := h.OAuthConfig.Exchange(r.Context(), flow.Code, oauth2.VerifierOption(flow.VerifierValue))
 	if err != nil {
 		h.log().ErrorContext(r.Context(), "OIDC code exchange failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "failed to exchange code")
@@ -213,13 +180,13 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		claims.Name = claims.Email
 	}
 
-	if linkUserID == "" && (claims.EmailVerified == nil || !*claims.EmailVerified) {
+	if flow.LinkUserID == "" && (claims.EmailVerified == nil || !*claims.EmailVerified) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "OIDC email must be verified")
 		return
 	}
 
-	if linkUserID != "" {
-		handleLinkCallback(w, r, h.Users, linkUserID, claims.Sub, "/?oidc_linked=true", "oidc_link_error")
+	if flow.LinkUserID != "" {
+		handleLinkCallback(w, r, h.Users, flow.LinkUserID, claims.Sub, "/?oidc_linked=true", "oidc_link_error")
 		return
 	}
 
