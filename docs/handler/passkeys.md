@@ -155,9 +155,9 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 | Credential listing store failure | `ERROR` | `"failed to list credentials"` | `BeginRegistration`, `FinishRegistration`, `FinishAuthentication`, `ListCredentials` |
 | WebAuthn registration ceremony failure | `ERROR` | `"failed to begin registration"` | `BeginRegistration` |
 | Challenge persistence failure | `ERROR` | `"failed to store challenge"` | `BeginRegistration`, `BeginAuthentication` |
+| WebAuthn finish-registration ceremony failure | `WARN` | `"webauthn finish registration failed"` | `FinishRegistration` |
 | Credential marshalling failure | `ERROR` | `"failed to marshal credential"` | `FinishRegistration` |
 | Credential persistence failure | `ERROR` | `"failed to store credential"` | `FinishRegistration` |
-| WebAuthn finish-registration ceremony failure | `WARN` | `"webauthn finish registration failed"` | `FinishRegistration` |
 | WebAuthn authentication ceremony failure | `ERROR` | `"failed to begin login"` | `BeginAuthentication` |
 | Credential deletion store failure | `ERROR` | `"failed to delete credential"` | `DeleteCredential` |
 | Corrupted credential skipped during decode | `WARN` | `"skipping corrupted passkey credential"` | (internal, during listing) |
