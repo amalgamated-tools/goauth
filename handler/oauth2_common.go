@@ -12,7 +12,80 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"golang.org/x/oauth2"
 )
+
+type oauthCallbackFlow struct {
+	VerifierValue string
+	LinkUserID    string
+	Code          string
+}
+
+func redirectToOAuthProvider(
+	w http.ResponseWriter, r *http.Request,
+	stateCookieName, verifierCookieName string,
+	ttl time.Duration,
+	secureCookies bool,
+	config *oauth2.Config,
+	state, verifier string,
+) {
+	for _, pair := range [][2]string{
+		{stateCookieName, state},
+		{verifierCookieName, verifier},
+	} {
+		http.SetCookie(w, &http.Cookie{
+			Name: pair[0], Value: pair[1], Path: "/",
+			MaxAge: int(ttl.Seconds()), HttpOnly: true,
+			SameSite: http.SameSiteLaxMode, Secure: secureCookies,
+		})
+	}
+	http.Redirect(w, r, config.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), http.StatusFound)
+}
+
+func validateOAuthCallbackFlow(
+	w http.ResponseWriter, r *http.Request,
+	jwtMgr *auth.JWTManager,
+	stateCookieName, verifierCookieName string,
+	secureCookies bool,
+) (*oauthCallbackFlow, bool) {
+	stateCookie, err := r.Cookie(stateCookieName)
+	if err != nil || stateCookie.Value == "" {
+		writeError(r.Context(), w, http.StatusBadRequest, "missing state cookie")
+		return nil, false
+	}
+	if r.URL.Query().Get("state") != stateCookie.Value {
+		writeError(r.Context(), w, http.StatusBadRequest, "invalid state parameter")
+		return nil, false
+	}
+	verifierCookie, err := r.Cookie(verifierCookieName)
+	if err != nil || verifierCookie.Value == "" {
+		writeError(r.Context(), w, http.StatusBadRequest, "missing PKCE verifier cookie")
+		return nil, false
+	}
+
+	for _, name := range []string{stateCookieName, verifierCookieName} {
+		http.SetCookie(w, &http.Cookie{
+			Name: name, Value: "", Path: "/", MaxAge: -1,
+			HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookies,
+		})
+	}
+
+	if errParam := r.URL.Query().Get("error"); errParam != "" {
+		writeError(r.Context(), w, http.StatusUnauthorized, "authentication failed")
+		return nil, false
+	}
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		writeError(r.Context(), w, http.StatusBadRequest, "missing authorization code")
+		return nil, false
+	}
+
+	return &oauthCallbackFlow{
+		VerifierValue: verifierCookie.Value,
+		LinkUserID:    parseLinkState(jwtMgr, stateCookie.Value),
+		Code:          code,
+	}, true
+}
 
 // linkSubjectBestEffort attempts to link an OIDC subject to an existing user.
 // A failure (other than ErrOIDCSubjectAlreadyLinked) is logged as a warning
