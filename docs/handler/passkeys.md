@@ -93,6 +93,23 @@ The `id` field can be passed to `DeleteCredential` to remove a specific passkey.
 
 Use `handler.ToPasskeyCredentialDTO(credential)` to convert an `auth.PasskeyCredential` to a `PasskeyCredentialDTO` in custom handlers or tests.
 
+## Testing and custom WebAuthn providers
+
+The `WebAuthn` field accepts any value that satisfies the unexported `webAuthnProvider` interface:
+
+```go
+type webAuthnProvider interface {
+    BeginDiscoverableLogin(opts ...webauthn.LoginOption) (*protocol.CredentialAssertion, *webauthn.SessionData, error)
+    FinishPasskeyLogin(handler webauthn.DiscoverableUserHandler, session webauthn.SessionData, response *http.Request) (webauthn.User, *webauthn.Credential, error)
+    BeginRegistration(user webauthn.User, opts ...webauthn.RegistrationOption) (*protocol.CredentialCreation, *webauthn.SessionData, error)
+    FinishRegistration(user webauthn.User, session webauthn.SessionData, request *http.Request) (*webauthn.Credential, error)
+}
+```
+
+`*webauthn.WebAuthn` from `github.com/go-webauthn/webauthn` satisfies this interface. In tests you can substitute a struct double that implements the same methods, allowing you to simulate ceremony outcomes without a real authenticator device.
+
+`FinishAuthentication` uses the **second** return value of `FinishPasskeyLogin` (the updated `*webauthn.Credential`) when persisting the signature counter. Mocks must return a non-nil `*webauthn.Credential` on success for the counter-update path to be exercised.
+
 ## Disabling passkeys
 
 Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` returns `{"enabled": false}` normally. All other endpoints (`BeginRegistration`, `FinishRegistration`, `BeginAuthentication`, `FinishAuthentication`) return HTTP 503 "passkeys not configured". `ListCredentials` and `DeleteCredential` remain accessible via auth middleware but are not affected by the `WebAuthn` field.
@@ -108,17 +125,19 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 | `BeginRegistration` | 503 Service Unavailable | `WebAuthn` is `nil` (passkeys disabled) |
 | `BeginRegistration` | 500 Internal Server Error | Store error fetching user; failed to list credentials, begin WebAuthn ceremony, or store challenge |
 | `FinishRegistration` | 201 Created | `PasskeyCredentialDTO` |
-| `FinishRegistration` | 400 Bad Request | Missing `session_id`; invalid/expired session; registration verification failed |
+| `FinishRegistration` | 400 Bad Request | Missing `session_id`; invalid/expired session; session user mismatch; registration verification failed |
+| `FinishRegistration` | 404 Not Found | User not found |
 | `FinishRegistration` | 503 Service Unavailable | `WebAuthn` is `nil` |
-| `FinishRegistration` | 500 Internal Server Error | Failed to fetch user, list credentials, marshal credential, or store credential |
+| `FinishRegistration` | 500 Internal Server Error | Failed to list credentials, marshal credential, or store credential |
 | `BeginAuthentication` | 200 OK | `{session_id, options}` |
 | `BeginAuthentication` | 503 Service Unavailable | `WebAuthn` is `nil` |
 | `BeginAuthentication` | 500 Internal Server Error | Failed to begin WebAuthn ceremony or store challenge |
 | `FinishAuthentication` | 200 OK | `AuthResponse` |
 | `FinishAuthentication` | 400 Bad Request | Missing `session_id` |
 | `FinishAuthentication` | 401 Unauthorized | Invalid/expired session; WebAuthn verification failed |
+| `FinishAuthentication` | 404 Not Found | User not found during discoverable-credential lookup |
 | `FinishAuthentication` | 503 Service Unavailable | `WebAuthn` is `nil` |
-| `FinishAuthentication` | 500 Internal Server Error | Store failure during authentication |
+| `FinishAuthentication` | 500 Internal Server Error | Failed to list credentials or fetch user; store failure during authentication |
 | `ListCredentials` | 200 OK | `[]PasskeyCredentialDTO` |
 | `ListCredentials` | 500 Internal Server Error | Store failure |
 | `DeleteCredential` | 204 No Content | Success |
