@@ -12,8 +12,18 @@ import (
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
+
+// webAuthnProvider abstracts the go-webauthn ceremony operations so they can be
+// replaced with a test double. *webauthn.WebAuthn satisfies this interface.
+type webAuthnProvider interface {
+	BeginDiscoverableLogin(opts ...webauthn.LoginOption) (*protocol.CredentialAssertion, *webauthn.SessionData, error)
+	FinishPasskeyLogin(handler webauthn.DiscoverableUserHandler, session webauthn.SessionData, response *http.Request) (webauthn.User, *webauthn.Credential, error)
+	BeginRegistration(user webauthn.User, opts ...webauthn.RegistrationOption) (*protocol.CredentialCreation, *webauthn.SessionData, error)
+	FinishRegistration(user webauthn.User, session webauthn.SessionData, request *http.Request) (*webauthn.Credential, error)
+}
 
 const passkeyChallengeExpiry = 5 * time.Minute
 
@@ -27,7 +37,7 @@ var (
 type PasskeyHandler struct {
 	Users         auth.UserStore
 	Passkeys      auth.PasskeyStore
-	WebAuthn      *webauthn.WebAuthn
+	WebAuthn      webAuthnProvider
 	JWT           *auth.JWTManager
 	CookieName    string
 	SecureCookies bool
@@ -339,7 +349,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		return &passkeyUser{user: user, credentials: loadWebAuthnCredentials(r.Context(), userCreds)}, nil
 	})
 
-	updatedCred, _, err := h.WebAuthn.FinishPasskeyLogin(handler, challengeData.SessionData, r)
+	_, updatedCred, err := h.WebAuthn.FinishPasskeyLogin(handler, challengeData.SessionData, r)
 	if err != nil {
 		if listCredsErr != nil {
 			slog.ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", listCredsErr))
