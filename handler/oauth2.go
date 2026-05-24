@@ -123,7 +123,7 @@ func (h *OAuth2Handler) redirectToProvider(w http.ResponseWriter, r *http.Reques
 // It sets short-lived HttpOnly state and PKCE verifier cookies (SameSite=Lax,
 // 5-minute TTL) for CSRF and PKCE protection.
 func (h *OAuth2Handler) Login(w http.ResponseWriter, r *http.Request) {
-	state, err := auth.GenerateRandomBase64(32)
+	state, err := generateState()
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to generate OAuth2 login state", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate login")
@@ -208,7 +208,6 @@ func (h *OAuth2Handler) Link(w http.ResponseWriter, r *http.Request) {
 		h.JWT,
 		h.log(),
 		"oauth2",
-		func() (string, error) { return auth.GenerateRandomBase64(32) },
-		h.redirectToProvider,
+		generateState, h.redirectToProvider,
 	)
 }

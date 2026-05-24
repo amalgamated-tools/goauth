@@ -99,10 +99,6 @@ func (h *OIDCHandler) Validate() error {
 	return nil
 }
 
-func generateOIDCState() (string, error) {
-	return auth.GenerateRandomBase64(32)
-}
-
 // redirectToProvider sets the OIDC flow cookies and redirects the browser to
 // the provider's authorization endpoint. state must already be signed when
 // used for account linking.
@@ -119,7 +115,7 @@ func (h *OIDCHandler) redirectToProvider(w http.ResponseWriter, r *http.Request,
 
 // Login redirects to the OIDC provider.
 func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
-	state, err := generateOIDCState()
+	state, err := generateState()
 	if err != nil {
 		h.log().ErrorContext(r.Context(), "failed to generate OIDC login state", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate login")
@@ -218,7 +214,7 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 		h.JWT,
 		h.log(),
 		"oidc",
-		generateOIDCState,
+		generateState,
 		h.redirectToProvider,
 	)
 }

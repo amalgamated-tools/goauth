@@ -254,6 +254,12 @@ func parseLinkState(jwtMgr *auth.JWTManager, state string) string {
 	return userID
 }
 
+// generateState generates a cryptographically random base64 state value for
+// OAuth2 and OIDC authorization flows.
+func generateState() (string, error) {
+	return auth.GenerateRandomBase64(32)
+}
+
 // consumeLinkNonce validates and atomically deletes the single-use link nonce,
 // returning the associated userID. Returns auth.ErrNotFound when the nonce is
 // missing or expired.
