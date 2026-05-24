@@ -155,13 +155,16 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | Refresh token generation failure | `ERROR` | `"failed to generate refresh token"` | `Callback` |
 | Session creation store failure | `ERROR` | `"failed to create session"` | `Callback` |
 | Access token creation failure | `ERROR` | `"failed to create token"` | `Callback` |
-| Nonce generation failure | `ERROR` | `"failed to generate OIDC link nonce"` | `CreateLinkNonce` |
+| Nonce generation failure | `ERROR` | `"failed to generate link nonce"` | `CreateLinkNonce` |
 | Nonce persistence store failure | `ERROR` | `"failed to store link nonce"` | `CreateLinkNonce` |
-| Link state generation failure | `ERROR` | `"failed to generate OIDC link state"` | `Link` |
+| Link state generation failure | `ERROR` | `"failed to generate link state"` | `Link` |
 | Nonce consumption failure | `ERROR` | `"failed to consume link nonce"` | `Link` |
-| User lookup failure (link initiation) | `ERROR` | `"failed to look up user during OIDC link"` | `Link` |
+| User lookup failure (link initiation) | `ERROR` | `"failed to look up user during link"` | `Link` |
 | User lookup failure (link callback) | `ERROR` | `"failed to look up user during link"` | `Callback` (link flow) |
 | OIDC subject lookup failure (link callback) | `ERROR` | `"failed to look up OIDC subject during link"` | `Callback` (link flow) |
 | OIDC subject linking failure | `ERROR` | `"failed to link OIDC subject"` | `Callback` (link flow) |
 
 The `WARN`-level best-effort link event does not produce an HTTP error — login still succeeds. `ERROR`-level events in `Login`, `Callback`, `CreateLinkNonce`, and `Link` are followed by an HTTP 500 response. `ERROR`-level events in the `Callback` link flow are followed by a redirect with `oidc_link_error`.
+
+!!! note "Shared link-flow log messages"
+    The `"failed to generate link state"` and `"failed to look up user during link"` (`Link` endpoint) log records are emitted by a helper shared with `OAuth2Handler`. Both include a `provider` slog attribute set to `"oidc"` so they can be distinguished in aggregated log streams.
