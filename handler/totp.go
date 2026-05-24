@@ -56,7 +56,9 @@ type totpVerifyBody struct {
 // Validate checks that the handler is correctly configured and returns an
 // error when required dependencies are missing. Call Validate once at server
 // startup so misconfiguration is caught immediately rather than at the first
-// enroll/verify request.
+// enroll/verify request. In particular, if UsedCodes is nil and Validate is
+// not called, Enroll and Verify will panic with a nil-pointer dereference
+// rather than returning a diagnosable error.
 func (h *TOTPHandler) Validate() error {
 	if h.TOTP == nil {
 		return errors.New("TOTPHandler misconfigured: TOTP is required")
@@ -73,17 +75,11 @@ func (h *TOTPHandler) Validate() error {
 // isReplay returns true when code has already been used for userID within the
 // replay window.
 func (h *TOTPHandler) isReplay(userID, code string) bool {
-	if h.UsedCodes == nil {
-		panic("TOTPHandler misconfigured: UsedCodes is nil; call Validate() at server startup")
-	}
 	return h.UsedCodes.WasUsed(userID, code)
 }
 
 // recordUsed marks code as used for userID to prevent future replays.
 func (h *TOTPHandler) recordUsed(userID, code string) {
-	if h.UsedCodes == nil {
-		panic("TOTPHandler misconfigured: UsedCodes is nil; call Validate() at server startup")
-	}
 	h.UsedCodes.MarkUsed(userID, code)
 }
 

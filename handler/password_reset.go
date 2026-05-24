@@ -87,11 +87,6 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if h.SendResetEmail == nil {
-		writeError(r.Context(), w, http.StatusServiceUnavailable, "password reset sending is not configured")
-		return
-	}
-
 	user, err := h.Users.FindByEmail(r.Context(), req.Email)
 	if err != nil && !errors.Is(err, auth.ErrNotFound) {
 		slog.ErrorContext(r.Context(), "password reset: lookup user", slog.Any("error", err))

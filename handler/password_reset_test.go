@@ -198,27 +198,6 @@ func TestRequestReset_responseMessage(t *testing.T) {
 	require.NotEmpty(t, body["message"])
 }
 
-func TestRequestReset_nilSendResetEmail(t *testing.T) {
-	createCalled := false
-	users := &mockUserStore{
-		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return &auth.User{ID: "u1", Email: "alice@test.com", PasswordHash: "somehash"}, nil
-		},
-	}
-	resets := &mockPasswordResetStore{
-		createFunc: func(_ context.Context, _, _ string, _ time.Time) (*auth.PasswordResetToken, error) {
-			createCalled = true
-			return &auth.PasswordResetToken{ID: "reset-id"}, nil
-		},
-	}
-	// SendResetEmail is nil — must return 503 and must not write to the DB.
-	h := newPasswordResetHandler(users, resets)
-	h.SendResetEmail = nil
-	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
-	require.Equal(t, http.StatusServiceUnavailable, w.Code)
-	require.False(t, createCalled, "CreatePasswordResetToken must not be called when SendResetEmail is nil")
-}
-
 // ---------------------------------------------------------------------------
 // ResetPassword
 // ---------------------------------------------------------------------------

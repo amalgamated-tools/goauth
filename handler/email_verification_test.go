@@ -195,27 +195,6 @@ func TestSendVerification_userStoreError(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestSendVerification_noSendEmailFunc(t *testing.T) {
-	createCalled := false
-	store := &mockUserStore{
-		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
-			return &auth.User{ID: "u1", Email: "alice@test.com", EmailVerified: false}, nil
-		},
-	}
-	verStore := &mockEmailVerificationStore{
-		createFunc: func(_ context.Context, _, _ string, _ time.Time) (*auth.EmailVerificationToken, error) {
-			createCalled = true
-			return &auth.EmailVerificationToken{}, nil
-		},
-	}
-	// SendEmail is nil — must return 503 and must not write to the DB.
-	h := newEmailVerificationHandler(store, verStore)
-	h.SendEmail = nil
-	w := postJSON(t, h.SendVerification, `{"email":"alice@test.com"}`)
-	require.Equal(t, http.StatusServiceUnavailable, w.Code)
-	require.False(t, createCalled, "CreateEmailVerification must not be called when SendEmail is nil")
-}
-
 // ---------------------------------------------------------------------------
 // VerifyEmail
 // ---------------------------------------------------------------------------

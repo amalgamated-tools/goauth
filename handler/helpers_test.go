@@ -500,8 +500,8 @@ func TestPasswordErrorStringsInDocs(t *testing.T) {
 		content, err := os.ReadFile(path)
 		require.NoErrorf(t, err, "reading %s", path)
 		s := string(content)
-		require.Containsf(t, s, errPasswordTooShort, "doc %s is out of sync with errPasswordTooShort", path)
-		require.Containsf(t, s, errPasswordTooLong, "doc %s is out of sync with errPasswordTooLong", path)
+		require.Containsf(t, s, msgPasswordTooShort, "doc %s is out of sync with msgPasswordTooShort", path)
+		require.Containsf(t, s, msgPasswordTooLong, "doc %s is out of sync with msgPasswordTooLong", path)
 	}
 }
 

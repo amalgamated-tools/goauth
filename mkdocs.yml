@@ -47,6 +47,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Tutorial: tutorial.md
   - auth package:
     - auth/index.md
     - JWT Manager: auth/jwt.md
