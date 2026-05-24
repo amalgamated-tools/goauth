@@ -49,7 +49,7 @@ Reset tokens are consumed (deleted) after successful use.
     A nil `SendResetEmail` is caught by `Validate()` at startup. Configure `SendResetEmail` before mounting this handler in production.
 
 !!! info "Email enumeration prevention"
-    Beyond the `400` and `429` cases, `RequestReset` always returns HTTP 200 with the following response, regardless of whether the email is registered:
+    For non-operational outcomes, `RequestReset` returns HTTP 200 with the following response regardless of whether the email is registered. This prevents clients from distinguishing registered from unregistered addresses based on the response body or status. Operational failures may still surface as non-200 responses such as HTTP 500.
 
     ```json
     {"message": "if that email is registered, a reset link has been sent"}
