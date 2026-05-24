@@ -38,48 +38,56 @@ func (m *mockPasskeyStore) CreateChallenge(ctx context.Context, userID *string, 
 	}
 	return &auth.PasskeyChallenge{ID: "chal-id"}, nil
 }
+
 func (m *mockPasskeyStore) GetAndDeleteChallenge(ctx context.Context, id string) (*auth.PasskeyChallenge, error) {
 	if m.getAndDeleteChallengeFunc != nil {
 		return m.getAndDeleteChallengeFunc(ctx, id)
 	}
 	return nil, auth.ErrNotFound
 }
+
 func (m *mockPasskeyStore) DeleteExpiredChallenges(ctx context.Context) error {
 	if m.deleteExpiredChallengesFunc != nil {
 		return m.deleteExpiredChallengesFunc(ctx)
 	}
 	return nil
 }
+
 func (m *mockPasskeyStore) CreateCredential(ctx context.Context, userID, name, credentialID, credentialData, aaguid string) (*auth.PasskeyCredential, error) {
 	if m.createCredentialFunc != nil {
 		return m.createCredentialFunc(ctx, userID, name, credentialID, credentialData, aaguid)
 	}
 	return &auth.PasskeyCredential{ID: "cred-id", Name: name, AAGUID: aaguid}, nil
 }
+
 func (m *mockPasskeyStore) ListCredentialsByUser(ctx context.Context, userID string) ([]auth.PasskeyCredential, error) {
 	if m.listCredentialsByUserFunc != nil {
 		return m.listCredentialsByUserFunc(ctx, userID)
 	}
 	return nil, nil
 }
+
 func (m *mockPasskeyStore) FindCredentialByCredentialID(ctx context.Context, credentialID string) (*auth.PasskeyCredential, error) {
 	if m.findCredentialByCredIDFunc != nil {
 		return m.findCredentialByCredIDFunc(ctx, credentialID)
 	}
 	return nil, auth.ErrNotFound
 }
+
 func (m *mockPasskeyStore) FindCredentialByIDAndUser(ctx context.Context, id, userID string) (*auth.PasskeyCredential, error) {
 	if m.findCredentialByIDAndUser != nil {
 		return m.findCredentialByIDAndUser(ctx, id, userID)
 	}
 	return nil, auth.ErrNotFound
 }
+
 func (m *mockPasskeyStore) UpdateCredentialData(ctx context.Context, userID, credentialID, credentialData string) error {
 	if m.updateCredentialDataFunc != nil {
 		return m.updateCredentialDataFunc(ctx, userID, credentialID, credentialData)
 	}
 	return nil
 }
+
 func (m *mockPasskeyStore) DeleteCredential(ctx context.Context, id, userID string) error {
 	if m.deleteCredentialFunc != nil {
 		return m.deleteCredentialFunc(ctx, id, userID)

@@ -37,54 +37,63 @@ func (m *mockUserStore) CreateUser(ctx context.Context, name, email, hash string
 	}
 	return &auth.User{ID: "new-id", Name: name, Email: email, PasswordHash: hash}, nil
 }
+
 func (m *mockUserStore) CreateOIDCUser(ctx context.Context, name, email, sub string) (*auth.User, error) {
 	if m.createOIDCUserFunc != nil {
 		return m.createOIDCUserFunc(ctx, name, email, sub)
 	}
 	return &auth.User{ID: "oidc-id", Name: name, Email: email}, nil
 }
+
 func (m *mockUserStore) FindByEmail(ctx context.Context, email string) (*auth.User, error) {
 	if m.findByEmailFunc != nil {
 		return m.findByEmailFunc(ctx, email)
 	}
 	return nil, nil
 }
+
 func (m *mockUserStore) FindByID(ctx context.Context, id string) (*auth.User, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
 	return &auth.User{ID: id}, nil
 }
+
 func (m *mockUserStore) FindByOIDCSubject(ctx context.Context, sub string) (*auth.User, error) {
 	if m.findByOIDCSubjectFunc != nil {
 		return m.findByOIDCSubjectFunc(ctx, sub)
 	}
 	return nil, nil
 }
+
 func (m *mockUserStore) LinkOIDCSubject(ctx context.Context, userID, sub string) error {
 	if m.linkOIDCSubjectFunc != nil {
 		return m.linkOIDCSubjectFunc(ctx, userID, sub)
 	}
 	return nil
 }
+
 func (m *mockUserStore) UpdatePassword(ctx context.Context, userID, hash string) error {
 	if m.updatePasswordFunc != nil {
 		return m.updatePasswordFunc(ctx, userID, hash)
 	}
 	return nil
 }
+
 func (m *mockUserStore) UpdateName(ctx context.Context, userID, name string) (*auth.User, error) {
 	if m.updateNameFunc != nil {
 		return m.updateNameFunc(ctx, userID, name)
 	}
 	return &auth.User{ID: userID, Name: name}, nil
 }
+
 func (m *mockUserStore) IsAdmin(ctx context.Context, userID string) (bool, error) {
 	if m.isAdminFunc != nil {
 		return m.isAdminFunc(ctx, userID)
 	}
 	return false, nil
 }
+
 func (m *mockUserStore) CountUsers(ctx context.Context) (int, error) {
 	if m.countUsersFunc != nil {
 		return m.countUsersFunc(ctx)
@@ -107,30 +116,35 @@ func (m *mockAPIKeyStore) CreateAPIKey(ctx context.Context, userID, name, keyHas
 	}
 	return &auth.APIKey{ID: "key-id", UserID: userID, Name: name, KeyPrefix: keyPrefix, CreatedAt: time.Now()}, nil
 }
+
 func (m *mockAPIKeyStore) ListAPIKeysByUser(ctx context.Context, userID string) ([]auth.APIKey, error) {
 	if m.listFunc != nil {
 		return m.listFunc(ctx, userID)
 	}
 	return nil, nil
 }
+
 func (m *mockAPIKeyStore) FindAPIKeyByIDAndUser(ctx context.Context, id, userID string) (*auth.APIKey, error) {
 	if m.findFunc != nil {
 		return m.findFunc(ctx, id, userID)
 	}
 	return nil, nil
 }
+
 func (m *mockAPIKeyStore) ValidateAPIKey(ctx context.Context, keyHash string) (string, string, error) {
 	if m.validateFunc != nil {
 		return m.validateFunc(ctx, keyHash)
 	}
 	return "", "", nil
 }
+
 func (m *mockAPIKeyStore) TouchAPIKeyLastUsed(ctx context.Context, id string) error {
 	if m.touchFunc != nil {
 		return m.touchFunc(ctx, id)
 	}
 	return nil
 }
+
 func (m *mockAPIKeyStore) DeleteAPIKey(ctx context.Context, id, userID string) error {
 	if m.deleteFunc != nil {
 		return m.deleteFunc(ctx, id, userID)
@@ -154,36 +168,42 @@ func (m *mockSessionStore) CreateSession(ctx context.Context, userID, refreshTok
 	}
 	return &auth.Session{ID: "sess-id", UserID: userID, ExpiresAt: expiresAt}, nil
 }
+
 func (m *mockSessionStore) FindSessionByID(ctx context.Context, id string) (*auth.Session, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
 	return nil, nil
 }
+
 func (m *mockSessionStore) FindSessionByRefreshTokenHash(ctx context.Context, hash string) (*auth.Session, error) {
 	if m.findByRefreshTokenFunc != nil {
 		return m.findByRefreshTokenFunc(ctx, hash)
 	}
 	return nil, nil
 }
+
 func (m *mockSessionStore) ListSessionsByUser(ctx context.Context, userID string) ([]auth.Session, error) {
 	if m.listFunc != nil {
 		return m.listFunc(ctx, userID)
 	}
 	return nil, nil
 }
+
 func (m *mockSessionStore) DeleteSession(ctx context.Context, id, userID string) error {
 	if m.deleteFunc != nil {
 		return m.deleteFunc(ctx, id, userID)
 	}
 	return nil
 }
+
 func (m *mockSessionStore) DeleteAllSessionsByUser(ctx context.Context, userID string) error {
 	if m.deleteAllFunc != nil {
 		return m.deleteAllFunc(ctx, userID)
 	}
 	return nil
 }
+
 func (m *mockSessionStore) DeleteExpiredSessions(ctx context.Context) error {
 	if m.deleteExpiredFunc != nil {
 		return m.deleteExpiredFunc(ctx)
@@ -203,12 +223,14 @@ func (m *mockMagicLinkStore) CreateMagicLink(ctx context.Context, email, tokenHa
 	}
 	return &auth.MagicLink{ID: "ml-id", Email: email, TokenHash: tokenHash, ExpiresAt: expiresAt}, nil
 }
+
 func (m *mockMagicLinkStore) FindAndDeleteMagicLink(ctx context.Context, tokenHash string) (*auth.MagicLink, error) {
 	if m.findAndDeleteFunc != nil {
 		return m.findAndDeleteFunc(ctx, tokenHash)
 	}
 	return nil, auth.ErrNotFound
 }
+
 func (m *mockMagicLinkStore) DeleteExpiredMagicLinks(ctx context.Context) error {
 	if m.deleteExpiredFunc != nil {
 		return m.deleteExpiredFunc(ctx)
@@ -270,18 +292,21 @@ func (m *mockPasswordResetStore) CreatePasswordResetToken(ctx context.Context, u
 	}
 	return &auth.PasswordResetToken{ID: "reset-id", UserID: userID, TokenHash: tokenHash, ExpiresAt: expiresAt}, nil
 }
+
 func (m *mockPasswordResetStore) FindPasswordResetToken(ctx context.Context, tokenHash string) (*auth.PasswordResetToken, error) {
 	if m.findFunc != nil {
 		return m.findFunc(ctx, tokenHash)
 	}
 	return nil, auth.ErrInvalidToken
 }
+
 func (m *mockPasswordResetStore) DeletePasswordResetToken(ctx context.Context, id string) error {
 	if m.deleteFunc != nil {
 		return m.deleteFunc(ctx, id)
 	}
 	return nil
 }
+
 func (m *mockPasswordResetStore) DeleteExpiredPasswordResetTokens(ctx context.Context) error {
 	if m.deleteExpiredFunc != nil {
 		return m.deleteExpiredFunc(ctx)
