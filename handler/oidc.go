@@ -211,48 +211,13 @@ func (h *OIDCHandler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
 
 // Link validates the nonce and redirects for account linking.
 func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
-	if h.LinkNonces == nil {
-		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
-		return
-	}
-	nonceStr := r.URL.Query().Get("nonce")
-	if nonceStr == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "missing nonce")
-		return
-	}
-	userID, err := consumeLinkNonce(r.Context(), h.LinkNonces, nonceStr)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired nonce")
-		} else {
-			h.log().ErrorContext(r.Context(), "failed to consume link nonce", slog.Any("error", err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "failed to validate nonce")
-		}
-		return
-	}
-	u, err := h.Users.FindByID(r.Context(), userID)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "user not found")
-		} else {
-			h.log().ErrorContext(r.Context(), "failed to look up user during OIDC link", slog.Any("error", err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "server error")
-		}
-		return
-	}
-	if u.OIDCSubject != nil {
-		writeError(r.Context(), w, http.StatusConflict, "cannot link account")
-		return
-	}
-
-	state, err := generateOIDCState()
-	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to generate OIDC link state", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate link")
-		return
-	}
-	verifier := oauth2.GenerateVerifier()
-	signedState := signLinkState(h.JWT, state, userID)
-
-	h.redirectToProvider(w, r, signedState, verifier)
+	handleLinkInitiation(
+		w, r,
+		h.LinkNonces,
+		h.Users,
+		h.JWT,
+		h.log(),
+		generateOIDCState,
+		h.redirectToProvider,
+	)
 }

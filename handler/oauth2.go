@@ -197,48 +197,13 @@ func (h *OAuth2Handler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) 
 // Link validates the nonce and redirects the browser to the OAuth2 provider to
 // start the account-linking flow. Requires auth middleware on the route.
 func (h *OAuth2Handler) Link(w http.ResponseWriter, r *http.Request) {
-	if h.LinkNonces == nil {
-		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
-		return
-	}
-	nonceStr := r.URL.Query().Get("nonce")
-	if nonceStr == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "missing nonce")
-		return
-	}
-	userID, err := consumeLinkNonce(r.Context(), h.LinkNonces, nonceStr)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired nonce")
-		} else {
-			slog.ErrorContext(r.Context(), "failed to consume link nonce", slog.Any("error", err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "failed to validate nonce")
-		}
-		return
-	}
-	u, err := h.Users.FindByID(r.Context(), userID)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "user not found")
-		} else {
-			slog.ErrorContext(r.Context(), "failed to look up user during OAuth2 link", slog.Any("error", err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "server error")
-		}
-		return
-	}
-	if u.OIDCSubject != nil {
-		writeError(r.Context(), w, http.StatusConflict, "cannot link account")
-		return
-	}
-
-	state, err := auth.GenerateRandomBase64(32)
-	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to generate OAuth2 link state", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate link")
-		return
-	}
-	verifier := oauth2.GenerateVerifier()
-	signedState := signLinkState(h.JWT, state, userID)
-
-	h.redirectToProvider(w, r, signedState, verifier)
+	handleLinkInitiation(
+		w, r,
+		h.LinkNonces,
+		h.Users,
+		h.JWT,
+		slog.Default(),
+		func() (string, error) { return auth.GenerateRandomBase64(32) },
+		h.redirectToProvider,
+	)
 }

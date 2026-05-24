@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/amalgamated-tools/goauth/auth"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 )
@@ -133,4 +136,85 @@ func TestValidateOAuthCallbackFlow_missingCode(t *testing.T) {
 	require.False(t, ok)
 	require.Nil(t, flow)
 	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandleLinkInitiation_missingNonce(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/link", nil)
+	w := httptest.NewRecorder()
+
+	handleLinkInitiation(
+		w, req,
+		&mockOIDCLinkNonceStore{},
+		&mockUserStore{},
+		newTestJWT(),
+		nil,
+		func() (string, error) { return "state", nil },
+		func(http.ResponseWriter, *http.Request, string, string) {},
+	)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandleLinkInitiation_successCallsRedirect(t *testing.T) {
+	nonces := &mockOIDCLinkNonceStore{}
+	const userID = "user-123"
+	const nonce = "nonce-123"
+	_, err := nonces.CreateLinkNonce(context.Background(), userID, auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/link?nonce="+nonce, nil)
+	w := httptest.NewRecorder()
+
+	redirectCalled := false
+	var gotSignedState, gotVerifier string
+	handleLinkInitiation(
+		w, req,
+		nonces,
+		&mockUserStore{
+			findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
+				require.Equal(t, userID, id)
+				return &auth.User{ID: id}, nil
+			},
+		},
+		newTestJWT(),
+		nil,
+		func() (string, error) { return "random-state", nil },
+		func(_ http.ResponseWriter, _ *http.Request, state, verifier string) {
+			redirectCalled = true
+			gotSignedState = state
+			gotVerifier = verifier
+		},
+	)
+
+	require.True(t, redirectCalled)
+	require.Equal(t, userID, parseLinkState(newTestJWT(), gotSignedState))
+	require.NotEmpty(t, gotVerifier)
+}
+
+func TestHandleLinkInitiation_stateGenerationError(t *testing.T) {
+	nonces := &mockOIDCLinkNonceStore{}
+	const nonce = "nonce-err"
+	_, err := nonces.CreateLinkNonce(context.Background(), "user-1", auth.HashHighEntropyToken(nonce), time.Now().Add(time.Minute))
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/link?nonce="+nonce, nil)
+	w := httptest.NewRecorder()
+
+	handleLinkInitiation(
+		w, req,
+		nonces,
+		&mockUserStore{
+			findByIDFunc: func(_ context.Context, id string) (*auth.User, error) {
+				return &auth.User{ID: id}, nil
+			},
+		},
+		newTestJWT(),
+		nil,
+		func() (string, error) { return "", errors.New("entropy source failed") },
+		func(http.ResponseWriter, *http.Request, string, string) {
+			t.Fatal("redirect should not be called when state generation fails")
+		},
+	)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }

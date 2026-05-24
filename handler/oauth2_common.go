@@ -163,6 +163,66 @@ func createLinkNonce(w http.ResponseWriter, r *http.Request, store auth.OIDCLink
 	writeJSON(r.Context(), w, http.StatusOK, nonceBody{Nonce: nonce})
 }
 
+// handleLinkInitiation is the shared OAuth2/OIDC account-linking initiation
+// handler. It validates the nonce and redirects to the provider with a signed
+// state and PKCE verifier.
+func handleLinkInitiation(
+	w http.ResponseWriter, r *http.Request,
+	nonces auth.OIDCLinkNonceStore,
+	users auth.UserStore,
+	jwtMgr *auth.JWTManager,
+	logger *slog.Logger,
+	generateState func() (string, error),
+	redirect func(w http.ResponseWriter, r *http.Request, state, verifier string),
+) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if nonces == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
+		return
+	}
+	nonceStr := r.URL.Query().Get("nonce")
+	if nonceStr == "" {
+		writeError(r.Context(), w, http.StatusBadRequest, "missing nonce")
+		return
+	}
+	userID, err := consumeLinkNonce(r.Context(), nonces, nonceStr)
+	if err != nil {
+		if errors.Is(err, auth.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired nonce")
+		} else {
+			logger.ErrorContext(r.Context(), "failed to consume link nonce", slog.Any("error", err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "failed to validate nonce")
+		}
+		return
+	}
+	u, err := users.FindByID(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, auth.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusNotFound, "user not found")
+		} else {
+			logger.ErrorContext(r.Context(), "failed to look up user during link", slog.Any("error", err))
+			writeError(r.Context(), w, http.StatusInternalServerError, "server error")
+		}
+		return
+	}
+	if u.OIDCSubject != nil {
+		writeError(r.Context(), w, http.StatusConflict, "cannot link account")
+		return
+	}
+
+	state, err := generateState()
+	if err != nil {
+		logger.ErrorContext(r.Context(), "failed to generate link state", slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate link")
+		return
+	}
+	verifier := oauth2.GenerateVerifier()
+	signedState := signLinkState(jwtMgr, state, userID)
+	redirect(w, r, signedState, verifier)
+}
+
 // signLinkState encodes userID and produces an HMAC-signed state value that
 // can be embedded in a redirect URL and later verified by parseLinkState.
 func signLinkState(jwtMgr *auth.JWTManager, randomState, userID string) string {
