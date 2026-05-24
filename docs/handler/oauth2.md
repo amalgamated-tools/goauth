@@ -213,11 +213,11 @@ When `Sessions` is `nil`, only a stateless access JWT is issued. Token lifetime 
 | Refresh token generation failure | `ERROR` | `"failed to generate refresh token"` | `Callback` |
 | Session creation store failure | `ERROR` | `"failed to create session"` | `Callback` |
 | Access token creation failure | `ERROR` | `"failed to create token"` | `Callback` |
-| Nonce generation failure | `ERROR` | `"failed to generate OAuth2 link nonce"` | `CreateLinkNonce` |
+| Nonce generation failure | `ERROR` | `"failed to generate link nonce"` | `CreateLinkNonce` |
 | Nonce persistence store failure | `ERROR` | `"failed to store link nonce"` | `CreateLinkNonce` |
-| Link state generation failure | `ERROR` | `"failed to generate OAuth2 link state"` | `Link` |
+| Link state generation failure | `ERROR` | `"failed to generate link state"` (`provider=oauth2`) | `Link` |
 | Nonce consumption failure | `ERROR` | `"failed to consume link nonce"` | `Link` |
-| User lookup failure (link initiation) | `ERROR` | `"failed to look up user during OAuth2 link"` | `Link` |
+| User lookup failure (link initiation) | `ERROR` | `"failed to look up user during link"` (`provider=oauth2`) | `Link` |
 | User lookup failure (link callback) | `ERROR` | `"failed to look up user during link"` | `Callback` (link flow) |
 | OIDC subject lookup failure (link callback) | `ERROR` | `"failed to look up OIDC subject during link"` | `Callback` (link flow) |
 | OIDC subject linking failure | `ERROR` | `"failed to link OIDC subject"` | `Callback` (link flow) |
