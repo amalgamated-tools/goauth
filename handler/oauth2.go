@@ -208,6 +208,6 @@ func (h *OAuth2Handler) Link(w http.ResponseWriter, r *http.Request) {
 		h.JWT,
 		h.log(),
 		"oauth2",
-		generateState,h.redirectToProvider,
-)
+		generateState, h.redirectToProvider,
+	)
 }
