@@ -55,7 +55,6 @@ func TestValidateOAuthCallbackFlow_success(t *testing.T) {
 
 	require.True(t, ok)
 	require.NotNil(t, flow)
-	require.Equal(t, signedState, flow.StateValue)
 	require.Equal(t, "verifier-value", flow.VerifierValue)
 	require.Equal(t, "user-123", flow.LinkUserID)
 	require.Equal(t, "auth-code", flow.Code)
@@ -77,6 +76,56 @@ func TestValidateOAuthCallbackFlow_success(t *testing.T) {
 
 func TestValidateOAuthCallbackFlow_missingStateCookie(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=s&code=c", nil)
+	w := httptest.NewRecorder()
+
+	flow, ok := validateOAuthCallbackFlow(w, req, newTestJWT(), "state_cookie", "verifier_cookie", false)
+
+	require.False(t, ok)
+	require.Nil(t, flow)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestValidateOAuthCallbackFlow_stateMismatch(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=wrong&code=c", nil)
+	req.AddCookie(&http.Cookie{Name: "state_cookie", Value: "correct-state"})
+	w := httptest.NewRecorder()
+
+	flow, ok := validateOAuthCallbackFlow(w, req, newTestJWT(), "state_cookie", "verifier_cookie", false)
+
+	require.False(t, ok)
+	require.Nil(t, flow)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestValidateOAuthCallbackFlow_missingVerifierCookie(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=s&code=c", nil)
+	req.AddCookie(&http.Cookie{Name: "state_cookie", Value: "s"})
+	w := httptest.NewRecorder()
+
+	flow, ok := validateOAuthCallbackFlow(w, req, newTestJWT(), "state_cookie", "verifier_cookie", false)
+
+	require.False(t, ok)
+	require.Nil(t, flow)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestValidateOAuthCallbackFlow_providerError(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=s&error=access_denied", nil)
+	req.AddCookie(&http.Cookie{Name: "state_cookie", Value: "s"})
+	req.AddCookie(&http.Cookie{Name: "verifier_cookie", Value: "v"})
+	w := httptest.NewRecorder()
+
+	flow, ok := validateOAuthCallbackFlow(w, req, newTestJWT(), "state_cookie", "verifier_cookie", false)
+
+	require.False(t, ok)
+	require.Nil(t, flow)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestValidateOAuthCallbackFlow_missingCode(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=s", nil)
+	req.AddCookie(&http.Cookie{Name: "state_cookie", Value: "s"})
+	req.AddCookie(&http.Cookie{Name: "verifier_cookie", Value: "v"})
 	w := httptest.NewRecorder()
 
 	flow, ok := validateOAuthCallbackFlow(w, req, newTestJWT(), "state_cookie", "verifier_cookie", false)

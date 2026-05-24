@@ -16,7 +16,6 @@ import (
 )
 
 type oauthCallbackFlow struct {
-	StateValue    string
 	VerifierValue string
 	LinkUserID    string
 	Code          string
@@ -82,7 +81,6 @@ func validateOAuthCallbackFlow(
 	}
 
 	return &oauthCallbackFlow{
-		StateValue:    stateCookie.Value,
 		VerifierValue: verifierCookie.Value,
 		LinkUserID:    parseLinkState(jwtMgr, stateCookie.Value),
 		Code:          code,
