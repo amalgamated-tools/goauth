@@ -94,6 +94,10 @@ func (h *OAuth2Handler) Validate() error {
 	return nil
 }
 
+func (h *OAuth2Handler) log() *slog.Logger {
+	return slog.Default()
+}
+
 func (h *OAuth2Handler) loginRedirectURL() string {
 	if h.LoginRedirect == "" {
 		return "/?oauth2_login=1"
@@ -202,7 +206,8 @@ func (h *OAuth2Handler) Link(w http.ResponseWriter, r *http.Request) {
 		h.LinkNonces,
 		h.Users,
 		h.JWT,
-		slog.Default(),
+		h.log(),
+		"oauth2",
 		func() (string, error) { return auth.GenerateRandomBase64(32) },
 		h.redirectToProvider,
 	)

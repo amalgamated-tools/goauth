@@ -217,6 +217,7 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 		h.Users,
 		h.JWT,
 		h.log(),
+		"oidc",
 		generateOIDCState,
 		h.redirectToProvider,
 	)

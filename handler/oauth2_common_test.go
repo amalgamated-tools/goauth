@@ -148,6 +148,7 @@ func TestHandleLinkInitiation_missingNonce(t *testing.T) {
 		&mockUserStore{},
 		newTestJWT(),
 		nil,
+		"test",
 		func() (string, error) { return "state", nil },
 		func(http.ResponseWriter, *http.Request, string, string) {},
 	)
@@ -178,6 +179,7 @@ func TestHandleLinkInitiation_successCallsRedirect(t *testing.T) {
 		},
 		newTestJWT(),
 		nil,
+		"test",
 		func() (string, error) { return "random-state", nil },
 		func(_ http.ResponseWriter, _ *http.Request, state, verifier string) {
 			redirectCalled = true
@@ -210,6 +212,7 @@ func TestHandleLinkInitiation_stateGenerationError(t *testing.T) {
 		},
 		newTestJWT(),
 		nil,
+		"test",
 		func() (string, error) { return "", errors.New("entropy source failed") },
 		func(http.ResponseWriter, *http.Request, string, string) {
 			require.Fail(t, "redirect should not be called when state generation fails")

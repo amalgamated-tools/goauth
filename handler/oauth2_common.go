@@ -172,6 +172,7 @@ func handleLinkInitiation(
 	users auth.UserStore,
 	jwtMgr *auth.JWTManager,
 	logger *slog.Logger,
+	provider string,
 	generateState func() (string, error),
 	redirect func(w http.ResponseWriter, r *http.Request, state, verifier string),
 ) {
@@ -202,7 +203,7 @@ func handleLinkInitiation(
 		if errors.Is(err, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 		} else {
-			logger.ErrorContext(r.Context(), "failed to look up user during link", slog.Any("error", err))
+			logger.ErrorContext(r.Context(), "failed to look up user during link", slog.String("provider", provider), slog.Any("error", err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "server error")
 		}
 		return
@@ -214,7 +215,7 @@ func handleLinkInitiation(
 
 	state, err := generateState()
 	if err != nil {
-		logger.ErrorContext(r.Context(), "failed to generate link state", slog.Any("error", err))
+		logger.ErrorContext(r.Context(), "failed to generate link state", slog.String("provider", provider), slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate link")
 		return
 	}
