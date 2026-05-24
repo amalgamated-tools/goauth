@@ -128,7 +128,7 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 | `FinishRegistration` | 400 Bad Request | Missing `session_id`; invalid/expired session; session user mismatch; registration verification failed |
 | `FinishRegistration` | 404 Not Found | User not found |
 | `FinishRegistration` | 503 Service Unavailable | `WebAuthn` is `nil` |
-| `FinishRegistration` | 500 Internal Server Error | Failed to list credentials, marshal credential, or store credential |
+| `FinishRegistration` | 500 Internal Server Error | Failed to fetch user (store error), list credentials, marshal credential, or store credential |
 | `BeginAuthentication` | 200 OK | `{session_id, options}` |
 | `BeginAuthentication` | 503 Service Unavailable | `WebAuthn` is `nil` |
 | `BeginAuthentication` | 500 Internal Server Error | Failed to begin WebAuthn ceremony or store challenge |
