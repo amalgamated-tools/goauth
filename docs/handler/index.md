@@ -140,4 +140,4 @@ One additional `ERROR`-level event is shared across all handlers:
 |---|---|---|---|
 | JSON serialisation failure | `ERROR` | `"failed to encode JSON response"` | `json.Encoder.Encode` fails after response headers are already written |
 
-This event fires from the internal `writeJSON` helper after `w.WriteHeader` has been called, so the HTTP status code is already committed when it occurs. It does not correspond to a distinct HTTP error status — it reflects a write failure (e.g. the client disconnected mid-response) rather than a server logic error.
+This event fires from the internal `writeJSON` helper after `w.WriteHeader` has been called, so the HTTP status code is already committed when it occurs. It does not correspond to a distinct HTTP error status — it reflects an encoding or write failure, such as a JSON marshaling problem (for example, an unsupported value or a `MarshalJSON` error) or a response write failure (for example, the client disconnecting mid-response).
