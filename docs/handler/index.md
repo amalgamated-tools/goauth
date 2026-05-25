@@ -133,3 +133,11 @@ Every HTTP 500 response is preceded by a `slog.ErrorContext` call that records t
 goauth never sets or replaces the global `slog` handler. Configure your own handler before starting the server to control log destination, format, and minimum level.
 
 Each handler's documentation lists the specific `slog` messages it emits. ERROR log records generally include an `error` attribute set to the raw Go error value; the misconfiguration message `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` is an exception.
+
+One additional `ERROR`-level event is shared across all handlers:
+
+| Event | Level | `slog` message | Condition |
+|---|---|---|---|
+| JSON serialisation failure | `ERROR` | `"failed to encode JSON response"` | `json.Encoder.Encode` fails after response headers are already written |
+
+This event fires from the internal `writeJSON` helper after `w.WriteHeader` has been called, so the HTTP status code is already committed when it occurs. It does not correspond to a distinct HTTP error status — it reflects a write failure (e.g. the client disconnected mid-response) rather than a server logic error.
