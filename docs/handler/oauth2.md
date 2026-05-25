@@ -55,8 +55,14 @@ Calls the Google userinfo endpoint (`https://www.googleapis.com/oauth2/v3/userin
 Required OAuth2 scope: `https://www.googleapis.com/auth/userinfo.email`.
 
 ```go
-provider := &handler.GoogleOAuth2Provider{}
+provider := &handler.GoogleOAuth2Provider{} // HTTPClient defaults to http.DefaultClient when nil
 ```
+
+`GoogleOAuth2Provider` exposes one optional field:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `HTTPClient` | `*http.Client` | `http.DefaultClient` | HTTP client used for userinfo API requests. Set to a custom client to control timeouts, transport, or add instrumentation. |
 
 ## Configuration
 
