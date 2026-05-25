@@ -1,6 +1,6 @@
 # MagicLinkHandler — Passwordless Login
 
-`MagicLinkHandler` provides passwordless authentication via one-time email links. Tokens expire after 15 minutes and are single-use. If no account exists for the email, one is auto-provisioned on verification. The new account uses the email address as the initial display name; users can update their display name afterwards via `AuthHandler.UpdateProfile`.
+`MagicLinkHandler` provides passwordless authentication via one-time email links. Tokens expire after 15 minutes and are single-use. If no account exists for the email, one is auto-provisioned on verification with a blank display name; users can set their display name afterwards via `AuthHandler.UpdateProfile`.
 
 ## Configuration
 
@@ -48,7 +48,7 @@ GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → A
     `RequestMagicLink` returns the same success response whether or not the email is registered, preventing enumeration. Validation and operational errors may still surface as non-200 responses.
 
 !!! warning "Sender is required"
-    If `Sender` is `nil`, `RequestMagicLink` returns HTTP 503 (`magic link sending is not configured`) without touching the database. Configure `Sender` before mounting this handler in production.
+    A nil `Sender` is caught by `Validate()` at startup. Configure `Sender` before mounting this handler in production.
 
 !!! note "Token retention on email delivery failure"
     If `Sender` returns an error (email delivery fails), `RequestMagicLink` logs the failure server-side but still returns HTTP 200 and **does not delete the stored token**. The token expires naturally after 15 minutes. This is intentional — surfacing delivery failures would allow email enumeration. This differs from `PasswordResetHandler`, which deletes the reset token when `SendResetEmail` fails.
@@ -66,7 +66,6 @@ Session tracking and refresh token rotation work identically to `AuthHandler` �
 |---|---|---|
 | `RequestMagicLink` | 200 OK | Always (even if email is unregistered) |
 | `RequestMagicLink` | 400 Bad Request | Missing `email` field |
-| `RequestMagicLink` | 503 Service Unavailable | `Sender` is `nil` (not configured) |
 | `RequestMagicLink` | 500 Internal Server Error | Token generation failure or store failure |
 | `VerifyMagicLink` | 200 OK | `AuthResponse` (token + user, plus refresh_token when Sessions is set) |
 | `VerifyMagicLink` | 400 Bad Request | Missing `token` query parameter |
