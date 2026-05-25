@@ -22,11 +22,11 @@ type SessionHandler struct {
 // startup so misconfiguration is caught immediately rather than at the first
 // request.
 func (h *SessionHandler) Validate() error {
-	if h.Sessions == nil {
-		return errors.New("SessionHandler misconfigured: Sessions is required")
+	if err := requireField("SessionHandler", "Sessions", h.Sessions); err != nil {
+		return err
 	}
-	if h.URLParamFunc == nil {
-		return errors.New("SessionHandler misconfigured: URLParamFunc is required")
+	if err := requireField("SessionHandler", "URLParamFunc", h.URLParamFunc); err != nil {
+		return err
 	}
 	return nil
 }

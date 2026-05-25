@@ -60,14 +60,14 @@ type totpVerifyBody struct {
 // not called, Enroll and Verify will panic with a nil-pointer dereference
 // rather than returning a diagnosable error.
 func (h *TOTPHandler) Validate() error {
-	if h.TOTP == nil {
-		return errors.New("TOTPHandler misconfigured: TOTP is required")
+	if err := requireField("TOTPHandler", "TOTP", h.TOTP); err != nil {
+		return err
 	}
-	if h.Users == nil {
-		return errors.New("TOTPHandler misconfigured: Users is required")
+	if err := requireField("TOTPHandler", "Users", h.Users); err != nil {
+		return err
 	}
-	if h.UsedCodes == nil {
-		return errors.New("TOTPHandler misconfigured: UsedCodes is required")
+	if err := requireField("TOTPHandler", "UsedCodes", h.UsedCodes); err != nil {
+		return err
 	}
 	return nil
 }

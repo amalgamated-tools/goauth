@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"reflect"
 	"time"
 
 	"github.com/amalgamated-tools/goauth/auth"
@@ -18,6 +19,20 @@ import (
 type tokenCreator interface {
 	CreateToken(userID string) (string, error)
 	CreateTokenWithSession(userID, sessionID string) (string, error)
+}
+
+func requireField(handlerName, fieldName string, value any) error {
+	if value == nil {
+		return fmt.Errorf("%s misconfigured: %s is required", handlerName, fieldName)
+	}
+	rv := reflect.ValueOf(value)
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		if rv.IsNil() {
+			return fmt.Errorf("%s misconfigured: %s is required", handlerName, fieldName)
+		}
+	}
+	return nil
 }
 
 func validateSessionConfig(handlerName string, sessions auth.SessionStore, refreshCookieName string) error {

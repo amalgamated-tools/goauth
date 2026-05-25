@@ -38,14 +38,14 @@ type PasswordResetHandler struct {
 // when required dependencies are missing. Call Validate once at server startup
 // so misconfiguration is caught immediately rather than at the first request.
 func (h *PasswordResetHandler) Validate() error {
-	if h.Users == nil {
-		return errors.New("PasswordResetHandler misconfigured: Users is required")
+	if err := requireField("PasswordResetHandler", "Users", h.Users); err != nil {
+		return err
 	}
-	if h.Resets == nil {
-		return errors.New("PasswordResetHandler misconfigured: Resets is required")
+	if err := requireField("PasswordResetHandler", "Resets", h.Resets); err != nil {
+		return err
 	}
-	if h.SendResetEmail == nil {
-		return errors.New("PasswordResetHandler misconfigured: SendResetEmail is required")
+	if err := requireField("PasswordResetHandler", "SendResetEmail", h.SendResetEmail); err != nil {
+		return err
 	}
 	return nil
 }

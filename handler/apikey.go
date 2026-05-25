@@ -25,11 +25,11 @@ type APIKeyHandler struct {
 // when required dependencies are missing. Call Validate once at server startup
 // so misconfiguration is caught immediately rather than at the first request.
 func (h *APIKeyHandler) Validate() error {
-	if h.APIKeys == nil {
-		return errors.New("APIKeyHandler misconfigured: APIKeys is required")
+	if err := requireField("APIKeyHandler", "APIKeys", h.APIKeys); err != nil {
+		return err
 	}
-	if h.URLParamFunc == nil {
-		return errors.New("APIKeyHandler misconfigured: URLParamFunc is required")
+	if err := requireField("APIKeyHandler", "URLParamFunc", h.URLParamFunc); err != nil {
+		return err
 	}
 	return nil
 }
