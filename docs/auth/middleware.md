@@ -103,14 +103,17 @@ Session revocation works by having `FindSessionByID` return `auth.ErrNotFound` o
 
 All four middleware functions — `Middleware`, `AdminMiddleware`, `RequireRole`, and `RequirePermission` — share the same authentication path and emit structured log events via the standard library's `log/slog` package, propagating the request context for trace correlation.
 
-| Event | Level | `slog` message |
-|---|---|---|
-| Token absent from header and cookie | `INFO` | `"authentication required"` |
-| `TouchAPIKeyLastUsed` store call fails | `WARN` | `"failed to touch API key last_used_at"` |
-| Unexpected error from `resolveUser` | `ERROR` | `"failed to resolve user"` |
-| Unexpected error from `FindSessionByID` | `ERROR` | `"failed to look up session"` |
+| Event | Level | `slog` message | Middleware |
+|---|---|---|---|
+| Token absent from header and cookie | `INFO` | `"authentication required"` | All |
+| `TouchAPIKeyLastUsed` store call fails | `WARN` | `"failed to touch API key last_used_at"` | All |
+| Unexpected error from `resolveUser` | `ERROR` | `"failed to resolve user"` | All |
+| Unexpected error from `FindSessionByID` | `ERROR` | `"failed to look up session"` | All |
+| Admin check store failure | `ERROR` | `"failed to verify admin status"` | `AdminMiddleware` |
+| Role check store failure | `ERROR` | `"failed to verify role"` | `RequireRole` |
+| Permission check store failure | `ERROR` | `"failed to verify permission"` | `RequirePermission` |
 
-`ErrInvalidToken`, `ErrExpiredToken`, `ErrNotFound`, and `ErrSessionRevoked` are **not** logged — they are treated as expected conditions and produce a `401` response with no log noise.
+`ErrInvalidToken`, `ErrExpiredToken`, `ErrNotFound`, and `ErrSessionRevoked` are **not** logged — they are treated as expected conditions and produce a `401` response with no log noise. All five `ERROR`-level events (`"failed to resolve user"`, `"failed to look up session"`, `"failed to verify admin status"`, `"failed to verify role"`, and `"failed to verify permission"`) are followed by HTTP 500.
 
 goauth never sets or replaces the global `slog` handler. Configure your own handler before starting the server to control log destination, format, and minimum level.
 
