@@ -30,6 +30,7 @@
 - OIDCHandler: idTokenVerifier cached at init (PR #274 MERGED 2026-05-23). Saves 1 alloc per OIDC login.
 - PR #340 MERGED 2026-05-23: fail-fast Validate() checks in EmailVerification, PasswordReset, APIKey handlers — clean code, no efficiency issues.
 - 2026-05-24: Scanned new code (passkeys handler, oauth2_common refactor PRs #351–#356). loadWebAuthnCredentials uses []byte(string) cast per call — minor, not a hot path. No actionable optimisations found.
+- 2026-05-25: docs-only commit since last run (#379). No new efficiency opportunities.
 
 ## Optimisation Backlog
 All identified opportunities have been implemented. No open backlog items.
@@ -57,11 +58,11 @@ All identified opportunities have been implemented. No open backlog items.
 - PR #274: MERGED 2026-05-23 by veverkap — cache oidc.IDTokenVerifier at init to avoid per-callback alloc
 
 ## Backlog Cursor
-- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-24)
+- Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-25)
 - All hot-path optimisations implemented and merged; backlog fully empty
 - Last tasks run: Task 2 (new code scan), Task 7 (created new monthly issue)
-- Last run: 2026-05-24 13:48 UTC
+- Last run: 2026-05-25 14:16 UTC
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED 2026-05-01)
-- May 2026: Issue #212 (CLOSED by veverkap); Issue #264 (CLOSED by veverkap); Issue #332 (CLOSED by veverkap 2026-05-24); Issue #TBD (OPEN, created 2026-05-24 13:48 UTC)
+- May 2026: Issues #212, #264, #332, #365 (all CLOSED); Issue #TBD (OPEN, created 2026-05-25 14:16 UTC)
