@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -82,14 +81,14 @@ type OAuth2Handler struct {
 // server startup, after setting all optional fields, so that misconfiguration
 // is caught immediately rather than at the first user login attempt.
 func (h *OAuth2Handler) Validate() error {
-	if h.Provider == nil {
-		return errors.New("OAuth2Handler misconfigured: Provider is required")
+	if err := requireField("OAuth2Handler", "Provider", h.Provider); err != nil {
+		return err
 	}
-	if h.Users == nil {
-		return errors.New("OAuth2Handler misconfigured: Users is required")
+	if err := requireField("OAuth2Handler", "Users", h.Users); err != nil {
+		return err
 	}
-	if h.JWT == nil {
-		return errors.New("OAuth2Handler misconfigured: JWT is required")
+	if err := requireField("OAuth2Handler", "JWT", h.JWT); err != nil {
+		return err
 	}
 	if err := validateSessionConfig("OAuth2Handler", h.Sessions, h.RefreshCookieName); err != nil {
 		return err

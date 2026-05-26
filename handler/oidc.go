@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -81,14 +80,14 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 // at server startup, before the handler begins serving requests, after setting
 // all optional fields (Sessions, RefreshCookieName, etc.).
 func (h *OIDCHandler) Validate() error {
-	if h.Users == nil {
-		return errors.New("OIDCHandler misconfigured: Users is required")
+	if err := requireField("OIDCHandler", "Users", h.Users); err != nil {
+		return err
 	}
-	if h.JWT == nil {
-		return errors.New("OIDCHandler misconfigured: JWT is required")
+	if err := requireField("OIDCHandler", "JWT", h.JWT); err != nil {
+		return err
 	}
-	if h.Provider == nil {
-		return errors.New("OIDCHandler misconfigured: Provider is required")
+	if err := requireField("OIDCHandler", "Provider", h.Provider); err != nil {
+		return err
 	}
 	if err := validateSessionConfig("OIDCHandler", h.Sessions, h.RefreshCookieName); err != nil {
 		return err

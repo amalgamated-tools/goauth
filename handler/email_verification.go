@@ -39,14 +39,14 @@ type EmailVerificationHandler struct {
 // when required dependencies are missing. Call Validate once at server startup
 // so misconfiguration is caught immediately rather than at the first request.
 func (h *EmailVerificationHandler) Validate() error {
-	if h.Users == nil {
-		return errors.New("EmailVerificationHandler misconfigured: Users is required")
+	if err := requireField("EmailVerificationHandler", "Users", h.Users); err != nil {
+		return err
 	}
-	if h.Verifications == nil {
-		return errors.New("EmailVerificationHandler misconfigured: Verifications is required")
+	if err := requireField("EmailVerificationHandler", "Verifications", h.Verifications); err != nil {
+		return err
 	}
-	if h.SendEmail == nil {
-		return errors.New("EmailVerificationHandler misconfigured: SendEmail is required")
+	if err := requireField("EmailVerificationHandler", "SendEmail", h.SendEmail); err != nil {
+		return err
 	}
 	return nil
 }

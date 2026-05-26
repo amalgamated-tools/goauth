@@ -45,17 +45,17 @@ type magicLinkRequestBody struct {
 // server startup, after setting all optional fields, so that misconfiguration
 // is caught immediately rather than at the first real login attempt.
 func (h *MagicLinkHandler) Validate() error {
-	if h.Users == nil {
-		return errors.New("MagicLinkHandler misconfigured: Users is required")
+	if err := requireField("MagicLinkHandler", "Users", h.Users); err != nil {
+		return err
 	}
-	if h.MagicLinks == nil {
-		return errors.New("MagicLinkHandler misconfigured: MagicLinks is required")
+	if err := requireField("MagicLinkHandler", "MagicLinks", h.MagicLinks); err != nil {
+		return err
 	}
-	if h.JWT == nil {
-		return errors.New("MagicLinkHandler misconfigured: JWT is required")
+	if err := requireField("MagicLinkHandler", "JWT", h.JWT); err != nil {
+		return err
 	}
-	if h.Sender == nil {
-		return errors.New("MagicLinkHandler misconfigured: Sender is required")
+	if err := requireField("MagicLinkHandler", "Sender", h.Sender); err != nil {
+		return err
 	}
 	if err := validateSessionConfig("MagicLinkHandler", h.Sessions, h.RefreshCookieName); err != nil {
 		return err

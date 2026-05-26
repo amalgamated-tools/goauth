@@ -582,6 +582,36 @@ func TestValidateSessionConfig(t *testing.T) {
 	})
 }
 
+func TestRequireField(t *testing.T) {
+	t.Run("nil interface value returns error", func(t *testing.T) {
+		err := requireField("AuthHandler", "Users", nil)
+
+		require.EqualError(t, err, "AuthHandler misconfigured: Users is required")
+	})
+
+	t.Run("typed nil value returns error", func(t *testing.T) {
+		var fn func(*http.Request, string) string
+
+		err := requireField("SessionHandler", "URLParamFunc", fn)
+
+		require.EqualError(t, err, "SessionHandler misconfigured: URLParamFunc is required")
+	})
+
+	t.Run("typed nil pointer-backed interface returns error", func(t *testing.T) {
+		var store auth.UserStore = (*mockUserStore)(nil)
+
+		err := requireField("AuthHandler", "Users", store)
+
+		require.EqualError(t, err, "AuthHandler misconfigured: Users is required")
+	})
+
+	t.Run("non nil value returns no error", func(t *testing.T) {
+		err := requireField("AuthHandler", "Users", &mockUserStore{})
+
+		require.NoError(t, err)
+	})
+}
+
 func TestIssueTokens_withSessions_refreshCookie(t *testing.T) {
 	sessions := &mockSessionStore{}
 	req := httptest.NewRequest(http.MethodPost, "/", nil)

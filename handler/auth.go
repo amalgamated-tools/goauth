@@ -86,11 +86,11 @@ func ToUserDTO(u *auth.User) UserDTO {
 // server startup, after setting all optional fields, so that misconfiguration
 // is caught immediately rather than at the first user login attempt.
 func (h *AuthHandler) Validate() error {
-	if h.Users == nil {
-		return errors.New("AuthHandler misconfigured: Users is required")
+	if err := requireField("AuthHandler", "Users", h.Users); err != nil {
+		return err
 	}
-	if h.JWT == nil {
-		return errors.New("AuthHandler misconfigured: JWT is required")
+	if err := requireField("AuthHandler", "JWT", h.JWT); err != nil {
+		return err
 	}
 	if err := validateSessionConfig("AuthHandler", h.Sessions, h.RefreshCookieName); err != nil {
 		return err

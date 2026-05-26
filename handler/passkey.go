@@ -57,11 +57,11 @@ type PasskeyHandler struct {
 // server startup, after setting all optional fields, so that misconfiguration
 // is caught immediately rather than at the first passkey ceremony completion.
 func (h *PasskeyHandler) Validate() error {
-	if h.Passkeys == nil {
-		return errors.New("PasskeyHandler misconfigured: Passkeys is required")
+	if err := requireField("PasskeyHandler", "Passkeys", h.Passkeys); err != nil {
+		return err
 	}
-	if h.URLParamFunc == nil {
-		return errors.New("PasskeyHandler misconfigured: URLParamFunc is required")
+	if err := requireField("PasskeyHandler", "URLParamFunc", h.URLParamFunc); err != nil {
+		return err
 	}
 	// Users and JWT are only required when WebAuthn is configured; without
 	// WebAuthn the handler runs in a degraded mode where ceremony endpoints
