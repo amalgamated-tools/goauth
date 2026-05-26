@@ -48,6 +48,12 @@ Required OAuth2 scopes: `read:user`, `user:email`.
 provider := &handler.GitHubProvider{HTTPClient: http.DefaultClient}
 ```
 
+`GitHubProvider` exposes one optional field:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `HTTPClient` | `*http.Client` | `http.DefaultClient` | HTTP client used for GitHub API requests. Set to a custom client to control timeouts, transport, or add instrumentation. |
+
 ### GoogleOAuth2Provider
 
 Calls the Google userinfo endpoint (`https://www.googleapis.com/oauth2/v3/userinfo`). Use this as a fallback for existing integrations; new Google integrations should prefer `OIDCHandler` with `https://accounts.google.com` as the issuer URL.
