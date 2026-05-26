@@ -335,10 +335,21 @@ func authenticate(w http.ResponseWriter, r *http.Request, jwtMgr *JWTManager, ap
 	return userID, true
 }
 
-// AdminMiddleware returns middleware that checks admin privileges.
-func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKeys APIKeyStore) func(http.Handler) http.Handler {
-	cachedChecker := newCachingAdminChecker(checker, defaultMiddlewareCacheTTL)
-
+// requireCheck is the shared middleware body: authenticate → check → respond.
+//
+// jwtMgr, apiKeys, and cfg are forwarded to [authenticate].
+// logMsg is the structured-log message written on a check error.
+// errMsg is the HTTP 500 response body sent when check returns an error.
+// denyMsg is the HTTP 403 response body sent when check returns false.
+// check is called with the request context and the resolved user ID; it must
+// return (true, nil) to allow the request to proceed.
+func requireCheck(
+	jwtMgr *JWTManager,
+	apiKeys APIKeyStore,
+	cfg Config,
+	logMsg, errMsg, denyMsg string,
+	check func(ctx context.Context, userID string) (bool, error),
+) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			userID, ok := authenticate(w, r, jwtMgr, apiKeys, cfg)
@@ -346,14 +357,14 @@ func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKe
 				return
 			}
 
-			isAdmin, err := cachedChecker.IsAdmin(r.Context(), userID)
+			allowed, err := check(r.Context(), userID)
 			if err != nil {
-				slog.ErrorContext(r.Context(), "failed to verify admin status", slog.Any("error", err))
-				jsonError(w, http.StatusInternalServerError, "failed to verify permissions")
+				slog.ErrorContext(r.Context(), logMsg, slog.Any("error", err))
+				jsonError(w, http.StatusInternalServerError, errMsg)
 				return
 			}
-			if !isAdmin {
-				jsonError(w, http.StatusForbidden, "admin access required")
+			if !allowed {
+				jsonError(w, http.StatusForbidden, denyMsg)
 				return
 			}
 
@@ -363,33 +374,27 @@ func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKe
 	}
 }
 
+// AdminMiddleware returns middleware that checks admin privileges.
+func AdminMiddleware(jwtMgr *JWTManager, checker AdminChecker, cfg Config, apiKeys APIKeyStore) func(http.Handler) http.Handler {
+	cachedChecker := newCachingAdminChecker(checker, defaultMiddlewareCacheTTL)
+	return requireCheck(jwtMgr, apiKeys, cfg,
+		"failed to verify admin status", "failed to verify permissions", "admin access required",
+		func(ctx context.Context, userID string) (bool, error) {
+			return cachedChecker.IsAdmin(ctx, userID)
+		},
+	)
+}
+
 // RequireRole returns middleware that verifies the authenticated user has the
 // specified role. The resolved user ID is stored in context via ContextWithUserID.
 func RequireRole(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiKeys APIKeyStore, role Role) func(http.Handler) http.Handler {
 	cachedChecker := NewCachingRoleChecker(checker, defaultMiddlewareCacheTTL)
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userID, ok := authenticate(w, r, jwtMgr, apiKeys, cfg)
-			if !ok {
-				return
-			}
-
-			hasRole, err := cachedChecker.HasRole(r.Context(), userID, role)
-			if err != nil {
-				slog.ErrorContext(r.Context(), "failed to verify role", slog.Any("error", err))
-				jsonError(w, http.StatusInternalServerError, "failed to verify role")
-				return
-			}
-			if !hasRole {
-				jsonError(w, http.StatusForbidden, "insufficient role")
-				return
-			}
-
-			ctx := ContextWithUserID(r.Context(), userID)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
+	return requireCheck(jwtMgr, apiKeys, cfg,
+		"failed to verify role", "failed to verify role", "insufficient role",
+		func(ctx context.Context, userID string) (bool, error) {
+			return cachedChecker.HasRole(ctx, userID, role)
+		},
+	)
 }
 
 // RequirePermission returns middleware that verifies the authenticated user has
@@ -397,29 +402,12 @@ func RequireRole(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiKeys AP
 // ID is stored in context via ContextWithUserID.
 func RequirePermission(jwtMgr *JWTManager, checker RoleChecker, cfg Config, apiKeys APIKeyStore, perm Permission) func(http.Handler) http.Handler {
 	cachedChecker := NewCachingRoleChecker(checker, defaultMiddlewareCacheTTL)
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userID, ok := authenticate(w, r, jwtMgr, apiKeys, cfg)
-			if !ok {
-				return
-			}
-
-			hasPerm, err := cachedChecker.HasPermission(r.Context(), userID, perm)
-			if err != nil {
-				slog.ErrorContext(r.Context(), "failed to verify permission", slog.Any("error", err))
-				jsonError(w, http.StatusInternalServerError, "failed to verify permission")
-				return
-			}
-			if !hasPerm {
-				jsonError(w, http.StatusForbidden, "insufficient permission")
-				return
-			}
-
-			ctx := ContextWithUserID(r.Context(), userID)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
+	return requireCheck(jwtMgr, apiKeys, cfg,
+		"failed to verify permission", "failed to verify permission", "insufficient permission",
+		func(ctx context.Context, userID string) (bool, error) {
+			return cachedChecker.HasPermission(ctx, userID, perm)
+		},
+	)
 }
 
 // adminCheckerFromRoleChecker adapts a RoleChecker to satisfy AdminChecker by
