@@ -126,6 +126,10 @@ jobs:
           file: coverage.xml
           language: Go
           label: code-coverage/go-test
+          # Code Quality must be enabled at the repository level before this
+          # upload can succeed. Until then, surface errors as warnings so the
+          # workflow does not fail.
+          fail-on-error: false
 
       - name: Check for known vulnerabilities
         run: |
