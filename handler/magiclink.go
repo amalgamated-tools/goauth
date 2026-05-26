@@ -57,10 +57,7 @@ func (h *MagicLinkHandler) Validate() error {
 	if err := requireField("MagicLinkHandler", "Sender", h.Sender); err != nil {
 		return err
 	}
-	if err := validateSessionConfig("MagicLinkHandler", h.Sessions, h.RefreshCookieName); err != nil {
-		return err
-	}
-	return nil
+	return validateSessionConfig("MagicLinkHandler", h.Sessions, h.RefreshCookieName)
 }
 
 // RequestMagicLink handles POST requests to generate a one-time login link.

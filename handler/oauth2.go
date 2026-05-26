@@ -90,10 +90,7 @@ func (h *OAuth2Handler) Validate() error {
 	if err := requireField("OAuth2Handler", "JWT", h.JWT); err != nil {
 		return err
 	}
-	if err := validateSessionConfig("OAuth2Handler", h.Sessions, h.RefreshCookieName); err != nil {
-		return err
-	}
-	return nil
+	return validateSessionConfig("OAuth2Handler", h.Sessions, h.RefreshCookieName)
 }
 
 func (h *OAuth2Handler) log() *slog.Logger {

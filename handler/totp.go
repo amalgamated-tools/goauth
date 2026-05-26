@@ -66,10 +66,7 @@ func (h *TOTPHandler) Validate() error {
 	if err := requireField("TOTPHandler", "Users", h.Users); err != nil {
 		return err
 	}
-	if err := requireField("TOTPHandler", "UsedCodes", h.UsedCodes); err != nil {
-		return err
-	}
-	return nil
+	return requireField("TOTPHandler", "UsedCodes", h.UsedCodes)
 }
 
 // isReplay returns true when code has already been used for userID within the
