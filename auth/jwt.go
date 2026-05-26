@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"crypto/hkdf"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/hkdf"
 )
 
 // Claims represents the JWT payload.
@@ -39,9 +39,8 @@ func NewJWTManager(secret string, ttl time.Duration, issuer string) (*JWTManager
 			return nil, fmt.Errorf("generate random JWT secret: %w", err)
 		}
 	}
-	oidcKey := make([]byte, 32)
-	r := hkdf.New(sha256.New, key, nil, []byte("oidc-link-state"))
-	if _, err := r.Read(oidcKey); err != nil {
+	oidcKey, err := hkdf.Key(sha256.New, key, nil, "oidc-link-state", 32)
+	if err != nil {
 		return nil, fmt.Errorf("derive OIDC HMAC key: %w", err)
 	}
 

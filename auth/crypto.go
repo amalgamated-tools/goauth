@@ -3,6 +3,7 @@ package auth
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hkdf"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -13,7 +14,6 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/crypto/hkdf"
 )
 
 // BcryptCost is the bcrypt work factor. Cost 12 is stronger than the default 10.
@@ -63,9 +63,8 @@ type SecretEncrypter struct {
 const secretEncryptPrefix = "enc:v1:"
 
 func newSecretEncrypter(secret []byte) (*SecretEncrypter, error) {
-	key := make([]byte, 32)
-	r := hkdf.New(sha256.New, secret, nil, []byte("settings-secret-v1"))
-	if _, err := r.Read(key); err != nil {
+	key, err := hkdf.Key(sha256.New, secret, nil, "settings-secret-v1", 32)
+	if err != nil {
 		return nil, fmt.Errorf("derive encryption key: %w", err)
 	}
 	block, err := aes.NewCipher(key)
