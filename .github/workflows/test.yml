@@ -10,8 +10,6 @@ on:
 permissions:
   # Required: allow read access to the content for analysis.
   contents: read
-  # Required for uploading coverage reports to GitHub Code Quality.
-  code-quality: write
   # Optional: allow read access to pull requests. Use with `only-new-issues` option.
   pull-requests: read
 
@@ -67,6 +65,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Go Tests
     timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      # Required for uploading coverage reports to GitHub Code Quality.
+      code-quality: write
     outputs:
       coverage-pct: ${{ steps.coverage.outputs.pct }}
     steps:
@@ -107,7 +110,7 @@ jobs:
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Generate Cobertura coverage report
-        run: go run github.com/t-yuki/gocover-cobertura@v0.0.0-20180217150009-aaee18c8195c < coverage.out > coverage.xml
+        run: go run github.com/boumenot/gocover-cobertura@v1.5.0 < coverage.out > coverage.xml
 
       - name: Display Go coverage summary
         id: coverage
