@@ -144,7 +144,7 @@ func (h *PasswordResetHandler) ResetPassword(w http.ResponseWriter, r *http.Requ
 	tokenHash := auth.HashHighEntropyToken(req.Token)
 	resetToken, err := h.Resets.FindPasswordResetToken(r.Context(), tokenHash)
 	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) || errors.Is(err, auth.ErrExpiredToken) {
+		if errors.Is(err, auth.ErrNotFound) || errors.Is(err, auth.ErrExpiredToken) || errors.Is(err, auth.ErrInvalidToken) {
 			writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired reset token")
 			return
 		}
