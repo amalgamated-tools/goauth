@@ -20,7 +20,7 @@ if err := h.Validate(); err != nil {
 `Validate` returns an error if any of the three required fields — `TOTP`, `Users`, or `UsedCodes` — is `nil`. Call it once at server startup so misconfiguration surfaces immediately rather than at the first enroll or verify request.
 
 !!! warning "UsedCodes is required"
-    Omitting `UsedCodes` (or assigning a typed nil pointer) causes `Validate` to return an error. If `Validate` is skipped and `UsedCodes` is `nil`, calling `Enroll` or `Verify` will panic with a nil-pointer dereference. Always initialize with `&auth.TOTPUsedCodeCache{}` and call `Validate` at startup.
+    Omitting `UsedCodes` (or assigning a typed nil pointer) causes `Validate` to return an error. If `Validate` is skipped and `UsedCodes` is `nil` or holds a typed nil pointer, calling `Enroll` or `Verify` can panic with a nil-pointer dereference. Always initialize with `&auth.TOTPUsedCodeCache{}` and call `Validate` at startup.
 
 ## Routes
 

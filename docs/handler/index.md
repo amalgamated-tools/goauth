@@ -47,14 +47,14 @@ AuthHandler misconfigured: Users is required
 **Typed-nil pointer detection.** `Validate()` uses reflection to catch both a plain `nil` interface value *and* a typed nil pointer assigned to an interface field. For example, the following misconfiguration is caught at startup rather than producing a runtime panic later:
 
 ```go
-var store *MyUserStore // typed nil — *MyUserStore(nil)
+var store *MyUserStore // typed nil — (*MyUserStore)(nil)
 h := &handler.AuthHandler{Users: store, JWT: jwtMgr}
 if err := h.Validate(); err != nil {
     log.Fatal(err) // "AuthHandler misconfigured: Users is required"
 }
 ```
 
-Each handler's documentation lists its required and optional fields and the exact error strings that `Validate()` may return.
+Each handler's documentation lists its required and optional fields and describes common `Validate()` errors.
 
 ## Shared response types
 
