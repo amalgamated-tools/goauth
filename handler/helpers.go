@@ -27,7 +27,7 @@ func requireField(handlerName, fieldName string, value any) error {
 	}
 	rv := reflect.ValueOf(value)
 	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Pointer, reflect.Slice:
 		if rv.IsNil() {
 			return fmt.Errorf("%s misconfigured: %s is required", handlerName, fieldName)
 		}
