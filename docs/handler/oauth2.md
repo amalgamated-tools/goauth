@@ -210,7 +210,7 @@ When `Sessions` is `nil`, only a stateless access JWT is issued. Token lifetime 
 
 ## Observability
 
-`OAuth2Handler` emits structured log events via `slog` with the request context for trace correlation.
+`OAuth2Handler` emits structured log events via `slog` with the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. To route `OAuth2Handler` log events to a separate destination (e.g. a dedicated handler in a multi-tenant application), set `Logger` to a `*slog.Logger` backed by the desired handler.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
