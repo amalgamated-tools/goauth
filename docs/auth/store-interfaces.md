@@ -248,7 +248,7 @@ type PasswordResetToken struct {
 }
 ```
 
-`FindPasswordResetToken` returns `auth.ErrNotFound` when no matching record exists. Implementations may also return `auth.ErrExpiredToken` when a record is found but has already expired — `PasswordResetHandler.ResetPassword` treats `ErrNotFound`, `ErrExpiredToken`, and `ErrInvalidToken` as a `400 Bad Request` with an `"invalid or expired reset token"` message, so legacy implementations that return `ErrInvalidToken` continue to work. Expiry checking in the handler provides a second layer of validation, so returning `auth.ErrNotFound` for all not-found cases is the recommended approach. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
+`FindPasswordResetToken` returns `auth.ErrNotFound` when no matching record exists. Implementations may also return `auth.ErrExpiredToken` when a record is found but has already expired — `PasswordResetHandler.ResetPassword` treats `auth.ErrNotFound`, `auth.ErrExpiredToken`, and `auth.ErrInvalidToken` as a `400 Bad Request` with an `"invalid or expired reset token"` message, so legacy implementations that return `auth.ErrInvalidToken` continue to work. Expiry checking in the handler provides a second layer of validation, so returning `auth.ErrNotFound` for all not-found cases is the recommended approach. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
 
 ## OIDCLinkNonceStore
 
