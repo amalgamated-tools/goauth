@@ -303,16 +303,16 @@ func authenticate(w http.ResponseWriter, r *http.Request, jwtMgr *JWTManager, ap
 		if reason != "" {
 			slog.InfoContext(r.Context(), "authentication required", slog.String("reason", reason))
 		}
-		jsonError(w, http.StatusUnauthorized, "authentication required")
+		jsonError(r.Context(), w, http.StatusUnauthorized, "authentication required")
 		return "", false
 	}
 	userID, sessionID, err := resolveUser(r.Context(), token, source, jwtMgr, apiKeys, cfg.APIKeyPrefix)
 	if err != nil {
 		if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrExpiredToken) {
-			jsonError(w, http.StatusUnauthorized, "invalid or expired token")
+			jsonError(r.Context(), w, http.StatusUnauthorized, "invalid or expired token")
 		} else {
 			slog.ErrorContext(r.Context(), "failed to resolve user", slog.Any("error", err))
-			jsonError(w, http.StatusInternalServerError, "internal authentication error")
+			jsonError(r.Context(), w, http.StatusInternalServerError, "internal authentication error")
 		}
 		return "", false
 	}
@@ -320,15 +320,15 @@ func authenticate(w http.ResponseWriter, r *http.Request, jwtMgr *JWTManager, ap
 		sess, serr := cfg.Sessions.FindSessionByID(r.Context(), sessionID)
 		if serr != nil {
 			if errors.Is(serr, ErrNotFound) || errors.Is(serr, ErrSessionRevoked) {
-				jsonError(w, http.StatusUnauthorized, "session expired or revoked")
+				jsonError(r.Context(), w, http.StatusUnauthorized, "session expired or revoked")
 			} else {
 				slog.ErrorContext(r.Context(), "failed to look up session", slog.Any("error", serr))
-				jsonError(w, http.StatusInternalServerError, "internal server error")
+				jsonError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 			}
 			return "", false
 		}
 		if sess == nil || sess.UserID != userID || time.Now().After(sess.ExpiresAt) {
-			jsonError(w, http.StatusUnauthorized, "session expired or revoked")
+			jsonError(r.Context(), w, http.StatusUnauthorized, "session expired or revoked")
 			return "", false
 		}
 	}
@@ -360,11 +360,11 @@ func requireCheck(
 			allowed, err := check(r.Context(), userID)
 			if err != nil {
 				slog.ErrorContext(r.Context(), logMsg, slog.Any("error", err))
-				jsonError(w, http.StatusInternalServerError, errMsg)
+				jsonError(r.Context(), w, http.StatusInternalServerError, errMsg)
 				return
 			}
 			if !allowed {
-				jsonError(w, http.StatusForbidden, denyMsg)
+				jsonError(r.Context(), w, http.StatusForbidden, denyMsg)
 				return
 			}
 

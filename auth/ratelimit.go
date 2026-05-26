@@ -130,7 +130,7 @@ func (rl *RateLimiter) Allow(r *http.Request) bool {
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !rl.Allow(r) {
-			jsonError(w, http.StatusTooManyRequests, "too many requests")
+			jsonError(r.Context(), w, http.StatusTooManyRequests, "too many requests")
 			return
 		}
 		next.ServeHTTP(w, r)
