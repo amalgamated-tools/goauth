@@ -65,6 +65,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Go Tests
     timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      # Required for uploading coverage reports to GitHub Code Quality.
+      code-quality: write
     outputs:
       coverage-pct: ${{ steps.coverage.outputs.pct }}
     steps:
@@ -104,12 +109,27 @@ jobs:
       - name: Run Go tests
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
 
+      - name: Generate Cobertura coverage report
+        run: go run github.com/boumenot/gocover-cobertura@v1.5.0 < coverage.out > coverage.xml
+
       - name: Display Go coverage summary
         id: coverage
         run: |
           PCT=$(go tool cover -func=coverage.out | awk '/^total:/{print $NF}')
           echo "pct=${PCT}" >> "$GITHUB_OUTPUT"
           echo "Coverage: ${PCT}"
+
+      - name: Upload coverage report
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-code-coverage@b51da2c3c1b23e04d2d6477cfc34350b1f5cd3e9
+        with:
+          file: coverage.xml
+          language: Go
+          label: code-coverage/go-test
+          # Code Quality must be enabled at the repository level before this
+          # upload can succeed. Until then, surface errors as warnings so the
+          # workflow does not fail.
+          fail-on-error: false
 
       - name: Check for known vulnerabilities
         run: |
