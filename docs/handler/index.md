@@ -23,6 +23,39 @@ import "github.com/amalgamated-tools/goauth/handler"
 | [EmailVerificationHandler](email-verification.md) | Email address verification flow |
 | [PasswordResetHandler](password-reset.md) | Email-based password reset |
 
+## Handler validation
+
+Every handler exposes a `Validate() error` method. Call it **once at server startup**, after all fields are assigned, before the HTTP server begins accepting requests:
+
+```go
+h := &handler.AuthHandler{
+    Users: userStore,
+    JWT:   jwtMgr,
+    // ...
+}
+if err := h.Validate(); err != nil {
+    log.Fatal(err)
+}
+```
+
+`Validate()` checks every required field and returns a descriptive error such as:
+
+```
+AuthHandler misconfigured: Users is required
+```
+
+**Typed-nil pointer detection.** `Validate()` uses reflection to catch both a plain `nil` interface value *and* a typed nil pointer assigned to an interface field. For example, the following misconfiguration is caught at startup rather than producing a runtime panic later:
+
+```go
+var store *MyUserStore // typed nil — (*MyUserStore)(nil)
+h := &handler.AuthHandler{Users: store, JWT: jwtMgr}
+if err := h.Validate(); err != nil {
+    log.Fatal(err) // "AuthHandler misconfigured: Users is required"
+}
+```
+
+Each handler's documentation lists its required and optional fields and describes common `Validate()` errors.
+
 ## Shared response types
 
 ### UserDTO
