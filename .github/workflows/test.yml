@@ -120,7 +120,7 @@ jobs:
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/upload-code-coverage@b51da2c3c1b23e04d2d6477cfc34350b1f5cd3e9
         with:
-          report: coverage.xml
+          file: coverage.xml
           language: Go
           label: code-coverage/go-test
 
