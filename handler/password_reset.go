@@ -44,10 +44,7 @@ func (h *PasswordResetHandler) Validate() error {
 	if err := requireField("PasswordResetHandler", "Resets", h.Resets); err != nil {
 		return err
 	}
-	if err := requireField("PasswordResetHandler", "SendResetEmail", h.SendResetEmail); err != nil {
-		return err
-	}
-	return nil
+	return requireField("PasswordResetHandler", "SendResetEmail", h.SendResetEmail)
 }
 
 type requestResetRequest struct {

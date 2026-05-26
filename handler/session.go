@@ -25,10 +25,7 @@ func (h *SessionHandler) Validate() error {
 	if err := requireField("SessionHandler", "Sessions", h.Sessions); err != nil {
 		return err
 	}
-	if err := requireField("SessionHandler", "URLParamFunc", h.URLParamFunc); err != nil {
-		return err
-	}
-	return nil
+	return requireField("SessionHandler", "URLParamFunc", h.URLParamFunc)
 }
 
 // SessionDTO is the public representation of an active session.

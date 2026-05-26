@@ -28,10 +28,7 @@ func (h *APIKeyHandler) Validate() error {
 	if err := requireField("APIKeyHandler", "APIKeys", h.APIKeys); err != nil {
 		return err
 	}
-	if err := requireField("APIKeyHandler", "URLParamFunc", h.URLParamFunc); err != nil {
-		return err
-	}
-	return nil
+	return requireField("APIKeyHandler", "URLParamFunc", h.URLParamFunc)
 }
 
 // APIKeyDTO is the public representation of an API key.

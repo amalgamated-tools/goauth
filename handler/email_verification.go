@@ -45,10 +45,7 @@ func (h *EmailVerificationHandler) Validate() error {
 	if err := requireField("EmailVerificationHandler", "Verifications", h.Verifications); err != nil {
 		return err
 	}
-	if err := requireField("EmailVerificationHandler", "SendEmail", h.SendEmail); err != nil {
-		return err
-	}
-	return nil
+	return requireField("EmailVerificationHandler", "SendEmail", h.SendEmail)
 }
 
 func (h *EmailVerificationHandler) tokenTTL() time.Duration {
