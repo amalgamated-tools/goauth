@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"crypto/hmac"
 	"crypto/hkdf"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
