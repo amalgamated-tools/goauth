@@ -263,7 +263,7 @@ type PasswordResetStore interface {
 	// CreatePasswordResetToken stores a hashed reset token for userID, expiring at expiresAt.
 	CreatePasswordResetToken(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*PasswordResetToken, error)
 	// FindPasswordResetToken retrieves a token record by its hash.
-	// Returns ErrInvalidToken if no matching record exists.
+	// Returns ErrNotFound if no matching record exists.
 	FindPasswordResetToken(ctx context.Context, tokenHash string) (*PasswordResetToken, error)
 	// DeletePasswordResetToken removes a token record by ID, consuming it after use.
 	DeletePasswordResetToken(ctx context.Context, id string) error

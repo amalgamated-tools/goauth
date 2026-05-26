@@ -230,7 +230,7 @@ func TestResetPassword_weakNewPassword(t *testing.T) {
 func TestResetPassword_invalidToken(t *testing.T) {
 	resets := &mockPasswordResetStore{
 		findFunc: func(_ context.Context, _ string) (*auth.PasswordResetToken, error) {
-			return nil, auth.ErrInvalidToken
+			return nil, auth.ErrNotFound
 		},
 	}
 	h := newPasswordResetHandler(&mockUserStore{}, resets)

@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 )
 
@@ -12,8 +14,10 @@ type jsonErrorBody struct {
 	Error string `json:"error"`
 }
 
-func jsonError(w http.ResponseWriter, status int, message string) {
+func jsonError(ctx context.Context, w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(jsonErrorBody{Error: message})
+	if err := json.NewEncoder(w).Encode(jsonErrorBody{Error: message}); err != nil {
+		slog.ErrorContext(ctx, "failed to encode JSON error response", slog.Any("error", err))
+	}
 }
