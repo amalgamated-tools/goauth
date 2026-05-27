@@ -112,8 +112,9 @@ All four middleware functions — `Middleware`, `AdminMiddleware`, `RequireRole`
 | Admin check store failure | `ERROR` | `"failed to verify admin status"` | `AdminMiddleware` |
 | Role check store failure | `ERROR` | `"failed to verify role"` | `RequireRole` |
 | Permission check store failure | `ERROR` | `"failed to verify permission"` | `RequirePermission` |
+| JSON serialisation failure in error response | `ERROR` | `"failed to encode JSON error response"` | All |
 
-`ErrInvalidToken`, `ErrExpiredToken`, `ErrNotFound`, and `ErrSessionRevoked` are **not** logged — they are treated as expected conditions and produce a `401` response with no log noise. All five `ERROR`-level events (`"failed to resolve user"`, `"failed to look up session"`, `"failed to verify admin status"`, `"failed to verify role"`, and `"failed to verify permission"`) are followed by HTTP 500.
+`ErrInvalidToken`, `ErrExpiredToken`, `ErrNotFound`, and `ErrSessionRevoked` are **not** logged — they are treated as expected conditions and produce a `401` response with no log noise. All five `ERROR`-level events (`"failed to resolve user"`, `"failed to look up session"`, `"failed to verify admin status"`, `"failed to verify role"`, and `"failed to verify permission"`) are followed by HTTP 500. The `"failed to encode JSON error response"` event fires when `json.Encoder.Encode` fails while writing an error body — the HTTP status is already written at that point, so the response code is unaffected.
 
 goauth never sets or replaces the global `slog` handler. Configure your own handler before starting the server to control log destination, format, and minimum level.
 

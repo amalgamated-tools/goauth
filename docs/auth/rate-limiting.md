@@ -59,3 +59,11 @@ rl = auth.NewRateLimiter(5, 10).WithMaxVisitors(0)
 
 !!! warning "In-memory state"
     `RateLimiter` tracks per-IP token buckets in an in-memory map. In a **multi-instance deployment** (e.g. behind a load balancer), each instance maintains its own independent state — a client can exceed the intended limit by spreading requests across instances. For stricter multi-instance enforcement, supplement with a shared external rate limiter (e.g. Redis).
+
+## Observability
+
+`RateLimiter` emits one structured log event via `log/slog`, propagating the request context for trace correlation:
+
+| Event | Level | `slog` message | Condition |
+|---|---|---|---|
+| JSON serialisation failure in error response | `ERROR` | `"failed to encode JSON error response"` | `json.Encoder.Encode` fails while writing the `429` error body — the HTTP status is already written at that point |
