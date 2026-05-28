@@ -22,7 +22,7 @@
 - ValidateTOTP creates HMAC once and reuses via hotpCodeWithMAC + mac.Reset() (PR #162).
 - totpDigitsStr + totpPeriodStr + totpHandlerEncoding precomputed (PR #170 MERGED).
 - OIDCHandler: idTokenVerifier cached at init (PR #274 MERGED).
-- 2026-05-27: PR #399 (CI code coverage setup) — no codebase efficiency opportunities.
+- 2026-05-28: Scanned recent commits — all docs/CI/refactor, no new efficiency opportunities.
 - Full codebase scan complete: All hot-path optimisations exhausted.
 
 ## Optimisation Backlog
@@ -51,9 +51,9 @@ All identified opportunities have been implemented. No open backlog items.
 ## Backlog Cursor
 - Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-27)
 - All hot-path optimisations implemented and merged; backlog fully empty
-- Last tasks run: Task 7 (created new monthly issue)
-- Last run: 2026-05-27 14:21 UTC
+- Last tasks run: Task 7 (updated monthly issue #407)
+- Last run: 2026-05-28 14:26 UTC
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED)
-- May 2026: Issues #212, #264, #332, #365, #386 (all CLOSED); new issue created 2026-05-27
+- May 2026: Issues #212, #264, #332, #365, #386 (all CLOSED); active issue #407
