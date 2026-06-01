@@ -51,9 +51,10 @@ All identified opportunities have been implemented. No open backlog items.
 ## Backlog Cursor
 - Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-27)
 - All hot-path optimisations implemented and merged; backlog fully empty
-- Last tasks run: Task 7 (updated monthly issue #407)
-- Last run: 2026-05-31 13:49 UTC
+- Last tasks run: Task 7 (updated monthly issue; closed May #407, created June issue)
+- Last run: 2026-06-01 15:21 UTC
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED)
-- May 2026: Issues #212, #264, #332, #365, #386 (all CLOSED); active issue #407
+- May 2026: Issues #212, #264, #332, #365, #386, #407 (all CLOSED)
+- June 2026: Active issue (created 2026-06-01)
