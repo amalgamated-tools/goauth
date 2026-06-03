@@ -98,6 +98,7 @@ func (j *JWTManager) ValidateToken(tokenString string) (*Claims, error) {
 	},
 		jwt.WithIssuer(j.issuer),
 		jwt.WithAudience(j.issuer),
+		jwt.WithExpirationRequired(),
 	)
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
@@ -135,6 +136,8 @@ func (j *JWTManager) HMACVerify(data, sig []byte) bool {
 // signature but ignoring time-based claim validation (expiry, not-before).
 // This is useful for logout flows where the access token may be expired.
 func (j *JWTManager) ParseTokenClaims(tokenString string) (*Claims, error) {
+	// WithoutClaimsValidation skips expiry checks intentionally — this method is
+	// used in the logout path where the access token may already be expired.
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
