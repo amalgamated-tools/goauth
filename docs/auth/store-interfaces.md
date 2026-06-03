@@ -248,7 +248,10 @@ type PasswordResetToken struct {
 }
 ```
 
-`FindPasswordResetToken` returns `auth.ErrNotFound` when no matching record exists. Implementations should also use `auth.ErrNotFound` for invalid/expired token hashes and return expired rows as normal records so the handler can check `ExpiresAt`, matching `EmailVerificationStore` semantics. `PasswordResetHandler.ResetPassword` treats `auth.ErrNotFound` as a `400 Bad Request` with an `"invalid or expired reset token"` message. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
+`FindPasswordResetToken` returns `auth.ErrNotFound` when no matching record exists. Implementations should return expired rows as normal records so the handler can check `ExpiresAt` — matching `EmailVerificationStore` semantics. `PasswordResetHandler.ResetPassword` treats `auth.ErrNotFound` as a `400 Bad Request` with an `"invalid or expired reset token"` message. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
+
+!!! note "Backward compatibility: `ErrExpiredToken` and `ErrInvalidToken`"
+    `ResetPassword` also treats `auth.ErrExpiredToken` and `auth.ErrInvalidToken` returned by `FindPasswordResetToken` as `400 Bad Request`, the same as `auth.ErrNotFound`. This provides backward compatibility for store implementations that return these sentinel errors instead of `ErrNotFound`. New implementations should prefer returning `auth.ErrNotFound` for missing or invalid token hashes, and return the record normally for expired tokens so the handler can check `ExpiresAt`.
 
 ## OIDCLinkNonceStore
 

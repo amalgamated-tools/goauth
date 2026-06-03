@@ -45,6 +45,9 @@ Password constraints: 8–72 bytes. A password shorter than 8 bytes returns `{"e
 
 Reset tokens are consumed (deleted) after successful use.
 
+!!! note "Legacy error codes from `FindPasswordResetToken`"
+    `ResetPassword` accepts `auth.ErrExpiredToken` and `auth.ErrInvalidToken` in addition to `auth.ErrNotFound` from `FindPasswordResetToken`. All three result in HTTP 400 `"invalid or expired reset token"`. This backward-compatible handling prevents silent HTTP 500 regressions when upgrading store implementations that return these legacy sentinels.
+
 !!! warning "SendResetEmail is required"
     A nil `SendResetEmail` is caught by `Validate()` at startup. Configure `SendResetEmail` before mounting this handler in production.
 
@@ -70,7 +73,7 @@ Reset tokens are consumed (deleted) after successful use.
 | `RequestReset` | 429 Too Many Requests | Rate limit exceeded (only when `RateLimiter` is configured) |
 | `RequestReset` | 500 Internal Server Error | Store failure during user lookup, token creation, or token generation |
 | `ResetPassword` | 200 OK | `{"message": "password reset successfully"}` |
-| `ResetPassword` | 400 Bad Request | Missing `token` or `newPassword`; password outside 8–72 bytes; invalid or expired token; OIDC-only account (no password set) |
+| `ResetPassword` | 400 Bad Request | Missing `token` or `newPassword`; password outside 8–72 bytes; invalid, expired, or unrecognised token (`ErrNotFound`, `ErrExpiredToken`, or `ErrInvalidToken` from store); OIDC-only account (no password set) |
 | `ResetPassword` | 500 Internal Server Error | Internal failure during token lookup, user lookup, password hashing, or password update |
 
 ## Observability
