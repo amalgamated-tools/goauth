@@ -54,7 +54,7 @@ Tests cover every package (`auth`, `handler`, `smtp`, `maintenance`). Because `h
 To generate a local coverage profile and inspect it:
 
 ```sh
-go test -coverprofile=coverage.out ./...
+go test -coverprofile=coverage.out -covermode=atomic ./...
 go tool cover -func=coverage.out   # per-function summary
 go tool cover -html=coverage.out   # open an annotated HTML report
 ```
@@ -145,7 +145,7 @@ All changes must go through a pull request. The `main` branch is protected.
    ```
 2. Make your changes, add tests, and run `make all` to verify everything passes.
 3. Open a pull request against `main` with a clear description of the problem and solution.
-4. Ensure the CI checks (lint, format, tests, and coverage upload) pass on your PR. Coverage upload failures are non-blocking (warnings only), but lint and test failures will block the merge.
+4. Ensure the CI checks (lint, format, and tests) pass on your PR — these are required for merge. The coverage upload runs automatically on non-fork PRs; failures surface as warnings and never block the merge.
 
 For significant API changes or new features, open an issue first to discuss the design before investing time in an implementation.
 
