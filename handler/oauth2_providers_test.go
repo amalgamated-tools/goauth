@@ -90,3 +90,48 @@ func TestGoogleOAuth2ProviderFetchUserInfo(t *testing.T) {
 		EmailVerified: true,
 	}, info)
 }
+
+func TestFetchOAuth2JSON_NilToken(t *testing.T) {
+	p := &GitHubProvider{}
+	_, err := p.FetchUserInfo(context.Background(), nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "nil or has empty access token")
+}
+
+func TestFetchOAuth2JSON_EmptyAccessToken(t *testing.T) {
+	p := &GitHubProvider{}
+	_, err := p.FetchUserInfo(context.Background(), &oauth2.Token{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "nil or has empty access token")
+}
+
+func TestFetchOAuth2JSON_Non200(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+
+	p := &GitHubProvider{
+		HTTPClient: &http.Client{Transport: rewriteTransport{base: srv}},
+	}
+
+	_, err := p.FetchUserInfo(context.Background(), &oauth2.Token{AccessToken: "test-token"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "HTTP 500")
+}
+
+func TestFetchOAuth2JSON_InvalidJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`not json`))
+	}))
+	t.Cleanup(srv.Close)
+
+	p := &GitHubProvider{
+		HTTPClient: &http.Client{Transport: rewriteTransport{base: srv}},
+	}
+
+	_, err := p.FetchUserInfo(context.Background(), &oauth2.Token{AccessToken: "test-token"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "decode")
+}

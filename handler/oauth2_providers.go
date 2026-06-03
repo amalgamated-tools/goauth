@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"golang.org/x/oauth2"
@@ -23,6 +24,9 @@ func fetchOAuth2JSON(
 	url, accept, statusErr, decodeErr string,
 	dst any,
 ) error {
+	if token == nil || token.AccessToken == "" {
+		return fmt.Errorf("%s: oauth2 token is nil or has empty access token", statusErr)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -38,6 +42,7 @@ func fetchOAuth2JSON(
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return fmt.Errorf("%s returned HTTP %d", statusErr, resp.StatusCode)
 	}
 	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
