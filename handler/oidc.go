@@ -145,11 +145,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifier := h.IDTokenVerifier
-	if verifier == nil {
-		verifier = h.Provider.Verifier(&oidc.Config{ClientID: h.OAuthConfig.ClientID})
-	}
-	idToken, err := verifier.Verify(r.Context(), rawIDToken)
+	idToken, err := h.IDTokenVerifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
 		h.log().ErrorContext(r.Context(), "OIDC id_token verification failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid id_token")
@@ -171,10 +167,6 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusBadRequest, "sub and email claims required")
 		return
 	}
-	if claims.Name == "" {
-		claims.Name = claims.Email
-	}
-
 	if flow.LinkUserID == "" && (claims.EmailVerified == nil || !*claims.EmailVerified) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "OIDC email must be verified")
 		return

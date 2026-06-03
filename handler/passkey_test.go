@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -552,7 +553,7 @@ func TestPasskey_deleteCredential_storeError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLoadWebAuthnCredentials_empty(t *testing.T) {
-	result := loadWebAuthnCredentials(context.Background(), nil)
+	result := loadWebAuthnCredentials(context.Background(), slog.Default(), nil)
 	require.Len(t, result, 0)
 }
 
@@ -560,7 +561,7 @@ func TestLoadWebAuthnCredentials_skipsCorrupted(t *testing.T) {
 	creds := []auth.PasskeyCredential{
 		{ID: "bad", CredentialData: "not valid json"},
 	}
-	result := loadWebAuthnCredentials(context.Background(), creds)
+	result := loadWebAuthnCredentials(context.Background(), slog.Default(), creds)
 	require.Len(t, result, 0)
 }
 

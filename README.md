@@ -444,7 +444,7 @@ type PasswordResetStore interface {
 }
 ```
 
-`FindPasswordResetToken` returns `auth.ErrNotFound` when no matching record exists. Implementations may also return `auth.ErrExpiredToken` when a record is found but has already expired — `PasswordResetHandler.ResetPassword` treats both `ErrNotFound` and `ErrExpiredToken` as a `400 Bad Request` with an `"invalid or expired reset token"` message. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
+`FindPasswordResetToken` returns `auth.ErrNotFound` when no matching record exists. Implementations should also use `auth.ErrNotFound` for invalid/expired token hashes and return expired records as normal rows for handler-side `ExpiresAt` checks (matching `EmailVerificationStore` semantics). `PasswordResetHandler.ResetPassword` treats `ErrNotFound` as a `400 Bad Request` with an `"invalid or expired reset token"` message. Only the SHA-256 hash of the raw token is stored. Schedule `DeleteExpiredPasswordResetTokens` periodically (e.g. via `maintenance.StartCleanup`) to prevent unbounded accumulation.
 
 #### OIDCLinkNonceStore
 

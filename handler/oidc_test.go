@@ -816,6 +816,7 @@ func TestOIDCCallback_verifyFailure_logsError(t *testing.T) {
 			AuthStyle: oauth2.AuthStyleInHeader,
 		},
 	}
+	require.NoError(t, h.Validate())
 
 	var buf bytes.Buffer
 	h.Logger = slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))

@@ -164,10 +164,6 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusBadRequest, "subject and email required")
 		return
 	}
-	if info.Name == "" {
-		info.Name = info.Email
-	}
-
 	// For normal login flows the email must be verified; linking flows skip
 	// this check because the user is already authenticated.
 	if flow.LinkUserID == "" && !info.EmailVerified {

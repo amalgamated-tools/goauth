@@ -401,9 +401,9 @@ func TestRequestReset_rateLimited(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, w.Code)
 }
 
-func TestResetPassword_expiredTokenSentinel(t *testing.T) {
-	// ErrExpiredToken from the store must be treated as a client error (400),
-	// not an internal server error.
+func TestResetPassword_unexpectedExpiredTokenSentinel(t *testing.T) {
+	// ErrExpiredToken violates the PasswordResetStore contract and must surface
+	// as a server error so store implementations are fixed.
 	resets := &mockPasswordResetStore{
 		findFunc: func(_ context.Context, _ string) (*auth.PasswordResetToken, error) {
 			return nil, auth.ErrExpiredToken
@@ -411,7 +411,7 @@ func TestResetPassword_expiredTokenSentinel(t *testing.T) {
 	}
 	h := newPasswordResetHandler(&mockUserStore{}, resets)
 	w := postJSON(t, h.ResetPassword, `{"token":"expiredtoken","newPassword":"newpassword123"}`)
-	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestResetPassword_oidcOnlyUser(t *testing.T) {
