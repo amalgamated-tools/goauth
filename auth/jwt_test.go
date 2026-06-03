@@ -68,6 +68,27 @@ func TestValidate_wrongAlgorithmToken(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidToken)
 }
 
+func TestValidate_missingExpiration(t *testing.T) {
+	// A token without an exp claim must be rejected by WithExpirationRequired().
+	secret := []byte("test-secret-32-bytes-long-here!!")
+	mgr, _ := NewJWTManager(string(secret), time.Hour, "testapp")
+
+	now := time.Now()
+	rawClaims := Claims{
+		RegisteredClaims: jwtPkg.RegisteredClaims{
+			Issuer:   "testapp",
+			Audience: jwtPkg.ClaimStrings{"testapp"},
+			Subject:  "user-noexp",
+			IssuedAt: jwtPkg.NewNumericDate(now),
+		},
+	}
+	tok, err := jwtPkg.NewWithClaims(jwtPkg.SigningMethodHS256, rawClaims).SignedString(secret)
+	require.NoError(t, err)
+
+	_, err = mgr.ValidateToken(tok)
+	require.ErrorIs(t, err, ErrInvalidToken)
+}
+
 func TestValidate_wrongIssuerToken(t *testing.T) {
 	mgr1, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "app1")
 	mgr2, _ := NewJWTManager("test-secret-32-bytes-long-here!!", time.Hour, "app2")
