@@ -16,6 +16,36 @@ func resolveHTTPClient(client *http.Client) *http.Client {
 	return http.DefaultClient
 }
 
+func fetchOAuth2JSON(
+	ctx context.Context,
+	client *http.Client,
+	token *oauth2.Token,
+	url, accept, statusErr, decodeErr string,
+	dst any,
+) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+	if accept != "" {
+		req.Header.Set("Accept", accept)
+	}
+
+	resp, err := resolveHTTPClient(client).Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s returned HTTP %d", statusErr, resp.StatusCode)
+	}
+	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
+		return fmt.Errorf("%s: %w", decodeErr, err)
+	}
+	return nil
+}
+
 // GitHubProvider is a ready-to-use OAuth2IdentityProvider for GitHub. It calls
 // the GitHub REST API to fetch the authenticated user's profile and primary
 // verified email. Subjects are prefixed with "github:" (e.g. "github:12345")
@@ -56,24 +86,18 @@ type gitHubUser struct {
 }
 
 func (p *GitHubProvider) fetchGitHubUser(ctx context.Context, token *oauth2.Token) (*gitHubUser, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user", nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	resp, err := resolveHTTPClient(p.HTTPClient).Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub /user returned HTTP %d", resp.StatusCode)
-	}
 	var u gitHubUser
-	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
-		return nil, fmt.Errorf("decode GitHub user: %w", err)
+	if err := fetchOAuth2JSON(
+		ctx,
+		p.HTTPClient,
+		token,
+		"https://api.github.com/user",
+		"application/vnd.github+json",
+		"GitHub /user",
+		"decode GitHub user",
+		&u,
+	); err != nil {
+		return nil, err
 	}
 	return &u, nil
 }
@@ -85,24 +109,18 @@ type gitHubEmail struct {
 }
 
 func (p *GitHubProvider) fetchGitHubPrimaryEmail(ctx context.Context, token *oauth2.Token) (email string, verified bool, err error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/emails", nil)
-	if err != nil {
-		return "", false, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	resp, err := resolveHTTPClient(p.HTTPClient).Do(req)
-	if err != nil {
-		return "", false, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return "", false, fmt.Errorf("GitHub /user/emails returned HTTP %d", resp.StatusCode)
-	}
 	var emails []gitHubEmail
-	if err := json.NewDecoder(resp.Body).Decode(&emails); err != nil {
-		return "", false, fmt.Errorf("decode GitHub emails: %w", err)
+	if err := fetchOAuth2JSON(
+		ctx,
+		p.HTTPClient,
+		token,
+		"https://api.github.com/user/emails",
+		"application/vnd.github+json",
+		"GitHub /user/emails",
+		"decode GitHub emails",
+		&emails,
+	); err != nil {
+		return "", false, err
 	}
 	for _, e := range emails {
 		if e.Primary {
@@ -133,23 +151,18 @@ type googleUserInfo struct {
 
 // FetchUserInfo fetches the Google user profile from the userinfo endpoint.
 func (p *GoogleOAuth2Provider) FetchUserInfo(ctx context.Context, token *oauth2.Token) (*OAuth2UserInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://www.googleapis.com/oauth2/v3/userinfo", nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
-
-	resp, err := resolveHTTPClient(p.HTTPClient).Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("google userinfo returned HTTP %d", resp.StatusCode)
-	}
 	var u googleUserInfo
-	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
-		return nil, fmt.Errorf("decode Google userinfo: %w", err)
+	if err := fetchOAuth2JSON(
+		ctx,
+		p.HTTPClient,
+		token,
+		"https://www.googleapis.com/oauth2/v3/userinfo",
+		"",
+		"google userinfo",
+		"decode Google userinfo",
+		&u,
+	); err != nil {
+		return nil, err
 	}
 	return &OAuth2UserInfo{
 		Subject:       "google:" + u.Sub,
