@@ -21,6 +21,34 @@ type oauthCallbackFlow struct {
 	Code          string
 }
 
+// logOrDefault returns the given logger, falling back to slog.Default() when it
+// is nil.
+func logOrDefault(l *slog.Logger) *slog.Logger {
+	if l != nil {
+		return l
+	}
+	return slog.Default()
+}
+
+// oauthLogin is the shared Login implementation for OIDCHandler and
+// OAuth2Handler. It generates a random state and PKCE verifier, then calls
+// redirect to send the browser to the provider's authorization endpoint.
+func oauthLogin(
+	w http.ResponseWriter, r *http.Request,
+	logger *slog.Logger,
+	stateErrMsg string,
+	redirect func(http.ResponseWriter, *http.Request, string, string),
+) {
+	state, err := generateState()
+	if err != nil {
+		logger.ErrorContext(r.Context(), stateErrMsg, slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate login")
+		return
+	}
+	verifier := oauth2.GenerateVerifier()
+	redirect(w, r, state, verifier)
+}
+
 func redirectToOAuthProvider(
 	w http.ResponseWriter, r *http.Request,
 	stateCookieName, verifierCookieName string,
