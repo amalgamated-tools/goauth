@@ -41,18 +41,7 @@ type OIDCHandler struct {
 	// recreating an identical verifier on every Callback invocation. Leave nil
 	// to let NewOIDCHandler or Validate populate it automatically.
 	IDTokenVerifier *oidc.IDTokenVerifier
-	// Logger is the structured logger used by the handler. When nil, the
-	// process-wide slog.Default() logger is used.
-	Logger *slog.Logger
-}
-
-// log returns the handler's logger, falling back to slog.Default() when Logger
-// is nil.
-func (h *OIDCHandler) log() *slog.Logger {
-	if h.Logger != nil {
-		return h.Logger
-	}
-	return slog.Default()
+	oauthLogger
 }
 
 // NewOIDCHandler creates an OIDCHandler by performing OIDC discovery.
@@ -114,15 +103,7 @@ func (h *OIDCHandler) redirectToProvider(w http.ResponseWriter, r *http.Request,
 
 // Login redirects to the OIDC provider.
 func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
-	state, err := generateState()
-	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to generate OIDC login state", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate login")
-		return
-	}
-	verifier := oauth2.GenerateVerifier()
-
-	h.redirectToProvider(w, r, state, verifier)
+	oauthLogin(w, r, h.log(), "failed to generate OIDC login state", h.redirectToProvider)
 }
 
 // Callback handles the OIDC provider redirect.

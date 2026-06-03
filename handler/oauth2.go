@@ -71,9 +71,7 @@ type OAuth2Handler struct {
 	// callback (e.g. "github_login=1" → redirects to "/?github_login=1").
 	// Defaults to "oauth2_login=1" when empty.
 	LoginRedirect string
-	// Logger is the structured logger used by the handler. When nil, the
-	// process-wide slog.Default() logger is used.
-	Logger *slog.Logger
+	oauthLogger
 }
 
 // Validate checks that the handler is correctly configured and returns an error
@@ -91,13 +89,6 @@ func (h *OAuth2Handler) Validate() error {
 		return err
 	}
 	return validateSessionConfig("OAuth2Handler", h.Sessions, h.RefreshCookieName)
-}
-
-func (h *OAuth2Handler) log() *slog.Logger {
-	if h.Logger != nil {
-		return h.Logger
-	}
-	return slog.Default()
 }
 
 func (h *OAuth2Handler) loginRedirectURL() string {
@@ -125,15 +116,7 @@ func (h *OAuth2Handler) redirectToProvider(w http.ResponseWriter, r *http.Reques
 // It sets short-lived HttpOnly state and PKCE verifier cookies (SameSite=Lax,
 // 5-minute TTL) for CSRF and PKCE protection.
 func (h *OAuth2Handler) Login(w http.ResponseWriter, r *http.Request) {
-	state, err := generateState()
-	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to generate OAuth2 login state", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate login")
-		return
-	}
-	verifier := oauth2.GenerateVerifier()
-
-	h.redirectToProvider(w, r, state, verifier)
+	oauthLogin(w, r, h.log(), "failed to generate OAuth2 login state", h.redirectToProvider)
 }
 
 // Callback handles the OAuth2 provider redirect. It validates the CSRF state
