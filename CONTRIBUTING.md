@@ -9,6 +9,7 @@ Thank you for considering a contribution to goauth! This guide covers everything
 - [Prerequisites](#prerequisites)
 - [Getting started](#getting-started)
 - [Running tests](#running-tests)
+  - [Code coverage](#code-coverage)
 - [Linting and formatting](#linting-and-formatting)
 - [Full pre-PR check](#full-pre-pr-check)
 - [Coding conventions](#coding-conventions)
@@ -47,6 +48,20 @@ make testsum       # gotestsum -- -v ./...
 ```
 
 Tests cover every package (`auth`, `handler`, `smtp`, `maintenance`). Because `handler` tests use in-memory store implementations, **no external services are required** to run the full test suite.
+
+### Code coverage
+
+To generate a local coverage profile and inspect it:
+
+```sh
+go test -coverprofile=coverage.out ./...
+go tool cover -func=coverage.out   # per-function summary
+go tool cover -html=coverage.out   # open an annotated HTML report
+```
+
+In CI, the `go-test` job automatically converts `coverage.out` to Cobertura XML and uploads it to GitHub Code Quality under the label `code-coverage/go-test`. This gives pull requests a coverage delta and file-level breakdown in the review UI.
+
+The upload step runs only on non-fork PRs (and pushes to `main`). It is configured with `fail-on-error: false`, so a transient upload failure surfaces as a warning but never blocks a merge.
 
 ## Linting and formatting
 
@@ -130,7 +145,7 @@ All changes must go through a pull request. The `main` branch is protected.
    ```
 2. Make your changes, add tests, and run `make all` to verify everything passes.
 3. Open a pull request against `main` with a clear description of the problem and solution.
-4. Ensure the CI checks (lint, format, tests) pass on your PR.
+4. Ensure the CI checks (lint, format, tests, and coverage upload) pass on your PR. Coverage upload failures are non-blocking (warnings only), but lint and test failures will block the merge.
 
 For significant API changes or new features, open an issue first to discuss the design before investing time in an implementation.
 
