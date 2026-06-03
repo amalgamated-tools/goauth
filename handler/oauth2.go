@@ -71,7 +71,9 @@ type OAuth2Handler struct {
 	// callback (e.g. "github_login=1" → redirects to "/?github_login=1").
 	// Defaults to "oauth2_login=1" when empty.
 	LoginRedirect string
-	oauthLogger
+	// Logger is the structured logger used by the handler. When nil, the
+	// process-wide slog.Default() logger is used.
+	Logger *slog.Logger
 }
 
 // Validate checks that the handler is correctly configured and returns an error
@@ -116,7 +118,7 @@ func (h *OAuth2Handler) redirectToProvider(w http.ResponseWriter, r *http.Reques
 // It sets short-lived HttpOnly state and PKCE verifier cookies (SameSite=Lax,
 // 5-minute TTL) for CSRF and PKCE protection.
 func (h *OAuth2Handler) Login(w http.ResponseWriter, r *http.Request) {
-	oauthLogin(w, r, h.log(), "failed to generate OAuth2 login state", h.redirectToProvider)
+	oauthLogin(w, r, logOrDefault(h.Logger), "failed to generate OAuth2 login state", h.redirectToProvider)
 }
 
 // Callback handles the OAuth2 provider redirect. It validates the CSRF state
@@ -132,14 +134,14 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	token, err := h.OAuthConfig.Exchange(r.Context(), flow.Code, oauth2.VerifierOption(flow.VerifierValue))
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "OAuth2 code exchange failed", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "OAuth2 code exchange failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "failed to exchange code")
 		return
 	}
 
 	info, err := h.Provider.FetchUserInfo(r.Context(), token)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "OAuth2 FetchUserInfo failed", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "OAuth2 FetchUserInfo failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "failed to fetch user info")
 		return
 	}
@@ -165,7 +167,7 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	user, err := findOrCreateUser(r.Context(), h.Users, info.Subject, info.Email, info.Name)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "OAuth2 user resolution failed", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "OAuth2 user resolution failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to process user")
 		return
 	}
@@ -191,7 +193,7 @@ func (h *OAuth2Handler) Link(w http.ResponseWriter, r *http.Request) {
 		h.LinkNonces,
 		h.Users,
 		h.JWT,
-		h.log(),
+		logOrDefault(h.Logger),
 		"oauth2",
 		generateState, h.redirectToProvider,
 	)

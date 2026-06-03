@@ -41,7 +41,9 @@ type OIDCHandler struct {
 	// recreating an identical verifier on every Callback invocation. Leave nil
 	// to let NewOIDCHandler or Validate populate it automatically.
 	IDTokenVerifier *oidc.IDTokenVerifier
-	oauthLogger
+	// Logger is the structured logger used by the handler. When nil, the
+	// process-wide slog.Default() logger is used.
+	Logger *slog.Logger
 }
 
 // NewOIDCHandler creates an OIDCHandler by performing OIDC discovery.
@@ -103,7 +105,7 @@ func (h *OIDCHandler) redirectToProvider(w http.ResponseWriter, r *http.Request,
 
 // Login redirects to the OIDC provider.
 func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
-	oauthLogin(w, r, h.log(), "failed to generate OIDC login state", h.redirectToProvider)
+	oauthLogin(w, r, logOrDefault(h.Logger), "failed to generate OIDC login state", h.redirectToProvider)
 }
 
 // Callback handles the OIDC provider redirect.
@@ -115,7 +117,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	oauth2Token, err := h.OAuthConfig.Exchange(r.Context(), flow.Code, oauth2.VerifierOption(flow.VerifierValue))
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "OIDC code exchange failed", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "OIDC code exchange failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "failed to exchange code")
 		return
 	}
@@ -132,7 +134,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 	idToken, err := verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "OIDC id_token verification failed", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "OIDC id_token verification failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid id_token")
 		return
 	}
@@ -144,7 +146,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		EmailVerified *bool  `json:"email_verified"`
 	}
 	if err := idToken.Claims(&claims); err != nil {
-		h.log().ErrorContext(r.Context(), "failed to parse OIDC claims", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to parse OIDC claims", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to parse claims")
 		return
 	}
@@ -168,7 +170,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	user, err := findOrCreateUser(r.Context(), h.Users, claims.Sub, claims.Email, claims.Name)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "OIDC user resolution failed", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "OIDC user resolution failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to process user")
 		return
 	}
@@ -192,7 +194,7 @@ func (h *OIDCHandler) Link(w http.ResponseWriter, r *http.Request) {
 		h.LinkNonces,
 		h.Users,
 		h.JWT,
-		h.log(),
+		logOrDefault(h.Logger),
 		"oidc",
 		generateState,
 		h.redirectToProvider,

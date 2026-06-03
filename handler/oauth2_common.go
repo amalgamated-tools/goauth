@@ -21,19 +21,11 @@ type oauthCallbackFlow struct {
 	Code          string
 }
 
-// oauthLogger is embedded by OIDCHandler and OAuth2Handler to provide a shared
-// Logger field and log() helper method.
-type oauthLogger struct {
-	// Logger is the structured logger used by the handler. When nil, the
-	// process-wide slog.Default() logger is used.
-	Logger *slog.Logger
-}
-
-// log returns the handler's logger, falling back to slog.Default() when Logger
+// logOrDefault returns the given logger, falling back to slog.Default() when it
 // is nil.
-func (l *oauthLogger) log() *slog.Logger {
-	if l.Logger != nil {
-		return l.Logger
+func logOrDefault(l *slog.Logger) *slog.Logger {
+	if l != nil {
+		return l
 	}
 	return slog.Default()
 }
