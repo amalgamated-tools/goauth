@@ -25,6 +25,14 @@ type TOTPHandler struct {
 	Users     auth.UserStore
 	Issuer    string
 	UsedCodes *auth.TOTPUsedCodeCache // required for replay protection; &auth.TOTPUsedCodeCache{} is ready to use
+	Logger    *slog.Logger
+}
+
+func (h *TOTPHandler) log() *slog.Logger {
+	if h.Logger != nil {
+		return h.Logger
+	}
+	return slog.Default()
 }
 
 type totpGenerateResponse struct {
@@ -85,7 +93,7 @@ func (h *TOTPHandler) Status(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	_, err := h.TOTP.GetTOTPSecret(r.Context(), userID)
 	if err != nil && !errors.Is(err, auth.ErrTOTPNotFound) {
-		slog.ErrorContext(r.Context(), "failed to fetch TOTP status", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to fetch TOTP status", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch TOTP status")
 		return
 	}
@@ -99,7 +107,7 @@ func (h *TOTPHandler) Status(w http.ResponseWriter, r *http.Request) {
 func (h *TOTPHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	secret, err := auth.GenerateTOTPSecret()
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to generate TOTP secret", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to generate TOTP secret", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate TOTP secret")
 		return
 	}
@@ -111,7 +119,7 @@ func (h *TOTPHandler) Generate(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 			return
 		}
-		slog.ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
 		return
 	}
@@ -160,7 +168,7 @@ func (h *TOTPHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.TOTP.CreateTOTPSecret(r.Context(), userID, req.Secret); err != nil {
-		slog.ErrorContext(r.Context(), "failed to save TOTP secret", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to save TOTP secret", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to save TOTP secret")
 		return
 	}
@@ -192,14 +200,14 @@ func (h *TOTPHandler) Verify(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusNotFound, "TOTP not configured")
 			return
 		}
-		slog.ErrorContext(r.Context(), "failed to fetch TOTP secret", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to fetch TOTP secret", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch TOTP secret")
 		return
 	}
 
 	ok, err := auth.ValidateTOTP(stored.Secret, req.Code)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to validate TOTP code", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to validate TOTP code", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to validate TOTP code")
 		return
 	}
@@ -220,7 +228,7 @@ func (h *TOTPHandler) Disable(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusNotFound, "TOTP not configured")
 			return
 		}
-		slog.ErrorContext(r.Context(), "failed to delete TOTP secret", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to delete TOTP secret", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to disable TOTP")
 		return
 	}

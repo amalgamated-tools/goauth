@@ -294,6 +294,32 @@ func TestOAuth2Callback_newUser(t *testing.T) {
 	require.True(t, authCookie, "auth cookie not set")
 }
 
+func TestOAuth2Callback_newUser_emptyNameRemainsEmpty(t *testing.T) {
+	h := newOAuth2HandlerWithConfig()
+	var capturedName string
+	h.Users = &mockUserStore{
+		findByOIDCSubjectFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return nil, auth.ErrNotFound
+		},
+		createOIDCUserFunc: func(_ context.Context, name, email, sub string) (*auth.User, error) {
+			capturedName = name
+			return &auth.User{ID: "new-user", Name: name, Email: email}, nil
+		},
+	}
+
+	w := injectOAuth2Code(t, h, "state4-empty-name", "code4-empty-name", &OAuth2UserInfo{
+		Subject:       "github:77",
+		Email:         "empty-name@example.com",
+		EmailVerified: true,
+	})
+
+	require.Equal(t, http.StatusFound, w.Code)
+	require.Equal(t, "", capturedName)
+}
+
 // ---------------------------------------------------------------------------
 // Callback — existing subject login
 // ---------------------------------------------------------------------------

@@ -19,6 +19,14 @@ type APIKeyHandler struct {
 	APIKeys      auth.APIKeyStore
 	Prefix       string // e.g. "bib_", "sch_"
 	URLParamFunc func(r *http.Request, key string) string
+	Logger       *slog.Logger
+}
+
+func (h *APIKeyHandler) log() *slog.Logger {
+	if h.Logger != nil {
+		return h.Logger
+	}
+	return slog.Default()
 }
 
 // Validate checks that the handler is correctly configured and returns an error
@@ -58,7 +66,7 @@ func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	keys, err := h.APIKeys.ListAPIKeysByUser(r.Context(), userID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to list API keys", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to list API keys", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list API keys")
 		return
 	}
@@ -90,7 +98,7 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Generate 40 hex chars (20 bytes / 160 bits of entropy).
 	hexKey, err := auth.GenerateRandomHex(20)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to generate API key", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to generate API key", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate API key")
 		return
 	}
@@ -101,7 +109,7 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	apiKey, err := h.APIKeys.CreateAPIKey(r.Context(), userID, req.Name, keyHash, keyPrefix)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to create API key", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to create API key", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create API key")
 		return
 	}
@@ -116,10 +124,6 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Delete removes an API key.
 func (h *APIKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	if h.URLParamFunc == nil {
-		writeError(r.Context(), w, http.StatusInternalServerError, "handler misconfigured: URLParamFunc is required")
-		return
-	}
 	id := h.URLParamFunc(r, "id")
 	if id == "" {
 		writeError(r.Context(), w, http.StatusBadRequest, "invalid API key ID")
@@ -132,7 +136,7 @@ func (h *APIKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusNotFound, "API key not found")
 			return
 		}
-		slog.ErrorContext(r.Context(), "failed to delete API key", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to delete API key", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to delete API key")
 		return
 	}

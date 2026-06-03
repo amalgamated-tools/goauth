@@ -297,7 +297,7 @@ func (m *mockPasswordResetStore) FindPasswordResetToken(ctx context.Context, tok
 	if m.findFunc != nil {
 		return m.findFunc(ctx, tokenHash)
 	}
-	return nil, auth.ErrInvalidToken
+	return nil, auth.ErrNotFound
 }
 
 func (m *mockPasswordResetStore) DeletePasswordResetToken(ctx context.Context, id string) error {

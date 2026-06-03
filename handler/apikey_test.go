@@ -172,15 +172,16 @@ func TestAPIKey_create_invalidJSON(t *testing.T) {
 // Delete
 // ---------------------------------------------------------------------------
 
-func TestAPIKey_delete_nilURLParamFunc_returnsInternalError(t *testing.T) {
+func TestAPIKey_delete_nilURLParamFunc_panics(t *testing.T) {
 	h := newAPIKeyHandler(&mockAPIKeyStore{})
 	h.URLParamFunc = nil
 	req := httptest.NewRequest(http.MethodDelete, "/keys?id=k1", nil)
 	req = withUserID(req, "u1")
 	w := httptest.NewRecorder()
-	h.Delete(w, req)
 
-	require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Panics(t, func() {
+		h.Delete(w, req)
+	})
 }
 
 func TestAPIKey_delete_success(t *testing.T) {

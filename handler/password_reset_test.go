@@ -401,9 +401,9 @@ func TestRequestReset_rateLimited(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, w.Code)
 }
 
-func TestResetPassword_expiredTokenSentinel(t *testing.T) {
-	// ErrExpiredToken from the store must be treated as a client error (400),
-	// not an internal server error.
+func TestResetPassword_legacyExpiredTokenSentinel(t *testing.T) {
+	// Legacy stores may return ErrExpiredToken; the handler treats it as a
+	// client error for backward compatibility.
 	resets := &mockPasswordResetStore{
 		findFunc: func(_ context.Context, _ string) (*auth.PasswordResetToken, error) {
 			return nil, auth.ErrExpiredToken
@@ -411,6 +411,19 @@ func TestResetPassword_expiredTokenSentinel(t *testing.T) {
 	}
 	h := newPasswordResetHandler(&mockUserStore{}, resets)
 	w := postJSON(t, h.ResetPassword, `{"token":"expiredtoken","newPassword":"newpassword123"}`)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestResetPassword_legacyInvalidTokenSentinel(t *testing.T) {
+	// Legacy stores may return ErrInvalidToken; the handler treats it as a
+	// client error for backward compatibility.
+	resets := &mockPasswordResetStore{
+		findFunc: func(_ context.Context, _ string) (*auth.PasswordResetToken, error) {
+			return nil, auth.ErrInvalidToken
+		},
+	}
+	h := newPasswordResetHandler(&mockUserStore{}, resets)
+	w := postJSON(t, h.ResetPassword, `{"token":"badtoken","newPassword":"newpassword123"}`)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 

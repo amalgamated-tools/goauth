@@ -82,7 +82,7 @@ func issueTokens(
 		}
 
 		sess, err := sessions.CreateSession(r.Context(), userID, refreshHash,
-			r.UserAgent(), ip, time.Now().Add(ttl))
+			r.UserAgent(), ip, time.Now().UTC().Add(ttl))
 		if err != nil {
 			slog.ErrorContext(r.Context(), "failed to create session", slog.Any("error", err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "failed to create session")

@@ -50,6 +50,14 @@ type PasskeyHandler struct {
 	// startup to catch this misconfiguration early.
 	RefreshCookieName string
 	URLParamFunc      func(r *http.Request, key string) string
+	Logger            *slog.Logger
+}
+
+func (h *PasskeyHandler) log() *slog.Logger {
+	if h.Logger != nil {
+		return h.Logger
+	}
+	return slog.Default()
 }
 
 // Validate checks that the handler is correctly configured and returns an error
@@ -116,12 +124,12 @@ func ToPasskeyCredentialDTO(c auth.PasskeyCredential) PasskeyCredentialDTO {
 	return PasskeyCredentialDTO{ID: c.ID, Name: c.Name, AAGUID: c.AAGUID, CreatedAt: c.CreatedAt}
 }
 
-func loadWebAuthnCredentials(ctx context.Context, creds []auth.PasskeyCredential) []webauthn.Credential {
+func loadWebAuthnCredentials(ctx context.Context, logger *slog.Logger, creds []auth.PasskeyCredential) []webauthn.Credential {
 	result := make([]webauthn.Credential, 0, len(creds))
 	for i := range creds {
 		var waCred webauthn.Credential
 		if err := json.Unmarshal([]byte(creds[i].CredentialData), &waCred); err != nil {
-			slog.WarnContext(ctx, "skipping corrupted passkey credential", slog.String("id", creds[i].ID))
+			logger.WarnContext(ctx, "skipping corrupted passkey credential", slog.String("id", creds[i].ID))
 			continue
 		}
 		result = append(result, waCred)
@@ -186,29 +194,29 @@ func (h *PasskeyHandler) BeginRegistration(w http.ResponseWriter, r *http.Reques
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 			return
 		}
-		slog.ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
 		return
 	}
 	existingCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
 		return
 	}
-	waCreds := loadWebAuthnCredentials(r.Context(), existingCreds)
+	waCreds := loadWebAuthnCredentials(r.Context(), h.log(), existingCreds)
 	waUser := &passkeyUser{user: user, credentials: waCreds}
 
 	options, sd, err := h.WebAuthn.BeginRegistration(waUser, webauthn.WithExclusions(webauthn.Credentials(waCreds).CredentialDescriptors()))
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to begin registration", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to begin registration", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to begin registration")
 		return
 	}
 	uid := userID
 	sessionID, err := h.storeChallenge(r.Context(), &uid, sd, req.Name)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to store challenge", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to store challenge", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store challenge")
 		return
 	}
@@ -244,28 +252,28 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 			return
 		}
-		slog.ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
 		return
 	}
 	existingCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
 		return
 	}
-	waUser := &passkeyUser{user: user, credentials: loadWebAuthnCredentials(r.Context(), existingCreds)}
+	waUser := &passkeyUser{user: user, credentials: loadWebAuthnCredentials(r.Context(), h.log(), existingCreds)}
 
 	credential, err := h.WebAuthn.FinishRegistration(waUser, challengeData.SessionData, r)
 	if err != nil {
-		slog.WarnContext(r.Context(), "webauthn finish registration failed", slog.Any("error", err))
+		h.log().WarnContext(r.Context(), "webauthn finish registration failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusBadRequest, "registration verification failed")
 		return
 	}
 
 	credData, err := json.Marshal(credential)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to marshal credential", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to marshal credential", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to marshal credential")
 		return
 	}
@@ -274,7 +282,7 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 
 	stored, err := h.Passkeys.CreateCredential(r.Context(), userID, challengeData.Name, credID, string(credData), aaguid)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to store credential", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to store credential", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store credential")
 		return
 	}
@@ -289,13 +297,13 @@ func (h *PasskeyHandler) BeginAuthentication(w http.ResponseWriter, r *http.Requ
 	}
 	options, sd, err := h.WebAuthn.BeginDiscoverableLogin()
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to begin login", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to begin login", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to begin login")
 		return
 	}
 	sessionID, err := h.storeChallenge(r.Context(), nil, sd, "")
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to store challenge", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to store challenge", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store challenge")
 		return
 	}
@@ -343,18 +351,18 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		authedUserID = user.ID
 		authedCredentialID = credID
 		authedUser = user
-		return &passkeyUser{user: user, credentials: loadWebAuthnCredentials(r.Context(), userCreds)}, nil
+		return &passkeyUser{user: user, credentials: loadWebAuthnCredentials(r.Context(), h.log(), userCreds)}, nil
 	})
 
 	_, updatedCred, err := h.WebAuthn.FinishPasskeyLogin(handler, challengeData.SessionData, r)
 	if err != nil {
 		if listCredsErr != nil {
-			slog.ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", listCredsErr))
+			h.log().ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", listCredsErr))
 			writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
 		} else if errors.Is(userLookupErr, auth.ErrNotFound) {
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 		} else if userLookupErr != nil {
-			slog.ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", userLookupErr))
+			h.log().ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", userLookupErr))
 			writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
 		} else {
 			writeError(r.Context(), w, http.StatusUnauthorized, "authentication failed")
@@ -363,12 +371,12 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 	}
 
 	if data, err := json.Marshal(updatedCred); err != nil {
-		slog.WarnContext(r.Context(), "failed to marshal credential for counter update",
+		h.log().WarnContext(r.Context(), "failed to marshal credential for counter update",
 			slog.String("user_id", authedUserID),
 			slog.String("credential_id", authedCredentialID),
 			slog.Any("error", err))
 	} else if err := h.Passkeys.UpdateCredentialData(r.Context(), authedUserID, authedCredentialID, string(data)); err != nil {
-		slog.WarnContext(r.Context(), "failed to update credential counter",
+		h.log().WarnContext(r.Context(), "failed to update credential counter",
 			slog.String("user_id", authedUserID),
 			slog.String("credential_id", authedCredentialID),
 			slog.Any("error", err))
@@ -388,7 +396,7 @@ func (h *PasskeyHandler) ListCredentials(w http.ResponseWriter, r *http.Request)
 	userID := auth.UserIDFromContext(r.Context())
 	creds, err := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
 		return
 	}
@@ -412,7 +420,7 @@ func (h *PasskeyHandler) DeleteCredential(w http.ResponseWriter, r *http.Request
 			writeError(r.Context(), w, http.StatusNotFound, "credential not found")
 			return
 		}
-		slog.ErrorContext(r.Context(), "failed to delete credential", slog.Any("error", err))
+		h.log().ErrorContext(r.Context(), "failed to delete credential", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to delete credential")
 		return
 	}
