@@ -9,7 +9,7 @@ h := &handler.APIKeyHandler{
     APIKeys:      apiKeyStore,
     Prefix:       "myapp_",   // prepended to the random hex token
     URLParamFunc: chi.URLParam,
-    Logger:       slog.Default(), // optional; defaults to slog.Default() when nil
+    Logger:       slog.New(slogHandler), // optional; defaults to slog.Default() when nil
 }
 
 if err := h.Validate(); err != nil {
