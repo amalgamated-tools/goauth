@@ -20,9 +20,9 @@ Only the SHA-256 hash of each key is stored. The plaintext key cannot be recover
 
 `handleLinkCallback` enforces that a single OIDC subject cannot be linked to more than one account, even under database pressure. Any error from `FindByOIDCSubject` that is not `ErrNotFound` (for example a DB timeout) causes an immediate redirect with `oidc_link_error` set to `Link verification failed` **before** `LinkOIDCSubject` is called, and the error is logged via `slog.ErrorContext`. The raw redirect URL may contain the URL-escaped form (for example `oidc_link_error=Link+verification+failed`), but normal query parsing returns the decoded string. The guard is never silently bypassed.
 
-## OIDC PKCE
+## OIDC PKCE and nonce replay protection
 
-The OIDC flow uses S256 PKCE and validates the state parameter on every callback.
+The OIDC flow uses S256 PKCE, validates the state parameter on every callback, and embeds a single-use nonce in the authorization URL. On callback, the nonce stored in the `oidc_nonce` cookie is compared against the `nonce` claim in the returned `id_token`, preventing token replay attacks where a stolen `id_token` is substituted for a legitimate one.
 
 ## Rate limiting
 
@@ -30,7 +30,7 @@ Apply `RateLimiter.Middleware` to login, signup, and passkey endpoints to limit 
 
 ## Cookie security
 
-Set `SecureCookies: true` in production. Auth cookies use `HttpOnly` and `SameSite=Strict`. OIDC and OAuth2 flow state cookies (`oidc_state`, `oidc_verifier`, `oauth2_state`, `oauth2_verifier`) use `SameSite=Lax` — required because both provider redirects are top-level cross-site navigations that `SameSite=Strict` cookies would block. See [Cookie Helpers](handler/cookies.md) for details.
+Set `SecureCookies: true` in production. Auth cookies use `HttpOnly` and `SameSite=Strict`. OIDC and OAuth2 flow state cookies (`oidc_state`, `oidc_verifier`, `oidc_nonce`, `oauth2_state`, `oauth2_verifier`) use `SameSite=Lax` — required because both provider redirects are top-level cross-site navigations that `SameSite=Strict` cookies would block. See [Cookie Helpers](handler/cookies.md) for details.
 
 ## Trusted proxies
 
