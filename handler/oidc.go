@@ -15,6 +15,7 @@ import (
 const (
 	oidcStateCookieName    = "oidc_state"
 	oidcVerifierCookieName = "oidc_verifier"
+	oidcNonceCookieName    = "oidc_nonce"
 	oidcStateCookieTTL     = 5 * time.Minute
 )
 
@@ -93,14 +94,24 @@ func (h *OIDCHandler) Validate() error {
 // the provider's authorization endpoint. state must already be signed when
 // used for account linking.
 func (h *OIDCHandler) redirectToProvider(w http.ResponseWriter, r *http.Request, state, verifier string) {
-	redirectToOAuthProvider(
-		w, r,
-		oidcStateCookieName, oidcVerifierCookieName,
-		oidcStateCookieTTL,
-		h.SecureCookies,
-		&h.OAuthConfig,
-		state, verifier,
-	)
+	nonce, err := auth.GenerateRandomBase64(32)
+	if err != nil {
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to generate OIDC nonce", slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate authentication")
+		return
+	}
+	for _, pair := range [][2]string{
+		{oidcStateCookieName, state},
+		{oidcVerifierCookieName, verifier},
+		{oidcNonceCookieName, nonce},
+	} {
+		http.SetCookie(w, &http.Cookie{
+			Name: pair[0], Value: pair[1], Path: "/",
+			MaxAge: int(oidcStateCookieTTL.Seconds()), HttpOnly: true,
+			SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
+		})
+	}
+	http.Redirect(w, r, h.OAuthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier), oidc.Nonce(nonce)), http.StatusFound)
 }
 
 // Login redirects to the OIDC provider.
@@ -114,6 +125,15 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	nonceCookie, err := r.Cookie(oidcNonceCookieName)
+	if err != nil || nonceCookie.Value == "" {
+		writeError(r.Context(), w, http.StatusBadRequest, "missing OIDC nonce cookie")
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: oidcNonceCookieName, Value: "", Path: "/", MaxAge: -1,
+		HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: h.SecureCookies,
+	})
 
 	oauth2Token, err := h.OAuthConfig.Exchange(r.Context(), flow.Code, oauth2.VerifierOption(flow.VerifierValue))
 	if err != nil {
@@ -134,6 +154,10 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid id_token")
 		return
 	}
+	if idToken.Nonce != nonceCookie.Value {
+		writeError(r.Context(), w, http.StatusUnauthorized, "invalid nonce")
+		return
+	}
 
 	var claims struct {
 		Sub           string `json:"sub"`
@@ -150,6 +174,8 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusBadRequest, "sub and email claims required")
 		return
 	}
+	// Linking is initiated by an already-authenticated local user, so only
+	// login/signup flows require a verified IdP email claim.
 	if flow.LinkUserID == "" && (claims.EmailVerified == nil || !*claims.EmailVerified) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "OIDC email must be verified")
 		return
