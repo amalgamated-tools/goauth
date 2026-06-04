@@ -36,13 +36,6 @@ type EmailVerificationHandler struct {
 	TokenTTL time.Duration
 }
 
-func (h *EmailVerificationHandler) log() *slog.Logger {
-	if h.Logger != nil {
-		return h.Logger
-	}
-	return slog.Default()
-}
-
 // Validate checks that the handler is correctly configured and returns an error
 // when required dependencies are missing. Call Validate once at server startup
 // so misconfiguration is caught immediately rather than at the first request.
@@ -88,7 +81,7 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 	user, err := h.Users.FindByEmail(r.Context(), req.Email)
 	if err != nil {
 		if !errors.Is(err, auth.ErrNotFound) {
-			h.log().ErrorContext(r.Context(), "failed to find user for email verification", slog.Any("error", err))
+			logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to find user for email verification", slog.Any("error", err))
 		}
 		writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
 		return
@@ -101,20 +94,20 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 
 	plaintext, err := auth.GenerateRandomHex(verificationTokenBytes)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to generate verification token", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to generate verification token", slog.Any("error", err))
 		writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
 		return
 	}
 	tokenHash := auth.HashHighEntropyToken(plaintext)
 
 	if _, err := h.Verifications.CreateEmailVerification(r.Context(), user.ID, tokenHash, time.Now().UTC().Add(h.tokenTTL())); err != nil {
-		h.log().ErrorContext(r.Context(), "failed to store verification token", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to store verification token", slog.Any("error", err))
 		writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
 		return
 	}
 
 	if err := h.SendEmail(r.Context(), user.Email, plaintext); err != nil {
-		h.log().ErrorContext(r.Context(), "failed to send verification email", slog.String("user_id", user.ID), slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to send verification email", slog.String("user_id", user.ID), slog.Any("error", err))
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
@@ -138,7 +131,7 @@ func (h *EmailVerificationHandler) VerifyEmail(w http.ResponseWriter, r *http.Re
 			writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired verification token")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "failed to consume verification token", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to consume verification token", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to verify email")
 		return
 	}
@@ -149,7 +142,7 @@ func (h *EmailVerificationHandler) VerifyEmail(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := h.Verifications.SetEmailVerified(r.Context(), record.UserID); err != nil {
-		h.log().ErrorContext(r.Context(), "failed to mark email as verified", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to mark email as verified", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to verify email")
 		return
 	}

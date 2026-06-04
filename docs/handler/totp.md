@@ -10,7 +10,7 @@ h := &handler.TOTPHandler{
     Users:     userStore,
     Issuer:    "MyApp",
     UsedCodes: &auth.TOTPUsedCodeCache{}, // required; pointer to zero value; prevents replay attacks
-    Logger:    slog.Default(),            // optional; defaults to slog.Default() when nil
+    // Logger: nil,                       // optional; when nil, slog.Default() is resolved at each log site
 }
 
 if err := h.Validate(); err != nil {

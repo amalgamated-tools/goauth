@@ -21,15 +21,6 @@ type oauthCallbackFlow struct {
 	Code          string
 }
 
-// logOrDefault returns the given logger, falling back to slog.Default() when it
-// is nil.
-func logOrDefault(l *slog.Logger) *slog.Logger {
-	if l != nil {
-		return l
-	}
-	return slog.Default()
-}
-
 // oauthLogin is the shared Login implementation for OIDCHandler and
 // OAuth2Handler. It generates a random state and PKCE verifier, then calls
 // redirect to send the browser to the provider's authorization endpoint.
@@ -204,9 +195,7 @@ func handleLinkInitiation(
 	generateState func() (string, error),
 	redirect func(w http.ResponseWriter, r *http.Request, state, verifier string),
 ) {
-	if logger == nil {
-		logger = slog.Default()
-	}
+	logger = logOrDefault(logger)
 	if nonces == nil {
 		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
 		return

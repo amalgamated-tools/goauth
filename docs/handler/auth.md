@@ -15,7 +15,7 @@ h := &handler.AuthHandler{
     RefreshTokenTTL:     handler.DefaultRefreshTokenTTL, // defaults to 7 days when Sessions is set
     RefreshCookieName:   "refresh",  // required when Sessions is set; stores refresh token in an HttpOnly cookie
     RequireVerification: true,       // optional; rejects login for unverified email addresses
-    Logger:              slog.Default(), // optional; defaults to slog.Default() when nil
+    // Logger:           nil, // optional; when nil, slog.Default() is resolved at each log site
 }
 
 if err := h.Validate(); err != nil {
