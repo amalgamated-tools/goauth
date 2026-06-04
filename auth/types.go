@@ -256,8 +256,9 @@ type TOTPStore interface {
 // Expiry enforcement contract: FindPasswordResetToken does not filter out
 // expired records — it may return an expired token successfully. Callers are
 // responsible for checking ExpiresAt and treating expired tokens as invalid.
-// Implementations should return ErrNotFound for missing/invalid token hashes
-// and must not return ErrExpiredToken or ErrInvalidToken for expired records.
+// Implementations should return ErrNotFound for missing/invalid token hashes.
+// ErrExpiredToken and ErrInvalidToken are accepted for backward compatibility
+// but ErrNotFound is preferred for expired or invalid records.
 type PasswordResetStore interface {
 	// CreatePasswordResetToken stores a hashed reset token for userID, expiring at expiresAt.
 	CreatePasswordResetToken(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*PasswordResetToken, error)
