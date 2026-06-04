@@ -23,6 +23,7 @@ h := &handler.PasskeyHandler{
     Sessions:          sessionStore,
     RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // default 7 days
     RefreshCookieName: "refresh",
+    Logger:            slog.Default(), // optional; defaults to slog.Default() when nil
 }
 
 if err := h.Validate(); err != nil {
@@ -147,7 +148,7 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 
 ## Observability
 
-`PasskeyHandler` emits structured log events via `slog` with the request context for trace correlation.
+`PasskeyHandler` emits structured log events via `slog` with the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|

@@ -10,6 +10,7 @@ h := &handler.EmailVerificationHandler{
     Verifications: verificationStore,
     SendEmail:     func(ctx context.Context, to, token string) error { /* send email */ return nil },
     TokenTTL:      24 * time.Hour, // defaults to 24 hours
+    Logger:        slog.Default(), // optional; defaults to slog.Default() when nil
 }
 
 if err := h.Validate(); err != nil {
@@ -73,7 +74,7 @@ To gate login on email verification, set `RequireVerification: true` on `AuthHan
 
 ## Observability
 
-`EmailVerificationHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response and for non-fatal email delivery failures, propagating the request context for trace correlation.
+`EmailVerificationHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response and for non-fatal email delivery failures, propagating the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
