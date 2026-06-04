@@ -47,7 +47,7 @@ type Claims struct {
 | `exp` claim is absent | `auth.ErrInvalidToken` |
 | Signature is wrong, issuer/audience mismatch, or any other invalid state | `auth.ErrInvalidToken` |
 
-> **Note:** `WithExpirationRequired` is applied during validation, so tokens issued without an `exp` claim are rejected with `ErrInvalidToken`. All tokens produced by `CreateToken` and `CreateTokenWithSession` include `exp`, so this only matters when validating third-party or hand-crafted tokens.
+> **Note:** `jwt.WithExpirationRequired()` is applied during validation, so tokens issued without an `exp` claim are rejected with `auth.ErrInvalidToken`. All tokens produced by `CreateToken` and `CreateTokenWithSession` include `exp`, so this only matters when validating third-party or hand-crafted tokens.
 
 ### Parsing without registered-claims validation (logout / audit)
 
@@ -59,7 +59,7 @@ type Claims struct {
 claims, err := jwtMgr.ParseTokenClaims(tokenString)
 ```
 
-`ParseTokenClaims` uses `jwt.WithoutClaimsValidation()`, which bypasses **all** registered-claims checks (including `exp`, `nbf`, `iat`, `iss`, and `aud`). The issuer and audience are then re-validated manually, so `ErrInvalidToken` is returned when they do not match. This makes `ParseTokenClaims` safe for extracting the `jti` (session ID) from an expired token in order to revoke the session during logout.
+`ParseTokenClaims` uses `jwt.WithoutClaimsValidation()`, which bypasses **all** registered-claims checks (including `exp`, `nbf`, `iat`, `iss`, and `aud`). The issuer and audience are then re-validated manually, so `auth.ErrInvalidToken` is returned when they do not match. This makes `ParseTokenClaims` safe for extracting the `jti` (session ID) from an expired token in order to revoke the session during logout.
 
 ## HMAC signing
 
