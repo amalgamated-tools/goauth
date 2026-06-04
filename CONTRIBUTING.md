@@ -145,6 +145,9 @@ All changes must go through a pull request. The `main` branch is protected.
    ```
 2. Make your changes, add tests, and run `make all` to verify everything passes.
 3. Open a pull request against `main` with a clear description of the problem and solution.
+   - **PR title must use [Conventional Commits](https://www.conventionalcommits.org/)** because Release Please reads merged commit messages from PR titles.
+   - Format: `<type>(optional-scope): description` (for example, `fix(handler): return 404 for missing linked user`).
+   - Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 4. Ensure the CI checks (lint, format, and tests) pass on your PR — these are required for merge. The coverage upload runs automatically on non-fork PRs; failures surface as warnings and never block the merge.
 
 For significant API changes or new features, open an issue first to discuss the design before investing time in an implementation.
@@ -199,4 +202,3 @@ The script:
 ```
 
 After the tag is pushed, the GitHub Actions release pipeline picks it up and publishes the GitHub release automatically.
-
