@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -523,8 +524,12 @@ func TestOIDCLogin_redirectsWithStateCookies(t *testing.T) {
 	loc := w.Header().Get("Location")
 	require.Contains(t, loc, "https://example.com/authorize")
 
-	// Must set both OIDC state and verifier cookies.
-	var stateCookie, verifierCookie bool
+	parsed, err := url.Parse(loc)
+	require.NoError(t, err)
+	require.NotEmpty(t, parsed.Query().Get("nonce"))
+
+	// Must set OIDC state, verifier, and nonce cookies.
+	var stateCookie, verifierCookie, nonceCookie bool
 	for _, c := range w.Result().Cookies() {
 		switch c.Name {
 		case oidcStateCookieName:
@@ -534,10 +539,14 @@ func TestOIDCLogin_redirectsWithStateCookies(t *testing.T) {
 		case oidcVerifierCookieName:
 			verifierCookie = true
 			require.NotEmpty(t, c.Value)
+		case oidcNonceCookieName:
+			nonceCookie = true
+			require.NotEmpty(t, c.Value)
 		}
 	}
 	require.True(t, stateCookie, "missing oidc_state cookie")
 	require.True(t, verifierCookie, "missing oidc_verifier cookie")
+	require.True(t, nonceCookie, "missing oidc_nonce cookie")
 }
 
 // ---------------------------------------------------------------------------
@@ -738,6 +747,18 @@ func TestOIDCCallback_missingCode(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestOIDCCallback_missingNonceCookie(t *testing.T) {
+	h := newOIDCHandlerWithConfig()
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&code=authcode", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
+	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "someverifier"})
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 // ---------------------------------------------------------------------------
 // Callback — Exchange and Verify failures log via slog.ErrorContext
 // ---------------------------------------------------------------------------
@@ -765,6 +786,7 @@ func TestOIDCCallback_exchangeFailure_logsError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&code=authcode", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
 	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "someverifier"})
+	req.AddCookie(&http.Cookie{Name: oidcNonceCookieName, Value: "somenonce"})
 	w := httptest.NewRecorder()
 	h.Callback(w, req)
 
@@ -824,6 +846,7 @@ func TestOIDCCallback_verifyFailure_logsError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&code=authcode", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
 	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "someverifier"})
+	req.AddCookie(&http.Cookie{Name: oidcNonceCookieName, Value: "somenonce"})
 	w := httptest.NewRecorder()
 	h.Callback(w, req)
 
