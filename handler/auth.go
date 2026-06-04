@@ -36,10 +36,6 @@ type AuthHandler struct {
 	RequireVerification bool
 }
 
-func (h *AuthHandler) log() *slog.Logger {
-	return logOrDefault(h.Logger)
-}
-
 type signupRequest struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
@@ -123,7 +119,7 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), auth.BcryptCost)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to hash password", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to hash password", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to hash password")
 		return
 	}
@@ -134,7 +130,7 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusConflict, "email already registered")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "failed to create user", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to create user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create user")
 		return
 	}
@@ -167,7 +163,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid email or password")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "failed to find user by email", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to find user by email", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -204,7 +200,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		if tok := auth.ExtractToken(r, h.CookieName); tok != "" {
 			if claims, err := h.JWT.ParseTokenClaims(tok); err == nil && claims.ID != "" {
 				if err := h.Sessions.DeleteSession(r.Context(), claims.ID, claims.Subject); err != nil && !errors.Is(err, auth.ErrNotFound) {
-					h.log().WarnContext(r.Context(), "failed to revoke session on logout",
+					logOrDefault(h.Logger).WarnContext(r.Context(), "failed to revoke session on logout",
 						slog.String("session_id", claims.ID),
 						slog.Any("error", err))
 				}
@@ -255,7 +251,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired refresh token")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "failed to find session by refresh token", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to find session by refresh token", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -266,7 +262,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	// Revoke the consumed session before issuing a new one.
 	if err := h.Sessions.DeleteSession(r.Context(), sess.ID, sess.UserID); err != nil {
-		h.log().ErrorContext(r.Context(), "failed to revoke old session on refresh", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to revoke old session on refresh", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -277,7 +273,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusUnauthorized, "user not found")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "failed to find user on refresh", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to find user on refresh", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -300,7 +296,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "failed to get user", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to get user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to get user")
 		return
 	}
@@ -321,7 +317,7 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	user, err := h.Users.UpdateName(r.Context(), userID, req.Name)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to update profile", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to update profile", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to update profile")
 		return
 	}
@@ -349,7 +345,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "failed to get user", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to get user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to get user")
 		return
 	}
@@ -364,12 +360,12 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), auth.BcryptCost)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to hash password", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to hash password", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to hash password")
 		return
 	}
 	if err := h.Users.UpdatePassword(r.Context(), userID, string(hash)); err != nil {
-		h.log().ErrorContext(r.Context(), "failed to update password", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to update password", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to update password")
 		return
 	}

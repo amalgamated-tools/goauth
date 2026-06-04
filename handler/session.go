@@ -18,10 +18,6 @@ type SessionHandler struct {
 	Logger       *slog.Logger
 }
 
-func (h *SessionHandler) log() *slog.Logger {
-	return logOrDefault(h.Logger)
-}
-
 // Validate checks that the handler is correctly configured and returns an
 // error when required dependencies are missing. Call Validate once at server
 // startup so misconfiguration is caught immediately rather than at the first
@@ -58,7 +54,7 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	sessions, err := h.Sessions.ListSessionsByUser(r.Context(), userID)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to list sessions", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to list sessions", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list sessions")
 		return
 	}
@@ -82,7 +78,7 @@ func (h *SessionHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusNotFound, "session not found")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "failed to revoke session", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to revoke session", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to revoke session")
 		return
 	}
@@ -93,7 +89,7 @@ func (h *SessionHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 func (h *SessionHandler) RevokeAll(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	if err := h.Sessions.DeleteAllSessionsByUser(r.Context(), userID); err != nil {
-		h.log().ErrorContext(r.Context(), "failed to revoke all sessions", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to revoke all sessions", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to revoke sessions")
 		return
 	}
