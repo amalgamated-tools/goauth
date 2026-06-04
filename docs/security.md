@@ -30,7 +30,7 @@ Apply `RateLimiter.Middleware` to login, signup, and passkey endpoints to limit 
 
 ## Cookie security
 
-Set `SecureCookies: true` in production. Auth cookies use `HttpOnly` and `SameSite=Strict`. OIDC and OAuth2 flow state cookies (`oidc_state`, `oidc_verifier`, `oidc_nonce`, `oauth2_state`, `oauth2_verifier`) use `SameSite=Lax` — required because both provider redirects are top-level cross-site navigations that `SameSite=Strict` cookies would block. See [Cookie Helpers](handler/cookies.md) for details.
+Set `SecureCookies: true` in production. Auth cookies use `HttpOnly` and `SameSite=Strict`. OIDC and OAuth2 flow cookies (`oidc_state`, `oidc_verifier`, `oidc_nonce`, `oauth2_state`, `oauth2_verifier`) use `SameSite=Lax` — required because both provider redirects are top-level cross-site navigations that `SameSite=Strict` cookies would block. See [Cookie Helpers](handler/cookies.md) for details.
 
 ## Trusted proxies
 

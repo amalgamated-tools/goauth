@@ -41,7 +41,7 @@ POST /auth/oidc/link-nonce             → h.CreateLinkNonce    // issue nonce f
 GET  /auth/oidc/link?nonce=<nonce>     → h.Link               // start link flow (requires auth)
 ```
 
-## Login flow and CSRF/PKCE protection
+## Login flow and CSRF/PKCE/nonce protection
 
 Both `Login` and `Link` set three short-lived `HttpOnly` cookies before redirecting the browser to the provider, then validate them when the provider redirects back to `Callback`:
 
