@@ -41,21 +41,22 @@ POST /auth/oidc/link-nonce             → h.CreateLinkNonce    // issue nonce f
 GET  /auth/oidc/link?nonce=<nonce>     → h.Link               // start link flow (requires auth)
 ```
 
-## Login flow and CSRF/PKCE protection
+## Login flow and CSRF/PKCE/nonce protection
 
-Both `Login` and `Link` set two short-lived `HttpOnly` cookies before redirecting the browser to the provider, then validate them when the provider redirects back to `Callback`:
+Both `Login` and `Link` set three short-lived `HttpOnly` cookies before redirecting the browser to the provider, then validate them when the provider redirects back to `Callback`:
 
 | Cookie | Value | Purpose |
 |---|---|---|
 | `oidc_state` | base64url-encoded state derived from 32 random bytes (~43 chars, no padding); link flows use a dot-delimited HMAC-signed state token | CSRF token |
 | `oidc_verifier` | PKCE code verifier (S256 challenge method) | PKCE replay protection |
+| `oidc_nonce` | random 32-byte base64url value; embedded in the authorization URL and verified against the `id_token` `nonce` claim on callback | Nonce replay protection |
 
 Cookie attributes: `Path=/`, `HttpOnly`, `SameSite=Lax`, `MaxAge=300` (5 minutes), `Secure` when `SecureCookies` is `true`.
 
-`Callback` clears both cookies immediately (by setting `MaxAge=-1`) before processing the authorization code.
+`Callback` clears all three cookies immediately (by setting `MaxAge=-1`) before processing the authorization code.
 
 !!! tip "Debugging cookie issues"
-    If `Callback` returns HTTP 400 `"missing state cookie"` or `"missing PKCE verifier cookie"`, check that your reverse proxy preserves `Set-Cookie` headers from the `Login` / `Link` response and that the `Secure` cookie attribute is not stripped for HTTPS traffic.
+    If `Callback` returns HTTP 400 `"missing state cookie"`, `"missing PKCE verifier cookie"`, or `"missing OIDC nonce cookie"`, check that your reverse proxy preserves `Set-Cookie` headers from the `Login` / `Link` response and that the `Secure` cookie attribute is not stripped for HTTPS traffic.
 
 ## Response types
 
@@ -122,10 +123,10 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | Endpoint | Status | Condition |
 |---|---|---|
 | `Login` | 302 Found | Redirects to OIDC provider |
-| `Login` | 500 Internal Server Error | Failed to generate random OIDC state |
+| `Login` | 500 Internal Server Error | Failed to generate random OIDC state or nonce |
 | `Callback` | 302 Found | Success — redirects to `/?oidc_login=1` |
-| `Callback` | 400 Bad Request | Missing/invalid state cookie, PKCE verifier, or authorization code; missing `sub`/`email` claims |
-| `Callback` | 401 Unauthorized | Provider authentication failed; invalid token exchange; invalid `id_token`; unverified OIDC email |
+| `Callback` | 400 Bad Request | Missing/invalid state cookie, PKCE verifier, nonce cookie, or authorization code; missing `sub`/`email` claims |
+| `Callback` | 401 Unauthorized | Provider authentication failed; invalid token exchange; invalid `id_token`; nonce mismatch; unverified OIDC email |
 | `Callback` | 500 Internal Server Error | Failed to parse claims, resolve/create user, or issue tokens/session (e.g. refresh token generation, session store creation, or JWT creation) |
 | `CreateLinkNonce` | 200 OK | `{"nonce": "..."}` |
 | `CreateLinkNonce` | 500 Internal Server Error | Failed to generate nonce or store it |
@@ -148,6 +149,7 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
 | OIDC state generation failure | `ERROR` | `"failed to generate OIDC login state"` | `Login` |
+| OIDC nonce generation failure | `ERROR` | `"failed to generate OIDC nonce"` | `Login`, `Link` |
 | Authorization code exchange failure | `ERROR` | `"OIDC code exchange failed"` | `Callback` |
 | `id_token` verification failure | `ERROR` | `"OIDC id_token verification failed"` | `Callback` |
 | `id_token` claims parsing failure | `ERROR` | `"failed to parse OIDC claims"` | `Callback` |
