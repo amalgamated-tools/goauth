@@ -146,6 +146,9 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 
 `OIDCHandler` emits structured log events via `slog` with the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. To route `OIDCHandler` log events to a separate destination (e.g. a dedicated handler in a multi-tenant application), set `Logger` to a `*slog.Logger` backed by the desired handler.
 
+!!! note "Token issuance logs bypass `Logger`"
+    Events emitted during token issuance (marked † below) originate from the shared `issueTokens` helper, which logs via the package-level `slog.Default()` regardless of the `Logger` field. Configure the process-wide default logger to capture these events.
+
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
 | OIDC state generation failure | `ERROR` | `"failed to generate OIDC login state"` | `Login` |
@@ -155,10 +158,10 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 | `id_token` claims parsing failure | `ERROR` | `"failed to parse OIDC claims"` | `Callback` |
 | User resolution / creation failure | `ERROR` | `"OIDC user resolution failed"` | `Callback` |
 | Best-effort subject link failure | `WARN` | `"failed to link OIDC subject to email-matched user"` | `Callback` |
-| Sessions set without `RefreshCookieName` | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `Callback` |
-| Refresh token generation failure | `ERROR` | `"failed to generate refresh token"` | `Callback` |
-| Session creation store failure | `ERROR` | `"failed to create session"` | `Callback` |
-| Access token creation failure | `ERROR` | `"failed to create token"` | `Callback` |
+| Sessions set without `RefreshCookieName` † | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `Callback` |
+| Refresh token generation failure † | `ERROR` | `"failed to generate refresh token"` | `Callback` |
+| Session creation store failure † | `ERROR` | `"failed to create session"` | `Callback` |
+| Access token creation failure † | `ERROR` | `"failed to create token"` | `Callback` |
 | Nonce generation failure | `ERROR` | `"failed to generate link nonce"` | `CreateLinkNonce` |
 | Nonce persistence store failure | `ERROR` | `"failed to store link nonce"` | `CreateLinkNonce` |
 | Link state generation failure | `ERROR` | `"failed to generate link state"` (`provider=oidc`) | `Link` |

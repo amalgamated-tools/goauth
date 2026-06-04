@@ -102,6 +102,9 @@ The module-level `dummyLoginBcryptHash` variable is computed once at startup usi
 
 `AuthHandler` emits structured log events via `slog` with the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. To route `AuthHandler` log events to a separate destination, set `Logger` to a `*slog.Logger` backed by the desired handler.
 
+!!! note "Token issuance logs bypass `Logger`"
+    Events emitted during token issuance (marked † below) originate from the shared `issueTokens` helper, which logs via the package-level `slog.Default()` regardless of the `Logger` field. Configure the process-wide default logger to capture these events.
+
 | Event | Level | `slog` message | Endpoint(s) |
 |---|---|---|---|
 | Password hashing failure | `ERROR` | `"failed to hash password"` | `Signup`, `ChangePassword` |
@@ -114,9 +117,9 @@ The module-level `dummyLoginBcryptHash` variable is computed once at startup usi
 | User lookup store failure | `ERROR` | `"failed to get user"` | `Me`, `ChangePassword` |
 | Profile update store failure | `ERROR` | `"failed to update profile"` | `UpdateProfile` |
 | Password update store failure | `ERROR` | `"failed to update password"` | `ChangePassword` |
-| Sessions set without `RefreshCookieName` | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `Signup`, `Login`, `RefreshToken` |
-| Refresh token generation failure | `ERROR` | `"failed to generate refresh token"` | `Signup`, `Login`, `RefreshToken` |
-| Session creation store failure | `ERROR` | `"failed to create session"` | `Signup`, `Login`, `RefreshToken` |
-| Access token creation failure | `ERROR` | `"failed to create token"` | `Signup`, `Login`, `RefreshToken` |
+| Sessions set without `RefreshCookieName` † | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `Signup`, `Login`, `RefreshToken` |
+| Refresh token generation failure † | `ERROR` | `"failed to generate refresh token"` | `Signup`, `Login`, `RefreshToken` |
+| Session creation store failure † | `ERROR` | `"failed to create session"` | `Signup`, `Login`, `RefreshToken` |
+| Access token creation failure † | `ERROR` | `"failed to create token"` | `Signup`, `Login`, `RefreshToken` |
 
 The `WARN`-level logout event does not affect the HTTP 200 response. All other events in the table are followed immediately by an HTTP 500 response.
