@@ -148,7 +148,8 @@ All changes must go through a pull request. The `main` branch is protected.
    - **PR title must use [Conventional Commits](https://www.conventionalcommits.org/)** because Release Please reads merged commit messages from PR titles.
    - Format: `<type>(optional-scope)!?: description` (for example, `fix(handler): return 404 for missing linked user`).
    - Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
-4. Ensure the CI checks (lint, format, and tests) pass on your PR — these are required for merge. The coverage upload runs automatically on non-fork PRs; failures surface as warnings and never block the merge.
+   - The **Conventional PR title** CI check runs automatically on every `opened`, `edited`, `reopened`, and `synchronize` event. PRs with non-conforming titles are blocked until the title is corrected.
+4. Ensure the CI checks (lint, format, tests, and PR title validation) pass on your PR — these are required for merge. The coverage upload runs automatically on non-fork PRs; failures surface as warnings and never block the merge.
 
 For significant API changes or new features, open an issue first to discuss the design before investing time in an implementation.
 
