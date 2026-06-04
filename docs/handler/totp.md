@@ -10,6 +10,7 @@ h := &handler.TOTPHandler{
     Users:     userStore,
     Issuer:    "MyApp",
     UsedCodes: &auth.TOTPUsedCodeCache{}, // required; pointer to zero value; prevents replay attacks
+    Logger:    slog.Default(),            // optional; defaults to slog.Default() when nil
 }
 
 if err := h.Validate(); err != nil {
@@ -76,7 +77,7 @@ See [TOTP / MFA](../auth/totp.md) for the underlying primitives and replay prote
 
 ## Observability
 
-`TOTPHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response, propagating the request context for trace correlation.
+`TOTPHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response, propagating the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
