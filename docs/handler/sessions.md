@@ -8,7 +8,7 @@
 h := &handler.SessionHandler{
     Sessions:     sessionStore,
     URLParamFunc: chi.URLParam,
-    Logger:       slog.Default(), // optional; defaults to slog.Default() when nil
+    // Logger:    nil, // optional; when nil, slog.Default() is resolved at each log site
 }
 ```
 

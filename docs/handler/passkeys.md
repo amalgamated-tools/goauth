@@ -23,7 +23,7 @@ h := &handler.PasskeyHandler{
     Sessions:          sessionStore,
     RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // default 7 days
     RefreshCookieName: "refresh",
-    Logger:            slog.Default(), // optional; defaults to slog.Default() when nil
+    // Logger:         nil, // optional; when nil, slog.Default() is resolved at each log site
 }
 
 if err := h.Validate(); err != nil {

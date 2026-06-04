@@ -11,7 +11,7 @@ h := &handler.PasswordResetHandler{
     SendResetEmail: func(ctx context.Context, toEmail, rawToken string) error { /* send email */ return nil },
     TokenTTL:       time.Hour, // defaults to 1 hour
     RateLimiter:    rl,        // optional; recommended to limit abuse
-    Logger:         slog.Default(), // optional; defaults to slog.Default() when nil
+    // Logger:      nil, // optional; when nil, slog.Default() is resolved at each log site
 }
 
 if err := h.Validate(); err != nil {
