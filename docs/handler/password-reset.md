@@ -11,6 +11,7 @@ h := &handler.PasswordResetHandler{
     SendResetEmail: func(ctx context.Context, toEmail, rawToken string) error { /* send email */ return nil },
     TokenTTL:       time.Hour, // defaults to 1 hour
     RateLimiter:    rl,        // optional; recommended to limit abuse
+    Logger:         slog.Default(), // optional; defaults to slog.Default() when nil
 }
 
 if err := h.Validate(); err != nil {
@@ -78,7 +79,7 @@ Reset tokens are consumed (deleted) after successful use.
 
 ## Observability
 
-`PasswordResetHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response and for non-fatal failures, propagating the request context for trace correlation.
+`PasswordResetHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response and for non-fatal failures, propagating the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
