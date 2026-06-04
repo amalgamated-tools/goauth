@@ -1,12 +1,11 @@
 name: Conventional PR title
 
 on:
-  pull_request_target:
+  pull_request:
     branches: [main]
     types: [opened, edited, reopened, synchronize]
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   validate-title:
