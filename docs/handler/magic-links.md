@@ -18,6 +18,7 @@ h := &handler.MagicLinkHandler{
     Sessions:          sessionStore,      // optional
     RefreshTokenTTL:   7 * 24 * time.Hour,
     RefreshCookieName: "refresh",
+    Logger:            slog.Default(), // optional; defaults to slog.Default() when nil
 }
 
 if err := h.Validate(); err != nil {
@@ -74,7 +75,7 @@ Session tracking and refresh token rotation work identically to `AuthHandler` â€
 
 ## Observability
 
-`MagicLinkHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response and for any non-fatal email delivery failure, propagating the request context for trace correlation.
+`MagicLinkHandler` emits structured log events via `slog` with the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. To route `MagicLinkHandler` log events to a separate destination, set `Logger` to a `*slog.Logger` backed by the desired handler.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
