@@ -22,13 +22,6 @@ type APIKeyHandler struct {
 	Logger       *slog.Logger
 }
 
-func (h *APIKeyHandler) log() *slog.Logger {
-	if h.Logger != nil {
-		return h.Logger
-	}
-	return slog.Default()
-}
-
 // Validate checks that the handler is correctly configured and returns an error
 // when required dependencies are missing. Call Validate once at server startup
 // so misconfiguration is caught immediately rather than at the first request.
@@ -66,7 +59,7 @@ func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	keys, err := h.APIKeys.ListAPIKeysByUser(r.Context(), userID)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to list API keys", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to list API keys", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list API keys")
 		return
 	}
@@ -98,7 +91,7 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Generate 40 hex chars (20 bytes / 160 bits of entropy).
 	hexKey, err := auth.GenerateRandomHex(20)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to generate API key", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to generate API key", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate API key")
 		return
 	}
@@ -109,7 +102,7 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	apiKey, err := h.APIKeys.CreateAPIKey(r.Context(), userID, req.Name, keyHash, keyPrefix)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to create API key", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to create API key", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create API key")
 		return
 	}
@@ -136,7 +129,7 @@ func (h *APIKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			writeError(r.Context(), w, http.StatusNotFound, "API key not found")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "failed to delete API key", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to delete API key", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to delete API key")
 		return
 	}
