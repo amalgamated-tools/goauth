@@ -96,7 +96,7 @@ The `handler` package uses `*_common.go` files to hold logic shared by multiple 
 
 `oauth2_common.go` currently provides the shared OAuth/OIDC internals:
 
-- `oauthCallbackFlow`: shared callback parsing result (`state`/PKCE/link metadata + auth code).
+- `oauthCallbackFlow`: shared callback parsing result (PKCE verifier/link metadata + auth code).
 - `logOrDefault`: returns the configured logger, falling back to `slog.Default()`.
 - `oauthLogin`: shared login entrypoint that generates state + PKCE verifier and redirects.
 - `redirectToOAuthProvider`: sets flow cookies and redirects to the provider authorization URL.
