@@ -3,6 +3,8 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/amalgamated-tools/goauth/auth"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 )
@@ -512,7 +515,7 @@ func newOIDCHandlerWithConfig() *OIDCHandler {
 	return h
 }
 
-func TestOIDCLogin_redirectsWithStateCookies(t *testing.T) {
+func TestOIDCLogin_redirectsWithOIDCFlowCookies(t *testing.T) {
 	h := newOIDCHandlerWithConfig()
 
 	req := httptest.NewRequest(http.MethodGet, "/login", nil)
@@ -757,6 +760,89 @@ func TestOIDCCallback_missingNonceCookie(t *testing.T) {
 	h.Callback(w, req)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestOIDCCallback_nonceMismatch(t *testing.T) {
+	// Build a fake OIDC provider that returns a valid id_token with a known nonce
+	// that differs from the cookie value, exercising the nonce mismatch branch.
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	var providerURL string
+	mux := http.NewServeMux()
+	providerServer := httptest.NewServer(mux)
+	defer providerServer.Close()
+	providerURL = providerServer.URL
+
+	jwk := jose.JSONWebKey{Key: &key.PublicKey, KeyID: "test-key", Algorithm: "RS256", Use: "sig"}
+	jwksBytes, err := json.Marshal(struct {
+		Keys []jose.JSONWebKey `json:"keys"`
+	}{Keys: []jose.JSONWebKey{jwk}})
+	require.NoError(t, err)
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{
+			"issuer": %q,
+			"authorization_endpoint": %q,
+			"token_endpoint": %q,
+			"jwks_uri": %q,
+			"id_token_signing_alg_values_supported": ["RS256"]
+		}`, providerURL, providerURL+"/auth", providerURL+"/token", providerURL+"/jwks")
+	})
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(jwksBytes)
+	})
+
+	// Sign a JWT id_token with nonce "wrong-nonce".
+	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: key}, (&jose.SignerOptions{}).WithHeader("kid", "test-key"))
+	require.NoError(t, err)
+	claims := map[string]any{
+		"iss":   providerURL,
+		"sub":   "user-123",
+		"aud":   "test-client",
+		"exp":   time.Now().Add(time.Hour).Unix(),
+		"iat":   time.Now().Unix(),
+		"nonce": "wrong-nonce",
+	}
+	claimsJSON, err := json.Marshal(claims)
+	require.NoError(t, err)
+	signed, err := signer.Sign(claimsJSON)
+	require.NoError(t, err)
+	idTokenStr, err := signed.CompactSerialize()
+	require.NoError(t, err)
+
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"access_token":"tok","token_type":"bearer","id_token":%q}`, idTokenStr)
+	})
+
+	provider, err := oidc.NewProvider(context.Background(), providerURL)
+	require.NoError(t, err)
+
+	h := newTestOIDCHandler()
+	h.Provider = provider
+	h.OAuthConfig = oauth2.Config{
+		ClientID:    "test-client",
+		RedirectURL: "http://localhost/callback",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   providerURL + "/auth",
+			TokenURL:  providerURL + "/token",
+			AuthStyle: oauth2.AuthStyleInHeader,
+		},
+	}
+	require.NoError(t, h.Validate())
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&code=authcode", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
+	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "someverifier"})
+	req.AddCookie(&http.Cookie{Name: oidcNonceCookieName, Value: "correct-nonce"})
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, w.Body.String(), "invalid nonce")
 }
 
 // ---------------------------------------------------------------------------

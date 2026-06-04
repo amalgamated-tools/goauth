@@ -97,7 +97,7 @@ func (h *OIDCHandler) redirectToProvider(w http.ResponseWriter, r *http.Request,
 	nonce, err := auth.GenerateRandomBase64(32)
 	if err != nil {
 		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to generate OIDC nonce", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate login")
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to initiate authentication")
 		return
 	}
 	for _, pair := range [][2]string{
