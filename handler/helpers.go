@@ -42,6 +42,15 @@ func validateSessionConfig(handlerName string, sessions auth.SessionStore, refre
 	return nil
 }
 
+// logOrDefault returns the given logger, falling back to slog.Default() when it
+// is nil.
+func logOrDefault(l *slog.Logger) *slog.Logger {
+	if l != nil {
+		return l
+	}
+	return slog.Default()
+}
+
 // issueTokens creates an access JWT and, when sessions is non-nil, a session
 // record with a refresh token. It writes auth/refresh cookies and returns the
 // tokens for inclusion in the response body. On any error it writes an HTTP

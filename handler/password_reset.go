@@ -35,13 +35,6 @@ type PasswordResetHandler struct {
 	RateLimiter *auth.RateLimiter
 }
 
-func (h *PasswordResetHandler) log() *slog.Logger {
-	if h.Logger != nil {
-		return h.Logger
-	}
-	return slog.Default()
-}
-
 // Validate checks that the handler is correctly configured and returns an error
 // when required dependencies are missing. Call Validate once at server startup
 // so misconfiguration is caught immediately rather than at the first request.
@@ -94,7 +87,7 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 
 	user, err := h.Users.FindByEmail(r.Context(), req.Email)
 	if err != nil && !errors.Is(err, auth.ErrNotFound) {
-		h.log().ErrorContext(r.Context(), "password reset: lookup user", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: lookup user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -104,7 +97,7 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 	if user != nil && user.PasswordHash != "" {
 		rawToken, err := auth.GenerateRandomBase64(passwordResetTokenBytes)
 		if err != nil {
-			h.log().ErrorContext(r.Context(), "password reset: generate token", slog.Any("error", err))
+			logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: generate token", slog.Any("error", err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 			return
 		}
@@ -113,16 +106,16 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 
 		token, err := h.Resets.CreatePasswordResetToken(r.Context(), user.ID, tokenHash, expiresAt)
 		if err != nil {
-			h.log().ErrorContext(r.Context(), "password reset: store token", slog.Any("error", err))
+			logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: store token", slog.Any("error", err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 			return
 		}
 
 		if err := h.SendResetEmail(r.Context(), user.Email, rawToken); err != nil {
-			h.log().ErrorContext(r.Context(), "password reset: send email", slog.Any("error", err))
+			logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: send email", slog.Any("error", err))
 			// Delete the orphaned token so state stays consistent.
 			if delErr := h.Resets.DeletePasswordResetToken(r.Context(), token.ID); delErr != nil {
-				h.log().ErrorContext(r.Context(), "password reset: cleanup token after email failure", slog.Any("error", delErr))
+				logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: cleanup token after email failure", slog.Any("error", delErr))
 			}
 		}
 	}
@@ -153,7 +146,7 @@ func (h *PasswordResetHandler) ResetPassword(w http.ResponseWriter, r *http.Requ
 			writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired reset token")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "password reset: find token", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: find token", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -169,7 +162,7 @@ func (h *PasswordResetHandler) ResetPassword(w http.ResponseWriter, r *http.Requ
 			writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired reset token")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "password reset: lookup user", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: lookup user", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -180,12 +173,12 @@ func (h *PasswordResetHandler) ResetPassword(w http.ResponseWriter, r *http.Requ
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), auth.BcryptCost)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "password reset: hash password", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: hash password", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to hash password")
 		return
 	}
 	if err := h.Users.UpdatePassword(r.Context(), resetToken.UserID, string(hash)); err != nil {
-		h.log().ErrorContext(r.Context(), "password reset: update password", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: update password", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to update password")
 		return
 	}
@@ -193,7 +186,7 @@ func (h *PasswordResetHandler) ResetPassword(w http.ResponseWriter, r *http.Requ
 	// Consume the token — log but don't fail if deletion errors since the
 	// password has already been updated successfully.
 	if err := h.Resets.DeletePasswordResetToken(r.Context(), resetToken.ID); err != nil {
-		h.log().ErrorContext(r.Context(), "password reset: consume token", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: consume token", slog.Any("error", err))
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: "password reset successfully"})
