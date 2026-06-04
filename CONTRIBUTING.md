@@ -13,6 +13,7 @@ Thank you for considering a contribution to goauth! This guide covers everything
 - [Linting and formatting](#linting-and-formatting)
 - [Full pre-PR check](#full-pre-pr-check)
 - [Coding conventions](#coding-conventions)
+  - [Handler package architecture](#handler-package-architecture)
 - [Submitting changes](#submitting-changes)
 - [Releasing](#releasing)
 
@@ -88,6 +89,29 @@ CI runs the same checks on every push and pull request targeting `main`.
 ---
 
 ## Coding conventions
+
+### Handler package architecture
+
+The `handler` package uses `*_common.go` files to hold logic shared by multiple handlers. Keep handler-specific behavior in files like `oidc.go` and `oauth2.go`, and move cross-handler behavior into a shared file when both implementations need the same flow.
+
+`oauth2_common.go` currently provides the shared OAuth/OIDC internals:
+
+- `oauthCallbackFlow`: shared callback parsing result (PKCE verifier/link metadata + auth code).
+- `logOrDefault`: returns the configured logger, falling back to `slog.Default()`.
+- `oauthLogin`: shared login entrypoint that generates state + PKCE verifier and redirects.
+- `redirectToOAuthProvider`: sets flow cookies and redirects to the provider authorization URL.
+- `validateOAuthCallbackFlow`: validates state/PKCE/error/code callback inputs and clears cookies.
+- `linkSubjectBestEffort`: attempts subject linking and logs non-conflict failures without aborting login.
+- `findOrCreateUser`: resolves user by subject/email and handles create-race retries.
+- `createLinkNonce`: issues and stores a single-use account-linking nonce.
+- `handleLinkInitiation`: shared OAuth2/OIDC link-start flow (nonce validation + signed state redirect).
+- `signLinkState`: creates an HMAC-signed state payload embedding the link target user ID.
+- `parseLinkState`: validates signed state and extracts the embedded link target user ID.
+- `generateState`: generates cryptographically random state for auth/link flows.
+- `consumeLinkNonce`: atomically consumes a nonce and enforces nonce expiry.
+- `handleLinkCallback`: shared OAuth2/OIDC link-callback flow and redirect handling.
+
+Before adding or changing logic in both `OIDCHandler` and `OAuth2Handler`, check `oauth2_common.go` first to avoid duplicating shared behavior.
 
 ### Test assertion style
 
