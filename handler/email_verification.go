@@ -37,10 +37,7 @@ type EmailVerificationHandler struct {
 }
 
 func (h *EmailVerificationHandler) log() *slog.Logger {
-	if h.Logger != nil {
-		return h.Logger
-	}
-	return slog.Default()
+	return logOrDefault(h.Logger)
 }
 
 // Validate checks that the handler is correctly configured and returns an error

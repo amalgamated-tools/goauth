@@ -19,10 +19,7 @@ type SessionHandler struct {
 }
 
 func (h *SessionHandler) log() *slog.Logger {
-	if h.Logger != nil {
-		return h.Logger
-	}
-	return slog.Default()
+	return logOrDefault(h.Logger)
 }
 
 // Validate checks that the handler is correctly configured and returns an

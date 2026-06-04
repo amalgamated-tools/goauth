@@ -37,10 +37,7 @@ type AuthHandler struct {
 }
 
 func (h *AuthHandler) log() *slog.Logger {
-	if h.Logger != nil {
-		return h.Logger
-	}
-	return slog.Default()
+	return logOrDefault(h.Logger)
 }
 
 type signupRequest struct {

@@ -29,10 +29,7 @@ type TOTPHandler struct {
 }
 
 func (h *TOTPHandler) log() *slog.Logger {
-	if h.Logger != nil {
-		return h.Logger
-	}
-	return slog.Default()
+	return logOrDefault(h.Logger)
 }
 
 type totpGenerateResponse struct {
