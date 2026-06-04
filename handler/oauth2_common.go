@@ -195,9 +195,7 @@ func handleLinkInitiation(
 	generateState func() (string, error),
 	redirect func(w http.ResponseWriter, r *http.Request, state, verifier string),
 ) {
-	if logger == nil {
-		logger = slog.Default()
-	}
+	logger = logOrDefault(logger)
 	if nonces == nil {
 		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
 		return
