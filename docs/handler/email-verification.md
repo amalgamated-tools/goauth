@@ -10,7 +10,7 @@ h := &handler.EmailVerificationHandler{
     Verifications: verificationStore,
     SendEmail:     func(ctx context.Context, to, token string) error { /* send email */ return nil },
     TokenTTL:      24 * time.Hour, // defaults to 24 hours
-    Logger:        slog.Default(), // optional; defaults to slog.Default() when nil
+    // Logger:     nil, // optional; when nil, slog.Default() is resolved at each log site
 }
 
 if err := h.Validate(); err != nil {
