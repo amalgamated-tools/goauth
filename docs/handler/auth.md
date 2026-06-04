@@ -15,6 +15,7 @@ h := &handler.AuthHandler{
     RefreshTokenTTL:     handler.DefaultRefreshTokenTTL, // defaults to 7 days when Sessions is set
     RefreshCookieName:   "refresh",  // required when Sessions is set; stores refresh token in an HttpOnly cookie
     RequireVerification: true,       // optional; rejects login for unverified email addresses
+    Logger:              slog.Default(), // optional; defaults to slog.Default() when nil
 }
 
 if err := h.Validate(); err != nil {
@@ -99,7 +100,7 @@ The module-level `dummyLoginBcryptHash` variable is computed once at startup usi
 
 ## Observability
 
-`AuthHandler` emits structured log events via `slog` with the request context for trace correlation.
+`AuthHandler` emits structured log events via `slog` with the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. To route `AuthHandler` log events to a separate destination, set `Logger` to a `*slog.Logger` backed by the desired handler.
 
 | Event | Level | `slog` message | Endpoint(s) |
 |---|---|---|---|

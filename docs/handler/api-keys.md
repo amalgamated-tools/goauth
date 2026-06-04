@@ -9,6 +9,7 @@ h := &handler.APIKeyHandler{
     APIKeys:      apiKeyStore,
     Prefix:       "myapp_",   // prepended to the random hex token
     URLParamFunc: chi.URLParam,
+    Logger:       slog.Default(), // optional; defaults to slog.Default() when nil
 }
 
 if err := h.Validate(); err != nil {
@@ -83,7 +84,7 @@ The `Create` response also sets `Cache-Control: no-store` and `Pragma: no-cache`
 
 ## Observability
 
-`APIKeyHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response, propagating the request context for trace correlation.
+`APIKeyHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response, propagating the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|

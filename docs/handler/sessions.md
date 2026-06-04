@@ -8,6 +8,7 @@
 h := &handler.SessionHandler{
     Sessions:     sessionStore,
     URLParamFunc: chi.URLParam,
+    Logger:       slog.Default(), // optional; defaults to slog.Default() when nil
 }
 ```
 
@@ -64,7 +65,7 @@ Use `handler.ToSessionDTO(session)` to convert a `*auth.Session` to a `SessionDT
 
 ## Observability
 
-`SessionHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response, propagating the request context for trace correlation.
+`SessionHandler` emits structured log events via `slog.ErrorContext` before every HTTP 500 response, propagating the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
