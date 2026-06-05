@@ -19,8 +19,8 @@ h.Sessions          = sessionStore
 h.RefreshTokenTTL   = handler.DefaultRefreshTokenTTL // default 7 days
 h.RefreshCookieName = "refresh"
 
-// Optional: inject a custom structured logger. When nil, slog.Default() is used.
-h.Logger = myLogger
+// Optional: inject a custom structured logger; when nil, slog.Default() is resolved at each log site.
+// h.Logger = myLogger
 
 // Validate configuration at startup (returns an error if Sessions is set
 // without RefreshCookieName).
