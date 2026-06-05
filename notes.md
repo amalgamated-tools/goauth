@@ -24,6 +24,7 @@
 - OIDCHandler: idTokenVerifier cached at init (PR #274 MERGED).
 - 2026-05-28: Scanned recent commits — all docs/CI/refactor, no new efficiency opportunities.
 - 2026-06-04: PRs #436-#444 merged — docs/refactor/CI; fetchOAuth2JSON helper added (refactor, not efficiency concern). No new opportunities.
+- 2026-06-05: PRs #450-#459 merged — docs, refactoring (logOrDefault), security fix (OIDC nonce replay via PR #452), Logger field additions. No new efficiency opportunities.
 - Full codebase scan complete: All hot-path optimisations exhausted.
 - NOTE: June 2026 monthly issue #426 was closed by maintainer as "not_planned" on 2026-06-03.
 
@@ -53,10 +54,10 @@ All identified opportunities have been implemented. No open backlog items.
 ## Backlog Cursor
 - Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-27)
 - All hot-path optimisations implemented and merged; backlog fully empty
-- Last tasks run: Task 7 (created new monthly issue)
-- Last run: 2026-06-04 14:12 UTC
+- Last tasks run: Task 2 (scan), Task 7 (updated monthly issue #449)
+- Last run: 2026-06-05 14:06 UTC
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED)
 - May 2026: Issues #212, #264, #332, #365, #386, #407 (all CLOSED)
-- June 2026: Issue #426 (CLOSED by maintainer as not_planned 2026-06-03); new issue created 2026-06-04
+- June 2026: Issue #426 (CLOSED by maintainer as not_planned 2026-06-03); Issue #449 open (created 2026-06-04, updated 2026-06-05)
