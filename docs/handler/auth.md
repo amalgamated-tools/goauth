@@ -100,7 +100,7 @@ The module-level `dummyLoginBcryptHash` variable is computed once at startup usi
 
 ## Observability
 
-`AuthHandler` emits structured log events via `slog` with the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. To route `AuthHandler` log events to a separate destination, set `Logger` to a `*slog.Logger` backed by the desired handler.
+`AuthHandler` emits structured log events via `slog` with the request context for trace correlation. Log events emitted directly by `AuthHandler` methods go through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. To route `AuthHandler` log events to a separate destination, set `Logger` to a `*slog.Logger` backed by the desired handler.
 
 !!! note "Token issuance logs bypass `Logger`"
     Events emitted during token issuance (marked † below) originate from the shared `issueTokens` helper, which logs via the package-level `slog.Default()` regardless of the `Logger` field. Configure the process-wide default logger to capture these events.
