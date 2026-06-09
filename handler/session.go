@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -67,22 +66,17 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Revoke revokes a specific session by ID for the authenticated user.
 func (h *SessionHandler) Revoke(w http.ResponseWriter, r *http.Request) {
-	id := h.URLParamFunc(r, "id")
-	if id == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "session ID is required")
-		return
-	}
-	userID := auth.UserIDFromContext(r.Context())
-	if err := h.Sessions.DeleteSession(r.Context(), id, userID); err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "session not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to revoke session", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to revoke session")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	deleteUserResource(
+		w,
+		r,
+		h.Logger,
+		h.URLParamFunc,
+		"session ID is required",
+		"session not found",
+		"failed to revoke session",
+		"failed to revoke session",
+		h.Sessions.DeleteSession,
+	)
 }
 
 // RevokeAll revokes all sessions for the authenticated user.

@@ -391,6 +391,104 @@ func TestWriteError_writesErrorField(t *testing.T) {
 	require.Equal(t, "bad input", body["error"])
 }
 
+func TestDeleteUserResource_missingID(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := withUserID(httptest.NewRequest(http.MethodDelete, "/resources", nil), "u1")
+	called := false
+
+	deleteUserResource(
+		w,
+		req,
+		nil,
+		func(_ *http.Request, _ string) string { return "" },
+		"missing resource ID",
+		"resource not found",
+		"failed to delete resource",
+		"failed to delete resource",
+		func(context.Context, string, string) error {
+			called = true
+			return nil
+		},
+	)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.False(t, called)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "missing resource ID", body["error"])
+}
+
+func TestDeleteUserResource_notFound(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := withUserID(httptest.NewRequest(http.MethodDelete, "/resources?id=res-1", nil), "u1")
+
+	deleteUserResource(
+		w,
+		req,
+		nil,
+		func(r *http.Request, key string) string { return r.URL.Query().Get(key) },
+		"missing resource ID",
+		"resource not found",
+		"failed to delete resource",
+		"failed to delete resource",
+		func(_ context.Context, id, userID string) error {
+			require.Equal(t, "res-1", id)
+			require.Equal(t, "u1", userID)
+			return auth.ErrNotFound
+		},
+	)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "resource not found", body["error"])
+}
+
+func TestDeleteUserResource_storeError(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := withUserID(httptest.NewRequest(http.MethodDelete, "/resources?id=res-1", nil), "u1")
+
+	deleteUserResource(
+		w,
+		req,
+		nil,
+		func(r *http.Request, key string) string { return r.URL.Query().Get(key) },
+		"missing resource ID",
+		"resource not found",
+		"failed to delete resource",
+		"failed to delete resource",
+		func(context.Context, string, string) error { return context.DeadlineExceeded },
+	)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "failed to delete resource", body["error"])
+}
+
+func TestDeleteUserResource_success(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := withUserID(httptest.NewRequest(http.MethodDelete, "/resources?id=res-1", nil), "u1")
+
+	deleteUserResource(
+		w,
+		req,
+		nil,
+		func(r *http.Request, key string) string { return r.URL.Query().Get(key) },
+		"missing resource ID",
+		"resource not found",
+		"failed to delete resource",
+		"failed to delete resource",
+		func(_ context.Context, id, userID string) error {
+			require.Equal(t, "res-1", id)
+			require.Equal(t, "u1", userID)
+			return nil
+		},
+	)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+}
+
 func TestSetNoCacheHeaders_setsNoCacheHeaders(t *testing.T) {
 	w := httptest.NewRecorder()
 

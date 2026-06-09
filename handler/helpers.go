@@ -5,6 +5,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -49,6 +50,35 @@ func logOrDefault(l *slog.Logger) *slog.Logger {
 		return l
 	}
 	return slog.Default()
+}
+
+func deleteUserResource(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *slog.Logger,
+	paramFunc func(*http.Request, string) string,
+	invalidIDMessage string,
+	notFoundMessage string,
+	logMessage string,
+	internalMessage string,
+	del func(ctx context.Context, id, userID string) error,
+) {
+	id := paramFunc(r, "id")
+	if id == "" {
+		writeError(r.Context(), w, http.StatusBadRequest, invalidIDMessage)
+		return
+	}
+	userID := auth.UserIDFromContext(r.Context())
+	if err := del(r.Context(), id, userID); err != nil {
+		if errors.Is(err, auth.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusNotFound, notFoundMessage)
+			return
+		}
+		logOrDefault(logger).ErrorContext(r.Context(), logMessage, slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, internalMessage)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // issueTokens creates an access JWT and, when sessions is non-nil, a session
