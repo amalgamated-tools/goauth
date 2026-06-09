@@ -18,7 +18,7 @@ type OAuth2UserInfo struct {
 	Subject string
 	// Email is the user's email address. Must be non-empty.
 	Email string
-	// Name is the user's display name. When empty, Email is used as a fallback.
+	// Name is the user's display name.
 	Name string
 	// EmailVerified reports whether the provider has confirmed the email address.
 	// OAuth2Handler rejects logins (but not link flows) when this is false.
