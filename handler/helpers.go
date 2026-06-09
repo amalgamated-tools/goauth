@@ -59,7 +59,8 @@ func deleteUserResource(
 	paramFunc func(*http.Request, string) string,
 	invalidIDMessage string,
 	notFoundMessage string,
-	errorMessage string,
+	logMessage string,
+	internalMessage string,
 	del func(ctx context.Context, id, userID string) error,
 ) {
 	id := paramFunc(r, "id")
