@@ -51,7 +51,7 @@ func ToSessionDTO(s *auth.Session) SessionDTO {
 
 // List returns all active sessions for the authenticated user.
 func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
-	listUserResources(w, r, h.Logger, "failed to list sessions",
+	listUserResources(w, r, h.Logger, "failed to list sessions", "failed to list sessions",
 		h.Sessions.ListSessionsByUser,
 		func(s auth.Session) SessionDTO { return ToSessionDTO(&s) },
 	)

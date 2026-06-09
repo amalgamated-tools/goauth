@@ -56,7 +56,7 @@ func ToAPIKeyDTO(k *auth.APIKey) APIKeyDTO {
 
 // List returns all API keys for the authenticated user.
 func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
-	listUserResources(w, r, h.Logger, "failed to list API keys",
+	listUserResources(w, r, h.Logger, "failed to list API keys", "failed to list API keys",
 		h.APIKeys.ListAPIKeysByUser,
 		func(k auth.APIKey) APIKeyDTO { return ToAPIKeyDTO(&k) },
 	)

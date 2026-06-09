@@ -130,15 +130,16 @@ func listUserResources[T any, D any](
 	w http.ResponseWriter,
 	r *http.Request,
 	logger *slog.Logger,
-	errMsg string,
+	logMsg string,
+	userMsg string,
 	fetch func(ctx context.Context, userID string) ([]T, error),
 	toDTO func(T) D,
 ) {
 	userID := auth.UserIDFromContext(r.Context())
 	items, err := fetch(r.Context(), userID)
 	if err != nil {
-		logOrDefault(logger).ErrorContext(r.Context(), errMsg, slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, errMsg)
+		logOrDefault(logger).ErrorContext(r.Context(), logMsg, slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, userMsg)
 		return
 	}
 	dtos := make([]D, len(items))
