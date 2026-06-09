@@ -36,6 +36,14 @@ func requireField(handlerName, fieldName string, value any) error {
 	return nil
 }
 
+// defaultDuration returns d if d is positive, otherwise it returns fallback.
+func defaultDuration(d, fallback time.Duration) time.Duration {
+	if d > 0 {
+		return d
+	}
+	return fallback
+}
+
 func validateSessionConfig(handlerName string, sessions auth.SessionStore, refreshCookieName string) error {
 	if sessions != nil && refreshCookieName == "" {
 		return fmt.Errorf("%s misconfigured: Sessions requires RefreshCookieName", handlerName)
