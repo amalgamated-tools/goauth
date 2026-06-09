@@ -697,10 +697,10 @@ OIDC endpoints use `{"error": "<message>"}` JSON for non-redirect failure respon
 
 | Endpoint | Status / Redirect | Condition |
 |---|---|---|
-| `Login` | `500 Internal Server Error` | Failed to generate OAuth state |
+| `Login` | `500 Internal Server Error` | Failed to generate OAuth state or nonce |
 | `Callback` | `500 Internal Server Error` (JSON) | `Sessions` is set but `RefreshCookieName` is empty (misconfiguration) |
-| `Callback` | `400 Bad Request` (JSON) | Missing state cookie, invalid state parameter, missing PKCE verifier, missing `authorization_code`, or missing required `sub`/`email` claims |
-| `Callback` | `401 Unauthorized` (JSON) | OIDC provider returned an error (e.g. user denied consent), token exchange failed, missing or invalid `id_token`, or OIDC provider did not verify the email |
+| `Callback` | `400 Bad Request` (JSON) | Missing state cookie, invalid state parameter, missing PKCE verifier, missing OIDC nonce cookie, missing `authorization_code`, or missing required `sub`/`email` claims |
+| `Callback` | `401 Unauthorized` (JSON) | OIDC provider returned an error (e.g. user denied consent), token exchange failed, missing or invalid `id_token`, nonce mismatch, or OIDC provider did not verify the email |
 | `Callback` | `500 Internal Server Error` (JSON) | Failed to parse claims, store error during user resolution or creation, failed to resolve the OIDC user after the `auth.ErrEmailExists` race-retry path, or JWT creation failed |
 | `Callback` (link flow) | Redirect `/?oidc_link_error=…` | User not found, subject already linked to this account, subject already linked to another account, or link store error |
 | `Callback` (link flow) | Redirect `/?oidc_linked=true` | Account linking succeeded |
