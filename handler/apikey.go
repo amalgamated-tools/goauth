@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -117,21 +116,15 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Delete removes an API key.
 func (h *APIKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := h.URLParamFunc(r, "id")
-	if id == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "invalid API key ID")
-		return
-	}
-	userID := auth.UserIDFromContext(r.Context())
-
-	if err := h.APIKeys.DeleteAPIKey(r.Context(), id, userID); err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "API key not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to delete API key", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to delete API key")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	deleteUserResource(
+		w,
+		r,
+		h.Logger,
+		h.URLParamFunc,
+		"invalid API key ID",
+		"API key not found",
+		"failed to delete API key",
+		"failed to delete API key",
+		h.APIKeys.DeleteAPIKey,
+	)
 }

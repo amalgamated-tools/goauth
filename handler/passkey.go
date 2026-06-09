@@ -402,20 +402,15 @@ func (h *PasskeyHandler) ListCredentials(w http.ResponseWriter, r *http.Request)
 
 // DeleteCredential removes a passkey credential.
 func (h *PasskeyHandler) DeleteCredential(w http.ResponseWriter, r *http.Request) {
-	credID := h.URLParamFunc(r, "id")
-	if credID == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "invalid credential ID")
-		return
-	}
-	userID := auth.UserIDFromContext(r.Context())
-	if err := h.Passkeys.DeleteCredential(r.Context(), credID, userID); err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "credential not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to delete credential", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to delete credential")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	deleteUserResource(
+		w,
+		r,
+		h.Logger,
+		h.URLParamFunc,
+		"invalid credential ID",
+		"credential not found",
+		"failed to delete credential",
+		"failed to delete credential",
+		h.Passkeys.DeleteCredential,
+	)
 }
