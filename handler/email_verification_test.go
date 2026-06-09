@@ -195,6 +195,29 @@ func TestSendVerification_userStoreError(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestSendVerification_sendEmailErrorDeletesOrphanedToken(t *testing.T) {
+	userStore := &mockUserStore{
+		findByEmailFunc: func(_ context.Context, _ string) (*auth.User, error) {
+			return &auth.User{ID: "u1", Email: "alice@test.com", EmailVerified: false}, nil
+		},
+	}
+	var consumedHash string
+	verStore := &mockEmailVerificationStore{
+		consumeFunc: func(_ context.Context, tokenHash string) (*auth.EmailVerificationToken, error) {
+			consumedHash = tokenHash
+			return &auth.EmailVerificationToken{ID: "tok-id", UserID: "u1", TokenHash: tokenHash}, nil
+		},
+	}
+	h := newEmailVerificationHandler(userStore, verStore)
+	h.SendEmail = func(_ context.Context, _, _ string) error {
+		return errors.New("smtp error")
+	}
+
+	w := postJSON(t, h.SendVerification, `{"email":"alice@test.com"}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotEmpty(t, consumedHash, "orphaned token must be cleaned up when SendEmail fails")
+}
+
 // ---------------------------------------------------------------------------
 // VerifyEmail
 // ---------------------------------------------------------------------------
