@@ -14,6 +14,7 @@ Thank you for considering a contribution to goauth! This guide covers everything
 - [Full pre-PR check](#full-pre-pr-check)
 - [Coding conventions](#coding-conventions)
   - [Handler package architecture](#handler-package-architecture)
+- [OIDC debugging tools](#oidc-debugging-tools)
 - [Submitting changes](#submitting-changes)
 - [Releasing](#releasing)
 
@@ -171,6 +172,28 @@ Use `log/slog` with structured key–value pairs and **always pass the request c
 ### No direct pushes to `main`
 
 All changes must go through a pull request. The `main` branch is protected.
+
+---
+
+## OIDC debugging tools
+
+When working on OIDC-related code or tests, the `jose-util` CLI bundled with
+[go-jose](https://github.com/go-jose/go-jose) is useful for generating test JWKs
+and inspecting compact JWT strings locally without needing a real identity provider.
+
+```sh
+# Print usage
+go run github.com/go-jose/go-jose/v4/jose-util@latest
+
+# Decode and pretty-print a compact JWT (header + payload, without verifying the signature)
+go run github.com/go-jose/go-jose/v4/jose-util@latest expand --input <token>
+
+# Generate a new RSA 2048-bit JWK (useful for crafting test fixtures)
+go run github.com/go-jose/go-jose/v4/jose-util@latest generate-key --use sig --alg RS256
+```
+
+> **Note**: `jose-util` is a development aid only. Production token verification is
+> handled by `coreos/go-oidc/v3` and `golang-jwt/jwt/v5`.
 
 ---
 
