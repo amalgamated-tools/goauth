@@ -62,11 +62,8 @@ func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list API keys")
 		return
 	}
-	dtos := make([]APIKeyDTO, len(keys))
-	for i := range keys {
-		dtos[i] = ToAPIKeyDTO(&keys[i])
-	}
-	writeJSON(r.Context(), w, http.StatusOK, dtos)
+	writeJSON(r.Context(), w, http.StatusOK,
+		mapSlice(keys, func(k auth.APIKey) APIKeyDTO { return ToAPIKeyDTO(&k) }))
 }
 
 // Create creates a new API key.

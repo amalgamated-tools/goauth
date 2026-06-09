@@ -152,6 +152,15 @@ func issueTokens(
 	return accessToken, "", true
 }
 
+// mapSlice converts a slice of T to a slice of U using fn.
+func mapSlice[T, U any](items []T, fn func(T) U) []U {
+	out := make([]U, len(items))
+	for i, item := range items {
+		out[i] = fn(item)
+	}
+	return out
+}
+
 // writeJSON sends a JSON response with the given status code.
 func writeJSON(ctx context.Context, w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")

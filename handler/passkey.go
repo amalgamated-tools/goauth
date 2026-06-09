@@ -393,11 +393,7 @@ func (h *PasskeyHandler) ListCredentials(w http.ResponseWriter, r *http.Request)
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
 		return
 	}
-	dtos := make([]PasskeyCredentialDTO, len(creds))
-	for i := range creds {
-		dtos[i] = ToPasskeyCredentialDTO(creds[i])
-	}
-	writeJSON(r.Context(), w, http.StatusOK, dtos)
+	writeJSON(r.Context(), w, http.StatusOK, mapSlice(creds, ToPasskeyCredentialDTO))
 }
 
 // DeleteCredential removes a passkey credential.

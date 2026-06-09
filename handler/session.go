@@ -57,11 +57,8 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list sessions")
 		return
 	}
-	dtos := make([]SessionDTO, len(sessions))
-	for i := range sessions {
-		dtos[i] = ToSessionDTO(&sessions[i])
-	}
-	writeJSON(r.Context(), w, http.StatusOK, dtos)
+	writeJSON(r.Context(), w, http.StatusOK,
+		mapSlice(sessions, func(s auth.Session) SessionDTO { return ToSessionDTO(&s) }))
 }
 
 // Revoke revokes a specific session by ID for the authenticated user.
