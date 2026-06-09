@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -56,18 +55,10 @@ func ToAPIKeyDTO(k *auth.APIKey) APIKeyDTO {
 
 // List returns all API keys for the authenticated user.
 func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
-	keys, err := h.APIKeys.ListAPIKeysByUser(r.Context(), userID)
-	if err != nil {
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to list API keys", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list API keys")
-		return
-	}
-	dtos := make([]APIKeyDTO, len(keys))
-	for i := range keys {
-		dtos[i] = ToAPIKeyDTO(&keys[i])
-	}
-	writeJSON(r.Context(), w, http.StatusOK, dtos)
+	listUserResources(w, r, h.Logger, "failed to list API keys", "failed to list API keys",
+		h.APIKeys.ListAPIKeysByUser,
+		func(k auth.APIKey) APIKeyDTO { return ToAPIKeyDTO(&k) },
+	)
 }
 
 // Create creates a new API key.
@@ -117,21 +108,15 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Delete removes an API key.
 func (h *APIKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := h.URLParamFunc(r, "id")
-	if id == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "invalid API key ID")
-		return
-	}
-	userID := auth.UserIDFromContext(r.Context())
-
-	if err := h.APIKeys.DeleteAPIKey(r.Context(), id, userID); err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "API key not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to delete API key", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to delete API key")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	deleteUserResource(
+		w,
+		r,
+		h.Logger,
+		h.URLParamFunc,
+		"invalid API key ID",
+		"API key not found",
+		"failed to delete API key",
+		"failed to delete API key",
+		h.APIKeys.DeleteAPIKey,
+	)
 }

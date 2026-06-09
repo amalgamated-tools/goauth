@@ -22,8 +22,8 @@ if err := h.Validate(); err != nil {
 
 A nil `SendEmail` is caught by `Validate()` at startup. To skip email delivery in tests, supply a no-op `SendEmail` function instead.
 
-!!! note "Token retention on email delivery failure"
-    If `SendEmail` is non-nil but returns an error, `SendVerification` logs the failure server-side and returns HTTP 200 — the stored token is **not** deleted. The user can re-request verification and the token will expire naturally after 24 hours (or the configured `TokenTTL`). This differs from `PasswordResetHandler`, which deletes the reset token when email delivery fails.
+!!! note "Token cleanup on email delivery failure"
+    If `SendEmail` is non-nil but returns an error, `SendVerification` logs the failure server-side, deletes the orphaned token from the store, and returns HTTP 200. Surfacing delivery failures would allow email enumeration.
 
 ## Routes
 
@@ -82,7 +82,8 @@ To gate login on email verification, set `RequireVerification: true` on `AuthHan
 | Verification token generation failure | `ERROR` | `"failed to generate verification token"` | `SendVerification` |
 | Token persistence store failure | `ERROR` | `"failed to store verification token"` | `SendVerification` |
 | Email delivery failure | `ERROR` | `"failed to send verification email"` | `SendVerification` |
+| Orphaned token cleanup failure | `ERROR` | `"failed to delete orphaned verification token"` | `SendVerification` |
 | Token consumption store failure | `ERROR` | `"failed to consume verification token"` | `VerifyEmail` |
 | Email-verified flag persistence failure | `ERROR` | `"failed to mark email as verified"` | `VerifyEmail` |
 
-The email delivery failure event is `ERROR`-level but the handler still returns HTTP 200 (see [Token retention on email delivery failure](#token-retention-on-email-delivery-failure)). The three `SendVerification` lookup/token events (`"failed to find user for email verification"`, `"failed to generate verification token"`, `"failed to store verification token"`) also return HTTP 200 — `SendVerification` always returns HTTP 200 to prevent email enumeration. Only the two `VerifyEmail` `ERROR`-level events are followed by an HTTP 500 response.
+The email delivery failure event is `ERROR`-level but the handler still returns HTTP 200 (see [Token cleanup on email delivery failure](#token-cleanup-on-email-delivery-failure)). The three `SendVerification` lookup/token events (`"failed to find user for email verification"`, `"failed to generate verification token"`, `"failed to store verification token"`) also return HTTP 200 — `SendVerification` always returns HTTP 200 to prevent email enumeration. Only the two `VerifyEmail` `ERROR`-level events are followed by an HTTP 500 response.

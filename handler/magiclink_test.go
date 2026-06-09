@@ -147,6 +147,73 @@ func TestRequestMagicLink_senderErrorStillReturns200(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestRequestMagicLink_senderErrorDeletesOrphanedToken(t *testing.T) {
+	var deletedHash string
+	store := &mockMagicLinkStore{
+		findAndDeleteFunc: func(_ context.Context, tokenHash string) (*auth.MagicLink, error) {
+			deletedHash = tokenHash
+			return &auth.MagicLink{ID: "ml-1"}, nil
+		},
+	}
+	sender := func(_ context.Context, _, _ string) error {
+		return errors.New("smtp error")
+	}
+	h := newMagicLinkHandler(&mockUserStore{}, store, sender)
+	w := postJSON(t, h.RequestMagicLink, `{"email":"alice@example.com"}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotEmpty(t, deletedHash, "orphaned token must be cleaned up when sender fails")
+}
+
+func TestRequestMagicLink_tokenTTL(t *testing.T) {
+	var capturedExpiresAt time.Time
+	store := &mockMagicLinkStore{
+		createFunc: func(_ context.Context, _, _ string, expiresAt time.Time) (*auth.MagicLink, error) {
+			capturedExpiresAt = expiresAt
+			return &auth.MagicLink{ID: "ml-1"}, nil
+		},
+	}
+	ttl := 30 * time.Minute
+	h := &MagicLinkHandler{
+		Users:      &mockUserStore{},
+		MagicLinks: store,
+		JWT:        newTestJWT(),
+		Sender:     noopSender,
+		CookieName: "auth",
+		TokenTTL:   ttl,
+	}
+
+	before := time.Now()
+	w := postJSON(t, h.RequestMagicLink, `{"email":"alice@example.com"}`)
+	after := time.Now()
+
+	require.Equal(t, http.StatusOK, w.Code)
+	minExpiry := before.Add(ttl)
+	maxExpiry := after.Add(ttl)
+	require.False(t, capturedExpiresAt.Before(minExpiry) || capturedExpiresAt.After(maxExpiry),
+		"token expiry should be within the configured TTL window")
+}
+
+func TestRequestMagicLink_defaultTokenTTL(t *testing.T) {
+	var capturedExpiresAt time.Time
+	store := &mockMagicLinkStore{
+		createFunc: func(_ context.Context, _, _ string, expiresAt time.Time) (*auth.MagicLink, error) {
+			capturedExpiresAt = expiresAt
+			return &auth.MagicLink{ID: "ml-1"}, nil
+		},
+	}
+	h := newMagicLinkHandler(&mockUserStore{}, store, noopSender)
+
+	before := time.Now()
+	w := postJSON(t, h.RequestMagicLink, `{"email":"alice@example.com"}`)
+	after := time.Now()
+
+	require.Equal(t, http.StatusOK, w.Code)
+	minExpiry := before.Add(defaultMagicLinkTokenTTL)
+	maxExpiry := after.Add(defaultMagicLinkTokenTTL)
+	require.False(t, capturedExpiresAt.Before(minExpiry) || capturedExpiresAt.After(maxExpiry),
+		"token expiry should use the default TTL (15 minutes) when TokenTTL is unset")
+}
+
 // ---------------------------------------------------------------------------
 // VerifyMagicLink
 // ---------------------------------------------------------------------------

@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -51,38 +50,25 @@ func ToSessionDTO(s *auth.Session) SessionDTO {
 
 // List returns all active sessions for the authenticated user.
 func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
-	sessions, err := h.Sessions.ListSessionsByUser(r.Context(), userID)
-	if err != nil {
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to list sessions", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list sessions")
-		return
-	}
-	dtos := make([]SessionDTO, len(sessions))
-	for i := range sessions {
-		dtos[i] = ToSessionDTO(&sessions[i])
-	}
-	writeJSON(r.Context(), w, http.StatusOK, dtos)
+	listUserResources(w, r, h.Logger, "failed to list sessions", "failed to list sessions",
+		h.Sessions.ListSessionsByUser,
+		func(s auth.Session) SessionDTO { return ToSessionDTO(&s) },
+	)
 }
 
 // Revoke revokes a specific session by ID for the authenticated user.
 func (h *SessionHandler) Revoke(w http.ResponseWriter, r *http.Request) {
-	id := h.URLParamFunc(r, "id")
-	if id == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "session ID is required")
-		return
-	}
-	userID := auth.UserIDFromContext(r.Context())
-	if err := h.Sessions.DeleteSession(r.Context(), id, userID); err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "session not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to revoke session", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to revoke session")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	deleteUserResource(
+		w,
+		r,
+		h.Logger,
+		h.URLParamFunc,
+		"session ID is required",
+		"session not found",
+		"failed to revoke session",
+		"failed to revoke session",
+		h.Sessions.DeleteSession,
+	)
 }
 
 // RevokeAll revokes all sessions for the authenticated user.

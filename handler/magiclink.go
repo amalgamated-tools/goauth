@@ -11,7 +11,7 @@ import (
 	"github.com/amalgamated-tools/goauth/auth"
 )
 
-const magicLinkExpiry = 15 * time.Minute
+const defaultMagicLinkTokenTTL = 15 * time.Minute
 
 // MagicLinkSender is called to deliver the one-time login token to the user.
 // The token should be embedded in a URL that the user clicks to authenticate.
@@ -34,6 +34,9 @@ type MagicLinkHandler struct {
 	// refresh token. Must be non-empty when Sessions is set; call Validate at
 	// startup to catch this misconfiguration early.
 	RefreshCookieName string
+	// TokenTTL is how long a magic link token is valid. Defaults to
+	// defaultMagicLinkTokenTTL (15 minutes) when unset or zero.
+	TokenTTL time.Duration
 	// Logger is the structured logger used by the handler. When nil, the
 	// process-wide slog.Default() logger is used.
 	Logger *slog.Logger
@@ -44,6 +47,13 @@ func (h *MagicLinkHandler) log() *slog.Logger {
 		return h.Logger
 	}
 	return slog.Default()
+}
+
+func (h *MagicLinkHandler) tokenTTL() time.Duration {
+	if h.TokenTTL > 0 {
+		return h.TokenTTL
+	}
+	return defaultMagicLinkTokenTTL
 }
 
 type magicLinkRequestBody struct {
@@ -93,7 +103,7 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	tokenHash := auth.HashHighEntropyToken(token)
-	expiresAt := time.Now().UTC().Add(magicLinkExpiry)
+	expiresAt := time.Now().UTC().Add(h.tokenTTL())
 
 	if _, err := h.MagicLinks.CreateMagicLink(r.Context(), req.Email, tokenHash, expiresAt); err != nil {
 		h.log().ErrorContext(r.Context(), "failed to create magic link", slog.Any("error", err))
@@ -103,7 +113,10 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 	if err := h.Sender(r.Context(), req.Email, token); err != nil {
 		h.log().ErrorContext(r.Context(), "failed to send magic link email",
 			slog.Any("error", err))
-		// Do not surface delivery failures to avoid leaking information.
+		// Delete the orphaned token so state stays consistent.
+		if _, delErr := h.MagicLinks.FindAndDeleteMagicLink(r.Context(), tokenHash); delErr != nil && !errors.Is(delErr, auth.ErrNotFound) {
+			h.log().ErrorContext(r.Context(), "failed to delete orphaned magic link", slog.Any("error", delErr))
+		}
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK,

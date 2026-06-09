@@ -386,36 +386,23 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 
 // ListCredentials returns all passkey credentials for the current user.
 func (h *PasskeyHandler) ListCredentials(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
-	creds, err := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
-	if err != nil {
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
-		return
-	}
-	dtos := make([]PasskeyCredentialDTO, len(creds))
-	for i := range creds {
-		dtos[i] = ToPasskeyCredentialDTO(creds[i])
-	}
-	writeJSON(r.Context(), w, http.StatusOK, dtos)
+	listUserResources(w, r, h.Logger, "failed to list credentials", "failed to list credentials",
+		h.Passkeys.ListCredentialsByUser,
+		ToPasskeyCredentialDTO,
+	)
 }
 
 // DeleteCredential removes a passkey credential.
 func (h *PasskeyHandler) DeleteCredential(w http.ResponseWriter, r *http.Request) {
-	credID := h.URLParamFunc(r, "id")
-	if credID == "" {
-		writeError(r.Context(), w, http.StatusBadRequest, "invalid credential ID")
-		return
-	}
-	userID := auth.UserIDFromContext(r.Context())
-	if err := h.Passkeys.DeleteCredential(r.Context(), credID, userID); err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "credential not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to delete credential", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to delete credential")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	deleteUserResource(
+		w,
+		r,
+		h.Logger,
+		h.URLParamFunc,
+		"invalid credential ID",
+		"credential not found",
+		"failed to delete credential",
+		"failed to delete credential",
+		h.Passkeys.DeleteCredential,
+	)
 }

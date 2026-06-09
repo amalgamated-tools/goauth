@@ -14,6 +14,7 @@ Thank you for considering a contribution to goauth! This guide covers everything
 - [Full pre-PR check](#full-pre-pr-check)
 - [Coding conventions](#coding-conventions)
   - [Handler package architecture](#handler-package-architecture)
+- [OIDC debugging tools](#oidc-debugging-tools)
 - [Submitting changes](#submitting-changes)
 - [Releasing](#releasing)
 
@@ -97,7 +98,6 @@ The `handler` package uses `*_common.go` files to hold logic shared by multiple 
 `oauth2_common.go` currently provides the shared OAuth/OIDC internals:
 
 - `oauthCallbackFlow`: shared callback parsing result (PKCE verifier/link metadata + auth code).
-- `logOrDefault`: returns the configured logger, falling back to `slog.Default()`.
 - `oauthLogin`: shared login entrypoint that generates state + PKCE verifier and redirects.
 - `redirectToOAuthProvider`: sets flow cookies and redirects to the provider authorization URL.
 - `validateOAuthCallbackFlow`: validates state/PKCE/error/code callback inputs and clears cookies.
@@ -110,6 +110,20 @@ The `handler` package uses `*_common.go` files to hold logic shared by multiple 
 - `generateState`: generates cryptographically random state for auth/link flows.
 - `consumeLinkNonce`: atomically consumes a nonce and enforces nonce expiry.
 - `handleLinkCallback`: shared OAuth2/OIDC link-callback flow and redirect handling.
+
+`helpers.go` currently provides the package-wide helper utilities:
+
+- `requireField`: shared `Validate` helper for required dependency checks.
+- `validateSessionConfig`: shared `Validate` helper for session/refresh-cookie configuration.
+- `logOrDefault`: returns the configured logger, falling back to `slog.Default()`.
+- `issueTokens`: issues access/refresh tokens, writes auth cookies, and manages session-backed refresh tokens.
+- `writeJSON`: shared JSON response writer.
+- `writeError`: shared JSON error response writer.
+- `setNoCacheHeaders`: applies no-cache headers to sensitive auth responses.
+- `decodeJSON`: decodes bounded JSON request bodies.
+- `validatePassword`: enforces the shared password length bounds.
+- `SetAuthCookie` / `ClearAuthCookie`: manage the auth cookie lifecycle.
+- `SetRefreshCookie` / `ClearRefreshCookie`: manage the refresh-token cookie lifecycle.
 
 Before adding or changing logic in both `OIDCHandler` and `OAuth2Handler`, check `oauth2_common.go` first to avoid duplicating shared behavior.
 
@@ -158,6 +172,28 @@ Use `log/slog` with structured key–value pairs and **always pass the request c
 ### No direct pushes to `main`
 
 All changes must go through a pull request. The `main` branch is protected.
+
+---
+
+## OIDC debugging tools
+
+When working on OIDC-related code or tests, the `jose-util` CLI bundled with
+[go-jose](https://github.com/go-jose/go-jose) is useful for generating test JWKs
+and inspecting compact JWT strings locally without needing a real identity provider.
+
+```sh
+# Print usage
+go run github.com/go-jose/go-jose/v4/jose-util@latest
+
+# Decode and pretty-print a compact JWT (header + payload, without verifying the signature)
+go run github.com/go-jose/go-jose/v4/jose-util@latest expand --input <token>
+
+# Generate a new RSA 2048-bit JWK (useful for crafting test fixtures)
+go run github.com/go-jose/go-jose/v4/jose-util@latest generate-key --use sig --alg RS256
+```
+
+> **Note**: `jose-util` is a development aid only. Production token verification is
+> handled by `coreos/go-oidc/v3` and `golang-jwt/jwt/v5`.
 
 ---
 
