@@ -42,13 +42,6 @@ type MagicLinkHandler struct {
 	Logger *slog.Logger
 }
 
-func (h *MagicLinkHandler) log() *slog.Logger {
-	if h.Logger != nil {
-		return h.Logger
-	}
-	return slog.Default()
-}
-
 func (h *MagicLinkHandler) tokenTTL() time.Duration {
 	if h.TokenTTL > 0 {
 		return h.TokenTTL
@@ -98,7 +91,7 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 
 	token, err := auth.GenerateRandomBase64(32)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "failed to generate magic link token", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to generate magic link token", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate token")
 		return
 	}
@@ -106,16 +99,16 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 	expiresAt := time.Now().UTC().Add(h.tokenTTL())
 
 	if _, err := h.MagicLinks.CreateMagicLink(r.Context(), req.Email, tokenHash, expiresAt); err != nil {
-		h.log().ErrorContext(r.Context(), "failed to create magic link", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to create magic link", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create magic link")
 		return
 	}
 	if err := h.Sender(r.Context(), req.Email, token); err != nil {
-		h.log().ErrorContext(r.Context(), "failed to send magic link email",
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to send magic link email",
 			slog.Any("error", err))
 		// Delete the orphaned token so state stays consistent.
 		if _, delErr := h.MagicLinks.FindAndDeleteMagicLink(r.Context(), tokenHash); delErr != nil && !errors.Is(delErr, auth.ErrNotFound) {
-			h.log().ErrorContext(r.Context(), "failed to delete orphaned magic link", slog.Any("error", delErr))
+			logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to delete orphaned magic link", slog.Any("error", delErr))
 		}
 	}
 
@@ -141,7 +134,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
-		h.log().ErrorContext(r.Context(), "failed to find magic link", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to find magic link", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -152,7 +145,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 
 	user, err := h.findOrCreateUser(r.Context(), link.Email)
 	if err != nil {
-		h.log().ErrorContext(r.Context(), "magic link user resolution failed", slog.Any("error", err))
+		logOrDefault(h.Logger).ErrorContext(r.Context(), "magic link user resolution failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to resolve user")
 		return
 	}
