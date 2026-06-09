@@ -57,13 +57,6 @@ type resetPasswordRequest struct {
 	NewPassword string `json:"newPassword"`
 }
 
-func (h *PasswordResetHandler) tokenTTL() time.Duration {
-	if h.TokenTTL > 0 {
-		return h.TokenTTL
-	}
-	return defaultPasswordResetTTL
-}
-
 // RequestReset handles POST /password-reset/request. It accepts an email
 // address, generates a secure reset token, persists its hash, and delivers
 // the raw token via SendResetEmail. Returns 503 if SendResetEmail is nil
@@ -102,7 +95,7 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		tokenHash := auth.HashHighEntropyToken(rawToken)
-		expiresAt := time.Now().UTC().Add(h.tokenTTL())
+		expiresAt := time.Now().UTC().Add(defaultDuration(h.TokenTTL, defaultPasswordResetTTL))
 
 		token, err := h.Resets.CreatePasswordResetToken(r.Context(), user.ID, tokenHash, expiresAt)
 		if err != nil {

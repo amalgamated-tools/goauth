@@ -43,10 +43,7 @@ type MagicLinkHandler struct {
 }
 
 func (h *MagicLinkHandler) tokenTTL() time.Duration {
-	if h.TokenTTL > 0 {
-		return h.TokenTTL
-	}
-	return defaultMagicLinkTokenTTL
+	return defaultDuration(h.TokenTTL, defaultMagicLinkTokenTTL)
 }
 
 type magicLinkRequestBody struct {

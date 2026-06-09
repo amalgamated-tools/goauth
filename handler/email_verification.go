@@ -49,13 +49,6 @@ func (h *EmailVerificationHandler) Validate() error {
 	return requireField("EmailVerificationHandler", "SendEmail", h.SendEmail)
 }
 
-func (h *EmailVerificationHandler) tokenTTL() time.Duration {
-	if h.TokenTTL > 0 {
-		return h.TokenTTL
-	}
-	return defaultVerificationTokenTTL
-}
-
 type sendVerificationRequest struct {
 	Email string `json:"email"`
 }
@@ -100,7 +93,8 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 	}
 	tokenHash := auth.HashHighEntropyToken(plaintext)
 
-	if _, err := h.Verifications.CreateEmailVerification(r.Context(), user.ID, tokenHash, time.Now().UTC().Add(h.tokenTTL())); err != nil {
+	expiresAt := time.Now().UTC().Add(defaultDuration(h.TokenTTL, defaultVerificationTokenTTL))
+	if _, err := h.Verifications.CreateEmailVerification(r.Context(), user.ID, tokenHash, expiresAt); err != nil {
 		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to store verification token", slog.Any("error", err))
 		writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
 		return
