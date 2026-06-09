@@ -34,7 +34,11 @@ The `RefreshTokenTTL` field controls the refresh cookie `Max-Age` and session ex
 
 ## OIDC flow cookies
 
-The OIDC flow uses two short-lived state cookies (`oidc_state` and `oidc_verifier`) that are set with `SameSite=Lax` instead of `Strict`. `SameSite=Lax` is required here because the OIDC provider redirects the browser back to your callback URL as a top-level cross-site navigation, which `SameSite=Strict` cookies would block. These cookies are `HttpOnly`, expire after 5 minutes, and are cleared immediately inside the callback handler.
+The OIDC flow uses three short-lived cookies (`oidc_state`, `oidc_verifier`, and `oidc_nonce`) that are set with `SameSite=Lax` instead of `SameSite=Strict`. `SameSite=Lax` is required here because the OIDC provider redirects the browser back to your callback URL as a top-level cross-site navigation, which `SameSite=Strict` cookies would block.
+
+`oidc_state` provides CSRF protection. `oidc_verifier` enables PKCE replay protection. `oidc_nonce` prevents ID token replay attacks by tying the authorization request to the returned `id_token`.
+
+All three cookies are `HttpOnly`, expire after 5 minutes, and are cleared immediately inside the callback handler.
 
 ## OAuth2 flow cookies
 
