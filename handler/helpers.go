@@ -152,13 +152,31 @@ func issueTokens(
 	return accessToken, "", true
 }
 
-// mapSlice converts a slice of T to a slice of U using fn.
-func mapSlice[T, U any](items []T, fn func(T) U) []U {
-	out := make([]U, len(items))
-	for i, item := range items {
-		out[i] = fn(item)
+// listUserResources is a generic helper that fetches a list of resources for
+// the authenticated user, converts each item to a DTO, and writes the result
+// as a JSON response. It centralises the fetch-convert-respond pattern shared
+// by APIKeyHandler.List, SessionHandler.List, and PasskeyHandler.ListCredentials.
+func listUserResources[T any, D any](
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *slog.Logger,
+	logMsg string,
+	userMsg string,
+	fetch func(ctx context.Context, userID string) ([]T, error),
+	toDTO func(T) D,
+) {
+	userID := auth.UserIDFromContext(r.Context())
+	items, err := fetch(r.Context(), userID)
+	if err != nil {
+		logOrDefault(logger).ErrorContext(r.Context(), logMsg, slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, userMsg)
+		return
 	}
-	return out
+	dtos := make([]D, len(items))
+	for i, item := range items {
+		dtos[i] = toDTO(item)
+	}
+	writeJSON(r.Context(), w, http.StatusOK, dtos)
 }
 
 // writeJSON sends a JSON response with the given status code.

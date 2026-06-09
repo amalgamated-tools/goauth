@@ -386,14 +386,10 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 
 // ListCredentials returns all passkey credentials for the current user.
 func (h *PasskeyHandler) ListCredentials(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
-	creds, err := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
-	if err != nil {
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to list credentials", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list credentials")
-		return
-	}
-	writeJSON(r.Context(), w, http.StatusOK, mapSlice(creds, ToPasskeyCredentialDTO))
+	listUserResources(w, r, h.Logger, "failed to list credentials", "failed to list credentials",
+		h.Passkeys.ListCredentialsByUser,
+		ToPasskeyCredentialDTO,
+	)
 }
 
 // DeleteCredential removes a passkey credential.

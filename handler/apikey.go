@@ -55,15 +55,10 @@ func ToAPIKeyDTO(k *auth.APIKey) APIKeyDTO {
 
 // List returns all API keys for the authenticated user.
 func (h *APIKeyHandler) List(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
-	keys, err := h.APIKeys.ListAPIKeysByUser(r.Context(), userID)
-	if err != nil {
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to list API keys", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list API keys")
-		return
-	}
-	writeJSON(r.Context(), w, http.StatusOK,
-		mapSlice(keys, func(k auth.APIKey) APIKeyDTO { return ToAPIKeyDTO(&k) }))
+	listUserResources(w, r, h.Logger, "failed to list API keys", "failed to list API keys",
+		h.APIKeys.ListAPIKeysByUser,
+		func(k auth.APIKey) APIKeyDTO { return ToAPIKeyDTO(&k) },
+	)
 }
 
 // Create creates a new API key.

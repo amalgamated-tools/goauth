@@ -381,25 +381,6 @@ func TestWriteJSON_setsContentType(t *testing.T) {
 	require.Equal(t, "val", body["key"])
 }
 
-func TestMapSlice(t *testing.T) {
-	t.Run("value mapper", func(t *testing.T) {
-		got := mapSlice([]int{1, 2, 3}, func(v int) string {
-			return strings.Repeat("x", v)
-		})
-		require.Equal(t, []string{"x", "xx", "xxx"}, got)
-	})
-
-	t.Run("pointer mapper", func(t *testing.T) {
-		type item struct {
-			Value int
-		}
-		got := mapSlice([]item{{Value: 1}, {Value: 2}}, func(it item) int {
-			return (&it).Value
-		})
-		require.Equal(t, []int{1, 2}, got)
-	})
-}
-
 func TestWriteError_writesErrorField(t *testing.T) {
 	w := httptest.NewRecorder()
 	writeError(context.Background(), w, http.StatusBadRequest, "bad input")
