@@ -16,7 +16,7 @@ h := &handler.MagicLinkHandler{
     CookieName:        "session",
     SecureCookies:     true,
     Sessions:          sessionStore,      // optional
-    RefreshTokenTTL:   7 * 24 * time.Hour,
+    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // default 7 days
     RefreshCookieName: "refresh",
     // Logger:         nil, // optional; when nil, slog.Default() is resolved at each log site
 }
