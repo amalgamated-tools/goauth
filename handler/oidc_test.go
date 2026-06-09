@@ -17,6 +17,7 @@ import (
 
 	"github.com/amalgamated-tools/goauth/auth"
 	"github.com/coreos/go-oidc/v3/oidc"
+	// go-jose is used to construct cryptographically-valid RS256 id_tokens for fake OIDC providers in tests.
 	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -47,6 +48,71 @@ func newMockOIDCProvider(t *testing.T) *oidc.Provider {
 	p, err := oidc.NewProvider(context.Background(), srv.URL)
 	require.NoError(t, err)
 	return p
+}
+
+// newSignedOIDCProvider starts a local httptest OIDC provider serving discovery,
+// JWKS, and token endpoints. jwksKey.PublicKey is published in the JWKS; signingKey
+// is used to sign the id_token. Pass the same key for both to produce a
+// cryptographically-valid token; pass different keys to simulate a key-mismatch
+// scenario. The "iss" claim is automatically set to the server URL when not present
+// in claims. The server is stopped automatically via t.Cleanup.
+func newSignedOIDCProvider(t *testing.T, jwksKey, signingKey *rsa.PrivateKey, claims map[string]any) (providerURL, idToken string) {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	providerURL = srv.URL
+
+	jwk := jose.JSONWebKey{Key: &jwksKey.PublicKey, KeyID: "test-key", Algorithm: "RS256", Use: "sig"}
+	jwksBytes, err := json.Marshal(struct {
+		Keys []jose.JSONWebKey `json:"keys"`
+	}{Keys: []jose.JSONWebKey{jwk}})
+	require.NoError(t, err)
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{
+			"issuer": %q,
+			"authorization_endpoint": %q,
+			"token_endpoint": %q,
+			"jwks_uri": %q,
+			"id_token_signing_alg_values_supported": ["RS256"]
+		}`, providerURL, providerURL+"/auth", providerURL+"/token", providerURL+"/jwks")
+	})
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(jwksBytes)
+	})
+
+	// Merge caller-supplied claims; inject "iss" when absent so the token is
+	// accepted by the go-oidc issuer check.
+	merged := make(map[string]any, len(claims)+1)
+	for k, v := range claims {
+		merged[k] = v
+	}
+	if _, ok := merged["iss"]; !ok {
+		merged["iss"] = providerURL
+	}
+
+	signer, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.RS256, Key: signingKey},
+		(&jose.SignerOptions{}).WithHeader("kid", "test-key"),
+	)
+	require.NoError(t, err)
+	claimsJSON, err := json.Marshal(merged)
+	require.NoError(t, err)
+	signed, err := signer.Sign(claimsJSON)
+	require.NoError(t, err)
+	idToken, err = signed.CompactSerialize()
+	require.NoError(t, err)
+
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"access_token":"tok","token_type":"bearer","id_token":%q}`, idToken)
+	})
+
+	return providerURL, idToken
 }
 
 // ---------------------------------------------------------------------------
@@ -768,54 +834,12 @@ func TestOIDCCallback_nonceMismatch(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
-	var providerURL string
-	mux := http.NewServeMux()
-	providerServer := httptest.NewServer(mux)
-	defer providerServer.Close()
-	providerURL = providerServer.URL
-
-	jwk := jose.JSONWebKey{Key: &key.PublicKey, KeyID: "test-key", Algorithm: "RS256", Use: "sig"}
-	jwksBytes, err := json.Marshal(struct {
-		Keys []jose.JSONWebKey `json:"keys"`
-	}{Keys: []jose.JSONWebKey{jwk}})
-	require.NoError(t, err)
-
-	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(w, `{
-			"issuer": %q,
-			"authorization_endpoint": %q,
-			"token_endpoint": %q,
-			"jwks_uri": %q,
-			"id_token_signing_alg_values_supported": ["RS256"]
-		}`, providerURL, providerURL+"/auth", providerURL+"/token", providerURL+"/jwks")
-	})
-	mux.HandleFunc("/jwks", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(jwksBytes)
-	})
-
-	// Sign a JWT id_token with nonce "wrong-nonce".
-	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: key}, (&jose.SignerOptions{}).WithHeader("kid", "test-key"))
-	require.NoError(t, err)
-	claims := map[string]any{
-		"iss":   providerURL,
+	providerURL, _ := newSignedOIDCProvider(t, key, key, map[string]any{
 		"sub":   "user-123",
 		"aud":   "test-client",
 		"exp":   time.Now().Add(time.Hour).Unix(),
 		"iat":   time.Now().Unix(),
 		"nonce": "wrong-nonce",
-	}
-	claimsJSON, err := json.Marshal(claims)
-	require.NoError(t, err)
-	signed, err := signer.Sign(claimsJSON)
-	require.NoError(t, err)
-	idTokenStr, err := signed.CompactSerialize()
-	require.NoError(t, err)
-
-	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(w, `{"access_token":"tok","token_type":"bearer","id_token":%q}`, idTokenStr)
 	})
 
 	provider, err := oidc.NewProvider(context.Background(), providerURL)
@@ -843,6 +867,53 @@ func TestOIDCCallback_nonceMismatch(t *testing.T) {
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 	require.Contains(t, w.Body.String(), "invalid nonce")
+}
+
+func TestOIDCCallback_wrongSigningKey(t *testing.T) {
+	// keyA is published in the JWKS; keyB signs the id_token.
+	// go-oidc must reject the token because its signature cannot be verified
+	// against any key in the JWKS, exercising the cryptographic-mismatch path.
+	keyA, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	keyB, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	providerURL, _ := newSignedOIDCProvider(t, keyA, keyB, map[string]any{
+		"sub": "user-123",
+		"aud": "test-client",
+		"exp": time.Now().Add(time.Hour).Unix(),
+		"iat": time.Now().Unix(),
+	})
+
+	provider, err := oidc.NewProvider(context.Background(), providerURL)
+	require.NoError(t, err)
+
+	h := newTestOIDCHandler()
+	h.Provider = provider
+	h.OAuthConfig = oauth2.Config{
+		ClientID:    "test-client",
+		RedirectURL: "http://localhost/callback",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   providerURL + "/auth",
+			TokenURL:  providerURL + "/token",
+			AuthStyle: oauth2.AuthStyleInHeader,
+		},
+	}
+	require.NoError(t, h.Validate())
+
+	var buf bytes.Buffer
+	h.Logger = slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?state=mystate&code=authcode", nil)
+	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "mystate"})
+	req.AddCookie(&http.Cookie{Name: oidcVerifierCookieName, Value: "someverifier"})
+	req.AddCookie(&http.Cookie{Name: oidcNonceCookieName, Value: "somenonce"})
+	w := httptest.NewRecorder()
+	h.Callback(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, w.Body.String(), "invalid id_token")
+	require.Contains(t, buf.String(), "OIDC id_token verification failed")
 }
 
 // ---------------------------------------------------------------------------
