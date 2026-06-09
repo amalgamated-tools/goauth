@@ -97,7 +97,6 @@ The `handler` package uses `*_common.go` files to hold logic shared by multiple 
 `oauth2_common.go` currently provides the shared OAuth/OIDC internals:
 
 - `oauthCallbackFlow`: shared callback parsing result (PKCE verifier/link metadata + auth code).
-- `logOrDefault`: returns the configured logger, falling back to `slog.Default()`.
 - `oauthLogin`: shared login entrypoint that generates state + PKCE verifier and redirects.
 - `redirectToOAuthProvider`: sets flow cookies and redirects to the provider authorization URL.
 - `validateOAuthCallbackFlow`: validates state/PKCE/error/code callback inputs and clears cookies.
@@ -110,6 +109,20 @@ The `handler` package uses `*_common.go` files to hold logic shared by multiple 
 - `generateState`: generates cryptographically random state for auth/link flows.
 - `consumeLinkNonce`: atomically consumes a nonce and enforces nonce expiry.
 - `handleLinkCallback`: shared OAuth2/OIDC link-callback flow and redirect handling.
+
+`helpers.go` currently provides the package-wide helper utilities:
+
+- `requireField`: shared `Validate` helper for required dependency checks.
+- `validateSessionConfig`: shared `Validate` helper for session/refresh-cookie configuration.
+- `logOrDefault`: returns the configured logger, falling back to `slog.Default()`.
+- `issueTokens`: issues access/refresh tokens, writes auth cookies, and manages session-backed refresh tokens.
+- `writeJSON`: shared JSON response writer.
+- `writeError`: shared JSON error response writer.
+- `setNoCacheHeaders`: applies no-cache headers to sensitive auth responses.
+- `decodeJSON`: decodes bounded JSON request bodies.
+- `validatePassword`: enforces the shared password length bounds.
+- `SetAuthCookie` / `ClearAuthCookie`: manage the auth cookie lifecycle.
+- `SetRefreshCookie` / `ClearRefreshCookie`: manage the refresh-token cookie lifecycle.
 
 Before adding or changing logic in both `OIDCHandler` and `OAuth2Handler`, check `oauth2_common.go` first to avoid duplicating shared behavior.
 
