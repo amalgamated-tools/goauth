@@ -51,18 +51,10 @@ func ToSessionDTO(s *auth.Session) SessionDTO {
 
 // List returns all active sessions for the authenticated user.
 func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserIDFromContext(r.Context())
-	sessions, err := h.Sessions.ListSessionsByUser(r.Context(), userID)
-	if err != nil {
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to list sessions", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to list sessions")
-		return
-	}
-	dtos := make([]SessionDTO, len(sessions))
-	for i := range sessions {
-		dtos[i] = ToSessionDTO(&sessions[i])
-	}
-	writeJSON(r.Context(), w, http.StatusOK, dtos)
+	listUserResources(w, r, h.Logger, "failed to list sessions",
+		h.Sessions.ListSessionsByUser,
+		func(s auth.Session) SessionDTO { return ToSessionDTO(&s) },
+	)
 }
 
 // Revoke revokes a specific session by ID for the authenticated user.
