@@ -912,6 +912,7 @@ func TestOIDCCallback_wrongSigningKey(t *testing.T) {
 	h.Callback(w, req)
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, w.Body.String(), "invalid id_token")
 	require.Contains(t, buf.String(), "OIDC id_token verification failed")
 }
 
