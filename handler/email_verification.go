@@ -93,7 +93,8 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 	}
 	tokenHash := auth.HashHighEntropyToken(plaintext)
 
-	if _, err := h.Verifications.CreateEmailVerification(r.Context(), user.ID, tokenHash, time.Now().UTC().Add(defaultDuration(h.TokenTTL, defaultVerificationTokenTTL))); err != nil {
+	expiresAt := time.Now().UTC().Add(defaultDuration(h.TokenTTL, defaultVerificationTokenTTL))
+	if _, err := h.Verifications.CreateEmailVerification(r.Context(), user.ID, tokenHash, expiresAt); err != nil {
 		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to store verification token", slog.Any("error", err))
 		writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
 		return
