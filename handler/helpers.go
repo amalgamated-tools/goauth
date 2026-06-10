@@ -118,10 +118,7 @@ func issueTokens(
 		}
 		refreshHash := auth.HashHighEntropyToken(rawRefresh)
 
-		ttl := refreshTokenTTL
-		if ttl <= 0 {
-			ttl = DefaultRefreshTokenTTL
-		}
+		ttl := defaultDuration(refreshTokenTTL, DefaultRefreshTokenTTL)
 
 		ip, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {

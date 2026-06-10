@@ -42,10 +42,6 @@ type MagicLinkHandler struct {
 	Logger *slog.Logger
 }
 
-func (h *MagicLinkHandler) tokenTTL() time.Duration {
-	return defaultDuration(h.TokenTTL, defaultMagicLinkTokenTTL)
-}
-
 type magicLinkRequestBody struct {
 	Email string `json:"email"`
 }
@@ -93,7 +89,7 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	tokenHash := auth.HashHighEntropyToken(token)
-	expiresAt := time.Now().UTC().Add(h.tokenTTL())
+	expiresAt := time.Now().UTC().Add(defaultDuration(h.TokenTTL, defaultMagicLinkTokenTTL))
 
 	if _, err := h.MagicLinks.CreateMagicLink(r.Context(), req.Email, tokenHash, expiresAt); err != nil {
 		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to create magic link", slog.Any("error", err))
