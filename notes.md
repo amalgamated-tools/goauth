@@ -29,6 +29,7 @@
 - 2026-06-08: No new commits since 2026-06-06. No new efficiency opportunities.
 - 2026-06-09: No new commits since 2026-06-08. No new efficiency opportunities.
 - 2026-06-10: PR #498 merged (refactor: consolidate duplicate tokenTTL logic into shared defaultDuration helper) — refactoring only, no efficiency opportunities. Monthly issue #449 closed by maintainer on 2026-06-09.
+- 2026-06-11: No new commits since 2026-06-10. No new efficiency opportunities.
 - Full codebase scan complete: All hot-path optimisations exhausted.
 - NOTE: June 2026 monthly issue #426 was closed by maintainer as "not_planned" on 2026-06-03.
 
@@ -58,10 +59,10 @@ All identified opportunities have been implemented. No open backlog items.
 ## Backlog Cursor
 - Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-27)
 - All hot-path optimisations implemented and merged; backlog fully empty
-- Last tasks run: Task 2 (scan), Task 7 (created new monthly issue for June 2026)
-- Last run: 2026-06-10 14:20 UTC
+- Last tasks run: Task 7 (update monthly issue)
+- Last run: 2026-06-11 14:27 UTC
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED)
 - May 2026: Issues #212, #264, #332, #365, #386, #407 (all CLOSED)
-- June 2026: Issue #426 (CLOSED by maintainer as not_planned 2026-06-03); Issue #449 (CLOSED by maintainer as completed 2026-06-09); new June 2026 issue created 2026-06-10 (issue number TBD — created by safeoutputs after workflow run)
+- June 2026: Issue #426 (CLOSED by maintainer as not_planned 2026-06-03); Issue #449 (CLOSED by maintainer as completed 2026-06-09); Issue #518 (open, created 2026-06-10)
