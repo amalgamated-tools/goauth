@@ -23,13 +23,14 @@
 - totpDigitsStr + totpPeriodStr + totpHandlerEncoding precomputed (PR #170 MERGED).
 - OIDCHandler: idTokenVerifier cached at init (PR #274 MERGED).
 - 2026-05-28: Scanned recent commits — all docs/CI/refactor, no new efficiency opportunities.
-- 2026-06-04: PRs #436-#444 merged — docs/refactor/CI; fetchOAuth2JSON helper added (refactor, not efficiency concern). No new opportunities.
+- 2026-06-04: PRs #436-#444 merged — docs/refactor/CI; fetchOAuth2JSON helper added (refactor, not efficiency concern). No new efficiency opportunities.
 - 2026-06-05: PRs #450-#459 merged — docs, refactoring (logOrDefault), security fix (OIDC nonce replay via PR #452), Logger field additions. No new efficiency opportunities.
-- 2026-06-06: No new commits since last run. Scanned new MagicLinkHandler (added 2026-06-04): clean and efficient. No new efficiency opportunities.
+- 2026-06-06: No new commits since 2026-06-04. Scanned new MagicLinkHandler (added 2026-06-04): clean and efficient. No new efficiency opportunities.
 - 2026-06-08: No new commits since 2026-06-06. No new efficiency opportunities.
 - 2026-06-09: No new commits since 2026-06-08. No new efficiency opportunities.
 - 2026-06-10: PR #498 merged (refactor: consolidate duplicate tokenTTL logic into shared defaultDuration helper) — refactoring only, no efficiency opportunities. Monthly issue #449 closed by maintainer on 2026-06-09.
 - 2026-06-11: No new commits since 2026-06-10. No new efficiency opportunities.
+- 2026-06-12: No new commits since 2026-06-11. No new efficiency opportunities.
 - Full codebase scan complete: All hot-path optimisations exhausted.
 - NOTE: June 2026 monthly issue #426 was closed by maintainer as "not_planned" on 2026-06-03.
 
@@ -60,7 +61,7 @@ All identified opportunities have been implemented. No open backlog items.
 - Scanned: auth/, handler/, smtp/, maintenance/ directories (full scan complete as of 2026-05-27)
 - All hot-path optimisations implemented and merged; backlog fully empty
 - Last tasks run: Task 7 (update monthly issue)
-- Last run: 2026-06-11 14:27 UTC
+- Last run: 2026-06-12 14:15 UTC
 
 ## Monthly Activity Issues
 - April 2026: Issue #163 (CLOSED)
