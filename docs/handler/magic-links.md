@@ -36,6 +36,15 @@ POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login 
 GET  /auth/magic-link/verify    → h.VerifyMagicLink    // ?token=<token> → AuthResponse (HTTP 200)
 ```
 
+## Request bodies
+
+`RequestMagicLink`:
+```json
+{"email": "alice@example.com"}
+```
+
+`VerifyMagicLink` accepts the token as a URL query parameter (`?token=<token>`), not a request body.
+
 ## Response types
 
 `VerifyMagicLink` returns HTTP 200 with the same `AuthResponse` wrapper as `AuthHandler.Login` — `token`, `refresh_token` (when `Sessions` is set), and `user` (`UserDTO`). It also sets an `HttpOnly` session cookie and, when `Sessions` is set, an `HttpOnly` refresh token cookie (via `RefreshCookieName`, which is required when `Sessions` is set). The response also sets `Cache-Control: no-store` and `Pragma: no-cache` to prevent tokens from being stored in browser or proxy caches.

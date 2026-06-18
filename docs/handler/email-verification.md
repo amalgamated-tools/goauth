@@ -32,6 +32,15 @@ POST /verify-email/send   → h.SendVerification   // send verification email
 GET  /verify-email        → h.VerifyEmail         // ?token=<token> → marks email verified
 ```
 
+## Request bodies
+
+`SendVerification`:
+```json
+{"email": "alice@example.com"}
+```
+
+`VerifyEmail` accepts the token as a URL query parameter (`?token=<token>`), not a request body.
+
 ## Response types
 
 | Endpoint | HTTP status | Response body |
