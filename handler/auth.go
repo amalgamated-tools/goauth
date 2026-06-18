@@ -255,7 +255,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	if time.Now().UTC().After(sess.ExpiresAt) {
+	if isExpired(sess.ExpiresAt) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired refresh token")
 		return
 	}

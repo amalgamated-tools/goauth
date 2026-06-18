@@ -134,7 +134,7 @@ func (h *EmailVerificationHandler) VerifyEmail(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if time.Now().UTC().After(record.ExpiresAt) {
+	if isExpired(record.ExpiresAt) {
 		writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired verification token")
 		return
 	}

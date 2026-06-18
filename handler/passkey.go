@@ -147,7 +147,7 @@ func (h *PasskeyHandler) loadChallenge(ctx context.Context, id string) (*passkey
 	if err != nil {
 		return nil, nil, err
 	}
-	if time.Now().UTC().After(rec.ExpiresAt) {
+	if isExpired(rec.ExpiresAt) {
 		return nil, nil, errPasskeySessionExpired
 	}
 	var data passkeyChallengeData

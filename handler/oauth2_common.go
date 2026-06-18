@@ -286,7 +286,7 @@ func consumeLinkNonce(ctx context.Context, store auth.OIDCLinkNonceStore, nonce 
 	if err != nil {
 		return "", err
 	}
-	if time.Now().UTC().After(entry.ExpiresAt) {
+	if isExpired(entry.ExpiresAt) {
 		return "", auth.ErrNotFound
 	}
 	return entry.UserID, nil

@@ -135,7 +135,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	if time.Now().UTC().After(link.ExpiresAt) {
+	if isExpired(link.ExpiresAt) {
 		writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired token")
 		return
 	}
