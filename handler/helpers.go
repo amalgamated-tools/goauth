@@ -60,6 +60,28 @@ func logOrDefault(l *slog.Logger) *slog.Logger {
 	return slog.Default()
 }
 
+// lookupUserByID fetches the user with the given ID, writing the appropriate
+// HTTP error response and returning false when the user cannot be found.
+func lookupUserByID(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *slog.Logger,
+	store auth.UserStore,
+	userID string,
+) (*auth.User, bool) {
+	user, err := store.FindByID(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, auth.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusNotFound, "user not found")
+			return nil, false
+		}
+		logOrDefault(logger).ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
+		return nil, false
+	}
+	return user, true
+}
+
 func deleteUserResource(
 	w http.ResponseWriter,
 	r *http.Request,
