@@ -342,7 +342,7 @@ func TestVerifyMagicLink_invalidToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=bad", nil)
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestVerifyMagicLink_expiredToken(t *testing.T) {
@@ -359,7 +359,7 @@ func TestVerifyMagicLink_expiredToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=sometoken", nil)
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestVerifyMagicLink_storeError(t *testing.T) {

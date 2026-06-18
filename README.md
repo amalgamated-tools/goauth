@@ -1272,7 +1272,7 @@ handler.ClearRefreshCookie(w, cookieName, secure)
 ```go
 import "github.com/amalgamated-tools/goauth/maintenance"
 
-stop := maintenance.StartCleanup(ctx, 10*time.Minute,
+stop := maintenance.StartCleanup(ctx, nil, 10*time.Minute,
     sessionStore.DeleteExpiredSessions,
     magicLinkStore.DeleteExpiredMagicLinks,
     passkeyStore.DeleteExpiredChallenges,
@@ -1283,7 +1283,7 @@ defer stop() // blocks until the goroutine exits
 
 - Each cleaner runs once immediately when `StartCleanup` is called, then once per `interval`. Each cleaner is called with the context passed to `StartCleanup`.
 - Errors returned by a cleaner are logged via `slog` at `ERROR` level with the fields `cleaner_name` and `error`. `cleaner_name` is usually the fully-qualified function name, but if the runtime cannot resolve one it falls back to a synthetic name such as `cleaner[0]`. Cleaners that panic are similarly recovered and logged with additional `panic` and `stack` fields.
-- Log output uses `slog.Default()` resolved at the time each log entry is written. Any call to `slog.SetDefault` made after `StartCleanup` returns is immediately reflected in subsequent cleanup log entries.
+- Log output uses the `logger` parameter. Pass nil to use `slog.Default()` resolved at the time each log entry is written. Any call to `slog.SetDefault` made after `StartCleanup` returns is immediately reflected in subsequent cleanup log entries.
 - `stop()` cancels the goroutine and blocks until it exits — always defer it to avoid goroutine leaks.
 - `interval` must be positive; `StartCleanup` panics otherwise.
 

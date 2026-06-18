@@ -278,7 +278,7 @@ func TestFindOrCreateUser_byOIDCSubject(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := findOrCreateUser(context.Background(), h.Users, "sub1", "a@b.com", "Alice")
+	user, err := findOrCreateUser(context.Background(), nil, h.Users, "sub1", "a@b.com", "Alice")
 	require.NoError(t, err)
 	require.Equal(t, "u1", user.ID)
 }
@@ -296,7 +296,7 @@ func TestFindOrCreateUser_byEmail(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := findOrCreateUser(context.Background(), h.Users, "sub2", "b@c.com", "Bob")
+	user, err := findOrCreateUser(context.Background(), nil, h.Users, "sub2", "b@c.com", "Bob")
 	require.NoError(t, err)
 	require.Equal(t, "u2", user.ID)
 }
@@ -321,7 +321,7 @@ func TestFindOrCreateUser_byEmailLinkError(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := findOrCreateUser(context.Background(), h.Users, "sub3", "c@d.com", "Carol")
+	user, err := findOrCreateUser(context.Background(), nil, h.Users, "sub3", "c@d.com", "Carol")
 	require.NoError(t, err)
 	require.Equal(t, "u3", user.ID)
 }
@@ -343,7 +343,7 @@ func TestFindOrCreateUser_byEmailAlreadyLinked(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := findOrCreateUser(context.Background(), h.Users, "sub4", "d@e.com", "Dave")
+	user, err := findOrCreateUser(context.Background(), nil, h.Users, "sub4", "d@e.com", "Dave")
 	require.NoError(t, err)
 	require.Equal(t, "u4", user.ID)
 }
@@ -375,7 +375,7 @@ func TestFindOrCreateUser_raceRetryLinkError(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := findOrCreateUser(context.Background(), h.Users, "sub5", "e@f.com", "Eve")
+	user, err := findOrCreateUser(context.Background(), nil, h.Users, "sub5", "e@f.com", "Eve")
 	require.NoError(t, err)
 	require.Equal(t, "u5", user.ID)
 }
@@ -405,7 +405,7 @@ func TestFindOrCreateUser_raceRetryAlreadyLinked(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := findOrCreateUser(context.Background(), h.Users, "sub6", "f@g.com", "Frank")
+	user, err := findOrCreateUser(context.Background(), nil, h.Users, "sub6", "f@g.com", "Frank")
 	require.NoError(t, err)
 	require.Equal(t, "u6", user.ID)
 }
@@ -425,7 +425,7 @@ func TestFindOrCreateUser_createsNew(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := findOrCreateUser(context.Background(), h.Users, "sub-new", "new@example.com", "New User")
+	user, err := findOrCreateUser(context.Background(), nil, h.Users, "sub-new", "new@example.com", "New User")
 	require.NoError(t, err)
 	require.Equal(t, "new-u", user.ID)
 }
@@ -448,7 +448,7 @@ func TestFindOrCreateUser_createError(t *testing.T) {
 	h := newTestOIDCHandler()
 	h.Users = store
 
-	user, err := findOrCreateUser(context.Background(), h.Users, "sub-err", "err@example.com", "Err User")
+	user, err := findOrCreateUser(context.Background(), nil, h.Users, "sub-err", "err@example.com", "Err User")
 	require.Error(t, err)
 	require.ErrorIs(t, err, dbErr)
 	require.Nil(t, user)
@@ -472,7 +472,7 @@ func TestHandleLinkCallback_success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
-	handleLinkCallback(w, req, h.Users, "user-1", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
+	handleLinkCallback(w, req, nil, h.Users, "user-1", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
 
 	require.Equal(t, http.StatusFound, w.Code)
 	require.Equal(t, "/?oidc_linked=true", w.Header().Get("Location"))
@@ -489,7 +489,7 @@ func TestHandleLinkCallback_userNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
-	handleLinkCallback(w, req, h.Users, "missing-user", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
+	handleLinkCallback(w, req, nil, h.Users, "missing-user", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
 
 	require.Equal(t, http.StatusFound, w.Code)
 	loc := w.Header().Get("Location")
@@ -508,7 +508,7 @@ func TestHandleLinkCallback_dbErrorOnFindByID(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
-	handleLinkCallback(w, req, h.Users, "user-1", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
+	handleLinkCallback(w, req, nil, h.Users, "user-1", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
 
 	require.Equal(t, http.StatusFound, w.Code)
 	loc := w.Header().Get("Location")
@@ -536,7 +536,7 @@ func TestHandleLinkCallback_dbErrorOnFindByOIDCSubject(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
-	handleLinkCallback(w, req, h.Users, "user-1", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
+	handleLinkCallback(w, req, nil, h.Users, "user-1", "oidc-sub", "/?oidc_linked=true", "oidc_link_error")
 
 	require.Equal(t, http.StatusFound, w.Code)
 	require.Contains(t, w.Header().Get("Location"), "oidc_link_error=")
@@ -556,7 +556,7 @@ func TestHandleLinkCallback_alreadyLinked(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
-	handleLinkCallback(w, req, h.Users, "user-1", "other-sub", "/?oidc_linked=true", "oidc_link_error")
+	handleLinkCallback(w, req, nil, h.Users, "user-1", "other-sub", "/?oidc_linked=true", "oidc_link_error")
 
 	require.Equal(t, http.StatusFound, w.Code)
 	loc := w.Header().Get("Location")
