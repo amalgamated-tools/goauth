@@ -105,7 +105,7 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 		cleanupOrphanedToken(r.Context(), h.Logger, "verification token", func() error {
 			_, delErr := h.Verifications.ConsumeEmailVerification(r.Context(), tokenHash)
 			return delErr
-		})
+		}, slog.String("user_id", user.ID))
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})

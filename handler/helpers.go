@@ -62,9 +62,14 @@ func logOrDefault(l *slog.Logger) *slog.Logger {
 
 // cleanupOrphanedToken best-effort deletes a token after email sending fails.
 // Deletion errors are logged but never returned to callers.
-func cleanupOrphanedToken(ctx context.Context, logger *slog.Logger, description string, del func() error) {
+func cleanupOrphanedToken(ctx context.Context, logger *slog.Logger, description string, del func() error, attrs ...slog.Attr) {
 	if err := del(); err != nil && !errors.Is(err, auth.ErrNotFound) {
-		logOrDefault(logger).ErrorContext(ctx, "failed to delete orphaned "+description, slog.Any("error", err))
+		args := make([]any, 0, len(attrs)+1)
+		args = append(args, slog.Any("error", err))
+		for _, a := range attrs {
+			args = append(args, a)
+		}
+		logOrDefault(logger).ErrorContext(ctx, "failed to delete orphaned "+description, args...)
 	}
 }
 
