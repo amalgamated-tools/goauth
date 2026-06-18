@@ -299,13 +299,15 @@ func main() {
 
     // 3. Configure the AuthHandler.
     authH := &handler.AuthHandler{
-        Users:             users,
-        JWT:               jwtMgr,
-        CookieName:        "session",
-        SecureCookies:     false, // set true in production (HTTPS only)
-        Sessions:          sessions,
-        RefreshTokenTTL:   7 * 24 * time.Hour,
-        RefreshCookieName: "refresh",
+        Users: users,
+        JWT:   jwtMgr,
+        SessionConfig: handler.SessionConfig{
+            CookieName:        "session",
+            SecureCookies:     false, // set true in production (HTTPS only)
+            Sessions:          sessions,
+            RefreshTokenTTL:   7 * 24 * time.Hour,
+            RefreshCookieName: "refresh",
+        },
     }
     if err := authH.Validate(); err != nil {
         log.Fatal("authH:", err)
@@ -330,7 +332,7 @@ func main() {
 
     // 5. Start the maintenance background worker.
     ctx := context.Background()
-    stop := maintenance.StartCleanup(ctx, 10*time.Minute,
+    stop := maintenance.StartCleanup(ctx, nil, 10*time.Minute,
         sessions.DeleteExpiredSessions,
     )
     defer stop()
