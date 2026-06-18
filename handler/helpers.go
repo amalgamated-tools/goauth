@@ -60,6 +60,14 @@ func logOrDefault(l *slog.Logger) *slog.Logger {
 	return slog.Default()
 }
 
+// cleanupOrphanedToken best-effort deletes a token after email sending fails.
+// Deletion errors are logged but never returned to callers.
+func cleanupOrphanedToken(ctx context.Context, logger *slog.Logger, description string, del func() error) {
+	if err := del(); err != nil && !errors.Is(err, auth.ErrNotFound) {
+		logOrDefault(logger).ErrorContext(ctx, "failed to delete orphaned "+description, slog.Any("error", err))
+	}
+}
+
 func deleteUserResource(
 	w http.ResponseWriter,
 	r *http.Request,

@@ -103,10 +103,10 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 	if err := h.Sender(r.Context(), req.Email, token); err != nil {
 		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to send magic link email",
 			slog.Any("error", err))
-		// Delete the orphaned token so state stays consistent.
-		if _, delErr := h.MagicLinks.FindAndDeleteMagicLink(r.Context(), tokenHash); delErr != nil && !errors.Is(delErr, auth.ErrNotFound) {
-			logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to delete orphaned magic link", slog.Any("error", delErr))
-		}
+		cleanupOrphanedToken(r.Context(), h.Logger, "magic link", func() error {
+			_, delErr := h.MagicLinks.FindAndDeleteMagicLink(r.Context(), tokenHash)
+			return delErr
+		})
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK,

@@ -106,10 +106,9 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 
 		if err := h.SendResetEmail(r.Context(), user.Email, rawToken); err != nil {
 			logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: send email", slog.Any("error", err))
-			// Delete the orphaned token so state stays consistent.
-			if delErr := h.Resets.DeletePasswordResetToken(r.Context(), token.ID); delErr != nil {
-				logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: cleanup token after email failure", slog.Any("error", delErr))
-			}
+			cleanupOrphanedToken(r.Context(), h.Logger, "password reset token", func() error {
+				return h.Resets.DeletePasswordResetToken(r.Context(), token.ID)
+			})
 		}
 	}
 
