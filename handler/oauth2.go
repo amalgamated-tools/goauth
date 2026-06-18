@@ -80,7 +80,7 @@ func (h *OAuth2Handler) Validate() error {
 	if err := requireField("OAuth2Handler", "JWT", h.JWT); err != nil {
 		return err
 	}
-	return h.validate("OAuth2Handler")
+	return h.SessionConfig.Validate("OAuth2Handler")
 }
 
 func (h *OAuth2Handler) loginRedirectURL() string {

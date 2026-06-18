@@ -84,7 +84,7 @@ func (h *AuthHandler) Validate() error {
 	if err := requireField("AuthHandler", "JWT", h.JWT); err != nil {
 		return err
 	}
-	return h.validate("AuthHandler")
+	return h.SessionConfig.Validate("AuthHandler")
 }
 
 // Signup creates a new user account.

@@ -69,8 +69,8 @@ type SessionConfig struct {
 	RefreshCookieName string
 }
 
-// validate returns an error when Sessions is set without a RefreshCookieName.
-func (c SessionConfig) validate(handlerName string) error {
+// Validate returns an error when Sessions is set without a RefreshCookieName.
+func (c SessionConfig) Validate(handlerName string) error {
 	return validateSessionConfig(handlerName, c.Sessions, c.RefreshCookieName)
 }
 
