@@ -392,9 +392,10 @@ func TestRequestReset_oidcOnlyUserSkipsToken(t *testing.T) {
 func TestRequestReset_rateLimited(t *testing.T) {
 	rl := auth.NewRateLimiter(0, 1) // rate=0/sec, burst=1: first request passes, second is denied
 	h := &PasswordResetHandler{
-		Users:       &mockUserStore{},
-		Resets:      &mockPasswordResetStore{},
-		RateLimiter: rl,
+		Users:          &mockUserStore{},
+		Resets:         &mockPasswordResetStore{},
+		SendResetEmail: func(ctx context.Context, email, token string) error { return nil },
+		RateLimiter:    rl,
 	}
 	postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`) // consumes the burst
 	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
