@@ -74,8 +74,13 @@ func (h *MagicLinkHandler) Validate() error {
 //
 // It creates a token, stores its SHA-256 hash, and invokes the Sender. The
 // response is always 200 regardless of whether the email is registered, so
-// that callers cannot enumerate valid addresses.
+// that callers cannot enumerate valid addresses. Returns 503 if Sender is nil
+// (misconfiguration).
 func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Request) {
+	if h.Sender == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "email sending not configured")
+		return
+	}
 	var req magicLinkRequestBody
 	if !decodeJSON(r, w, &req) {
 		return

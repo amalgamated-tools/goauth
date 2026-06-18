@@ -59,6 +59,10 @@ type resetPasswordRequest struct {
 // the raw token via SendResetEmail. Always returns 200 OK to avoid leaking
 // whether the email address is registered.
 func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Request) {
+	if h.SendResetEmail == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "email sending not configured")
+		return
+	}
 	if h.RateLimiter != nil && !h.RateLimiter.Allow(r) {
 		writeError(r.Context(), w, http.StatusTooManyRequests, "too many requests")
 		return
