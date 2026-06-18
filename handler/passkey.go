@@ -122,7 +122,7 @@ func loadWebAuthnCredentials(ctx context.Context, logger *slog.Logger, creds []a
 	for i := range creds {
 		var waCred webauthn.Credential
 		if err := json.Unmarshal([]byte(creds[i].CredentialData), &waCred); err != nil {
-			logger.WarnContext(ctx, "skipping corrupted passkey credential", slog.String("id", creds[i].ID))
+			logger.WarnContext(ctx, "skipping corrupted passkey credential", slog.String("id", creds[i].ID), slog.Any("error", err))
 			continue
 		}
 		result = append(result, waCred)
@@ -363,7 +363,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 			slog.Any("error", err))
 	}
 
-	token, refreshToken, ok := issueTokens(w, r, authedUserID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
+	token, refreshToken, ok := issueTokens(w, r, h.Logger, authedUserID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}

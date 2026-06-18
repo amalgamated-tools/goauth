@@ -128,7 +128,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 	link, err := h.MagicLinks.FindAndDeleteMagicLink(r.Context(), tokenHash)
 	if err != nil {
 		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired token")
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired token")
 			return
 		}
 		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to find magic link", slog.Any("error", err))
@@ -136,7 +136,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if time.Now().UTC().After(link.ExpiresAt) {
-		writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired token")
+		writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired token")
 		return
 	}
 
@@ -147,7 +147,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	jwtToken, refreshToken, ok := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
+	jwtToken, refreshToken, ok := issueTokens(w, r, h.Logger, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}

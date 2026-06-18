@@ -633,7 +633,7 @@ func TestIssueTokens_noSessions(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	w := httptest.NewRecorder()
 
-	access, refresh, ok := issueTokens(w, req, "user-1", nil, newTestJWT(), "auth", false, "", 0)
+	access, refresh, ok := issueTokens(w, req, nil, "user-1", nil, newTestJWT(), "auth", false, "", 0)
 
 	require.True(t, ok)
 	require.NotEmpty(t, access)
@@ -715,7 +715,7 @@ func TestIssueTokens_withSessions_refreshCookie(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	w := httptest.NewRecorder()
 
-	access, refresh, ok := issueTokens(w, req, "user-1", sessions, newTestJWT(), "auth", false, "refresh", time.Hour)
+	access, refresh, ok := issueTokens(w, req, nil, "user-1", sessions, newTestJWT(), "auth", false, "refresh", time.Hour)
 
 	require.True(t, ok)
 	require.NotEmpty(t, access)
@@ -743,7 +743,7 @@ func TestIssueTokens_withSessions_noRefreshCookieName(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	w := httptest.NewRecorder()
 
-	access, refresh, ok := issueTokens(w, req, "user-1", sessions, newTestJWT(), "auth", false, "", time.Hour)
+	access, refresh, ok := issueTokens(w, req, nil, "user-1", sessions, newTestJWT(), "auth", false, "", time.Hour)
 
 	require.False(t, ok)
 	require.Empty(t, access)

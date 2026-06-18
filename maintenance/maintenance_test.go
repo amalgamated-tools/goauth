@@ -20,7 +20,7 @@ func TestStartCleanup_callsCleaners(t *testing.T) {
 		return nil
 	}
 
-	stop := StartCleanup(context.Background(), 10*time.Millisecond, cleaner)
+	stop := StartCleanup(context.Background(), nil, 10*time.Millisecond, cleaner)
 	defer stop()
 
 	require.Eventually(t, func() bool {
@@ -35,7 +35,7 @@ func TestStartCleanup_stopsOnStop(t *testing.T) {
 		return nil
 	}
 
-	stop := StartCleanup(context.Background(), 10*time.Millisecond, cleaner)
+	stop := StartCleanup(context.Background(), nil, 10*time.Millisecond, cleaner)
 	// Let it run at least once.
 	require.Eventually(t, func() bool {
 		return calls.Load() >= 1
@@ -55,7 +55,7 @@ func TestStartCleanup_logsErrorAndContinues(t *testing.T) {
 		return errors.New("db error")
 	}
 
-	stop := StartCleanup(context.Background(), 10*time.Millisecond, cleaner)
+	stop := StartCleanup(context.Background(), nil, 10*time.Millisecond, cleaner)
 	defer stop()
 
 	// Even when cleaners return errors, the loop must continue.
@@ -69,7 +69,7 @@ func TestStartCleanup_multipleCleaners(t *testing.T) {
 	cleanerA := func(_ context.Context) error { a.Add(1); return nil }
 	cleanerB := func(_ context.Context) error { b.Add(1); return nil }
 
-	stop := StartCleanup(context.Background(), 10*time.Millisecond, cleanerA, cleanerB)
+	stop := StartCleanup(context.Background(), nil, 10*time.Millisecond, cleanerA, cleanerB)
 	defer stop()
 
 	require.Eventually(t, func() bool {
@@ -86,7 +86,7 @@ func TestStartCleanup_parentContextCancellation(t *testing.T) {
 		return nil
 	}
 
-	stop := StartCleanup(ctx, 10*time.Millisecond, cleaner)
+	stop := StartCleanup(ctx, nil, 10*time.Millisecond, cleaner)
 	defer stop()
 
 	require.Eventually(t, func() bool {
@@ -101,10 +101,10 @@ func TestStartCleanup_parentContextCancellation(t *testing.T) {
 func TestStartCleanup_panicsOnInvalidInterval(t *testing.T) {
 	noop := func(context.Context) error { return nil }
 	require.Panics(t, func() {
-		StartCleanup(context.Background(), 0, noop)
+		StartCleanup(context.Background(), nil, 0, noop)
 	})
 	require.Panics(t, func() {
-		StartCleanup(context.Background(), -time.Second, noop)
+		StartCleanup(context.Background(), nil, -time.Second, noop)
 	})
 }
 
@@ -115,7 +115,7 @@ func TestStartCleanup_recoversPanic(t *testing.T) {
 		panic("intentional test panic")
 	}
 
-	stop := StartCleanup(context.Background(), 10*time.Millisecond, cleaner)
+	stop := StartCleanup(context.Background(), nil, 10*time.Millisecond, cleaner)
 	defer stop()
 
 	// Panicking cleaners must not crash the process; the loop must continue.
@@ -134,7 +134,7 @@ func TestStartCleanup_logsCleanerNameOnError(t *testing.T) {
 	t.Cleanup(func() { slog.SetDefault(orig) })
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
 
-	stop := StartCleanup(context.Background(), time.Hour, namedErrorCleaner)
+	stop := StartCleanup(context.Background(), nil, time.Hour, namedErrorCleaner)
 	stop()
 
 	var record struct {
@@ -154,7 +154,7 @@ func TestStartCleanup_logsCleanerNameOnPanic(t *testing.T) {
 	t.Cleanup(func() { slog.SetDefault(orig) })
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
 
-	stop := StartCleanup(context.Background(), time.Hour, namedPanicCleaner)
+	stop := StartCleanup(context.Background(), nil, time.Hour, namedPanicCleaner)
 	stop()
 
 	var record struct {
@@ -175,7 +175,7 @@ func TestStartCleanup_usesCurrentDefaultLoggerAtLogTime(t *testing.T) {
 		return errors.New("db error")
 	}
 
-	stop := StartCleanup(context.Background(), time.Hour, cleaner)
+	stop := StartCleanup(context.Background(), nil, time.Hour, cleaner)
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
 	close(release)
 	stop()
