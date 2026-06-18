@@ -122,7 +122,7 @@ func loadWebAuthnCredentials(ctx context.Context, logger *slog.Logger, creds []a
 	for i := range creds {
 		var waCred webauthn.Credential
 		if err := json.Unmarshal([]byte(creds[i].CredentialData), &waCred); err != nil {
-			logger.WarnContext(ctx, "skipping corrupted passkey credential", slog.String("id", creds[i].ID))
+			logger.WarnContext(ctx, "skipping corrupted passkey credential", slog.String("id", creds[i].ID), slog.Any("error", err))
 			continue
 		}
 		result = append(result, waCred)
@@ -181,14 +181,8 @@ func (h *PasskeyHandler) BeginRegistration(w http.ResponseWriter, r *http.Reques
 	}
 
 	userID := auth.UserIDFromContext(r.Context())
-	user, err := h.Users.FindByID(r.Context(), userID)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "user not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
+	user, ok := lookupUserByID(w, r, h.Logger, h.Users, userID)
+	if !ok {
 		return
 	}
 	existingCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
@@ -239,14 +233,8 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	user, err := h.Users.FindByID(r.Context(), userID)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "user not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
+	user, ok := lookupUserByID(w, r, h.Logger, h.Users, userID)
+	if !ok {
 		return
 	}
 	existingCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
@@ -375,7 +363,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 			slog.Any("error", err))
 	}
 
-	token, refreshToken, ok := issueTokens(w, r, authedUserID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
+	token, refreshToken, ok := issueTokens(w, r, h.Logger, authedUserID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}

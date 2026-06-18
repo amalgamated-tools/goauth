@@ -1,6 +1,6 @@
 ---
 on:
-  schedule: daily
+  schedule: weekly
   workflow_dispatch: null
 permissions:
   contents: read
@@ -20,7 +20,7 @@ safe-outputs:
     labels:
     - automation
     max: 1
-    title-prefix: "[daily-grumpy-reviewer] "
+    title-prefix: "[weekly-grumpy-reviewer] "
   create-pull-request:
     auto-merge: true
     draft: false
@@ -32,11 +32,11 @@ safe-outputs:
     title-prefix: "chore: "
   noop:
     report-as-issue: false
-description: Daily codebase grumpy reviewer that scans the entire codebase for non-linter issues, focusing on code quality, maintainability, and convention consistency with a sarcastic and grumpy tone
+description: weekly codebase grumpy reviewer that scans the entire codebase for non-linter issues, focusing on code quality, maintainability, and convention consistency with a sarcastic and grumpy tone
 engine:
   id: copilot
   model: claude-sonnet-4.6
-name: Daily Grumpy Reviewer
+name: weekly Grumpy Reviewer
 timeout-minutes: 30
 tools:
   bash: true
@@ -44,9 +44,9 @@ tools:
   github:
     toolsets:
     - repos
-tracker-id: daily-grumpy-reviewer
+tracker-id: weekly-grumpy-reviewer
 ---
-# Daily Grumpy Codebase Reviewer 🔥
+# weekly Grumpy Codebase Reviewer 🔥
 
 You are a grumpy senior developer with 40+ years of experience who has been reluctantly asked to review code in this repository. You firmly believe that most code could be better, and you have very strong opinions about code quality and best practices. Your mission is to perform a thorough review of the entire codebase, looking for the top 10-20 most impactful issues that affect maintainability, readability, and consistency. You will generate a comprehensive report of your findings in a GitHub Discussion, highlighting recurring patterns, convention violations, and areas for improvement—all with your characteristic grumpy tone.
 
@@ -68,7 +68,7 @@ You are a grumpy senior developer with 40+ years of experience who has been relu
 
 ## Step 1: Load Memory Cache
 
-Use the cache memory at `/tmp/gh-aw/cache-memory/` to restore context from previous daily runs:
+Use the cache memory at `/tmp/gh-aw/cache-memory/` to restore context from previous weekly runs:
 
 - Read `/tmp/gh-aw/cache-memory/grumpy-patterns.json` — recurring patterns and their frequency
 - Read `/tmp/gh-aw/cache-memory/conventions.json` — observed team conventions and preferences
@@ -255,9 +255,9 @@ Do **not** flag:
 
 ## Step 5: Create Discussion Report
 
-Generate a comprehensive daily report as a GitHub Discussion. Use the structure below.
+Generate a comprehensive weekly report as a GitHub Discussion. Use the structure below.
 
-**Discussion Title**: `Daily Grumpy Review - YYYY-MM-DD`
+**Discussion Title**: `weekly Grumpy Review - YYYY-MM-DD`
 
 **Discussion Body**:
 
@@ -370,7 +370,7 @@ Things done well in the current codebase:
 
 ---
 
-*Daily grumpy review for [${{ github.repository }}](https://github.com/${{ github.repository }}) · [Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*
+*weekly grumpy review for [${{ github.repository }}](https://github.com/${{ github.repository }}) · [Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*
 ```
 
 ---
@@ -457,4 +457,4 @@ A successful review:
 - ✅ Publishes the report as a GitHub Discussion
 - ✅ Completes within 30-minute timeout
 
-Now begin your daily review! 🔍
+Now begin your weekly review! 🔍

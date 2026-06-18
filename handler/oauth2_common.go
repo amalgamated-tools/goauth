@@ -109,10 +109,10 @@ func validateOAuthCallbackFlow(
 // linkSubjectBestEffort attempts to link an OIDC subject to an existing user.
 // A failure (other than ErrOIDCSubjectAlreadyLinked) is logged as a warning
 // but does not prevent the caller from completing login.
-func linkSubjectBestEffort(ctx context.Context, users auth.UserStore, userID, subject, path string) {
+func linkSubjectBestEffort(ctx context.Context, logger *slog.Logger, users auth.UserStore, userID, subject, path string) {
 	err := users.LinkOIDCSubject(ctx, userID, subject)
 	if err != nil && !errors.Is(err, auth.ErrOIDCSubjectAlreadyLinked) {
-		slog.WarnContext(ctx, "failed to link OIDC subject to email-matched user",
+		logOrDefault(logger).WarnContext(ctx, "failed to link OIDC subject to email-matched user",
 			slog.String("user_id", userID),
 			slog.String("path", path),
 			slog.Any("error", err),
@@ -123,14 +123,14 @@ func linkSubjectBestEffort(ctx context.Context, users auth.UserStore, userID, su
 // findOrCreateUser looks up the user identified by subject, falling back to
 // email lookup and account creation. It handles concurrent-creation races by
 // retrying the lookup when CreateOIDCUser returns ErrEmailExists.
-func findOrCreateUser(ctx context.Context, users auth.UserStore, subject, email, name string) (*auth.User, error) {
+func findOrCreateUser(ctx context.Context, logger *slog.Logger, users auth.UserStore, subject, email, name string) (*auth.User, error) {
 	if user, err := users.FindByOIDCSubject(ctx, subject); err == nil {
 		return user, nil
 	} else if !errors.Is(err, auth.ErrNotFound) {
 		return nil, err
 	}
 	if user, err := users.FindByEmail(ctx, email); err == nil {
-		linkSubjectBestEffort(ctx, users, user.ID, subject, "email_match")
+		linkSubjectBestEffort(ctx, logger, users, user.ID, subject, "email_match")
 		return user, nil
 	} else if !errors.Is(err, auth.ErrNotFound) {
 		return nil, err
@@ -149,7 +149,7 @@ func findOrCreateUser(ctx context.Context, users auth.UserStore, subject, email,
 	}
 	u, err := users.FindByEmail(ctx, email)
 	if err == nil {
-		linkSubjectBestEffort(ctx, users, u.ID, subject, "race_retry")
+		linkSubjectBestEffort(ctx, logger, users, u.ID, subject, "race_retry")
 		return u, nil
 	} else if !errors.Is(err, auth.ErrNotFound) {
 		return nil, fmt.Errorf("look up user by email after email race: %w", err)
@@ -158,7 +158,7 @@ func findOrCreateUser(ctx context.Context, users auth.UserStore, subject, email,
 }
 
 // createLinkNonce issues a single-use account-linking nonce.
-func createLinkNonce(w http.ResponseWriter, r *http.Request, store auth.OIDCLinkNonceStore, ttl time.Duration) {
+func createLinkNonce(w http.ResponseWriter, r *http.Request, logger *slog.Logger, store auth.OIDCLinkNonceStore, ttl time.Duration) {
 	if store == nil {
 		writeError(r.Context(), w, http.StatusServiceUnavailable, "account linking not configured")
 		return
@@ -167,14 +167,14 @@ func createLinkNonce(w http.ResponseWriter, r *http.Request, store auth.OIDCLink
 	userID := auth.UserIDFromContext(r.Context())
 	nonce, err := auth.GenerateRandomBase64(32)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to generate link nonce", slog.Any("error", err), slog.String("user_id", userID))
+		logOrDefault(logger).ErrorContext(r.Context(), "failed to generate link nonce", slog.Any("error", err), slog.String("user_id", userID))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to generate nonce")
 		return
 	}
 
 	nonceHash := auth.HashHighEntropyToken(nonce)
 	if _, err := store.CreateLinkNonce(r.Context(), userID, nonceHash, time.Now().UTC().Add(ttl)); err != nil {
-		slog.ErrorContext(r.Context(), "failed to store link nonce", slog.Any("error", err))
+		logOrDefault(logger).ErrorContext(r.Context(), "failed to store link nonce", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to store nonce")
 		return
 	}
@@ -298,13 +298,14 @@ func consumeLinkNonce(ctx context.Context, store auth.OIDCLinkNonceStore, nonce 
 // successURL; on failure it redirects to "/?<errorParam>=<message>".
 func handleLinkCallback(
 	w http.ResponseWriter, r *http.Request,
+	logger *slog.Logger,
 	users auth.UserStore,
 	linkUserID, subject string,
 	successURL, errorParam string,
 ) {
 	errRedirect := func(logMsg, redirectMsg string, logErr error) {
 		if logMsg != "" && logErr != nil {
-			slog.ErrorContext(r.Context(), logMsg, slog.Any("error", logErr))
+			logOrDefault(logger).ErrorContext(r.Context(), logMsg, slog.Any("error", logErr))
 		}
 		http.Redirect(w, r, "/?"+errorParam+"="+url.QueryEscape(redirectMsg), http.StatusFound)
 	}

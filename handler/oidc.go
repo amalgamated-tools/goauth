@@ -182,18 +182,18 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if flow.LinkUserID != "" {
-		handleLinkCallback(w, r, h.Users, flow.LinkUserID, claims.Sub, "/?oidc_linked=true", "oidc_link_error")
+		handleLinkCallback(w, r, h.Logger, h.Users, flow.LinkUserID, claims.Sub, "/?oidc_linked=true", "oidc_link_error")
 		return
 	}
 
-	user, err := findOrCreateUser(r.Context(), h.Users, claims.Sub, claims.Email, claims.Name)
+	user, err := findOrCreateUser(r.Context(), h.Logger, h.Users, claims.Sub, claims.Email, claims.Name)
 	if err != nil {
 		logOrDefault(h.Logger).ErrorContext(r.Context(), "OIDC user resolution failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to process user")
 		return
 	}
 
-	if _, _, issueOK := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL); !issueOK {
+	if _, _, issueOK := issueTokens(w, r, h.Logger, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL); !issueOK {
 		return
 	}
 
@@ -202,7 +202,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 // CreateLinkNonce issues a nonce for OIDC account linking.
 func (h *OIDCHandler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
-	createLinkNonce(w, r, h.LinkNonces, oidcStateCookieTTL)
+	createLinkNonce(w, r, h.Logger, h.LinkNonces, oidcStateCookieTTL)
 }
 
 // Link validates the nonce and redirects for account linking.
