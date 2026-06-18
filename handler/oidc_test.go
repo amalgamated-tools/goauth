@@ -19,6 +19,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	// go-jose is used to construct cryptographically-valid RS256 id_tokens for fake OIDC providers in tests.
 	"github.com/go-jose/go-jose/v4"
+	josejwt "github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 )
@@ -100,11 +101,7 @@ func newSignedOIDCProvider(t *testing.T, jwksKey, signingKey *rsa.PrivateKey, cl
 		(&jose.SignerOptions{}).WithHeader("kid", "test-key"),
 	)
 	require.NoError(t, err)
-	claimsJSON, err := json.Marshal(merged)
-	require.NoError(t, err)
-	signed, err := signer.Sign(claimsJSON)
-	require.NoError(t, err)
-	idToken, err = signed.CompactSerialize()
+	idToken, err = josejwt.Signed(signer).Claims(merged).Serialize()
 	require.NoError(t, err)
 
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
