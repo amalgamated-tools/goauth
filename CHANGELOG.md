@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.1](https://github.com/amalgamated-tools/goauth/compare/v0.7.0...v0.7.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* add nil sender guards (HTTP 503) and align documentation ([#569](https://github.com/amalgamated-tools/goauth/issues/569)) ([363518f](https://github.com/amalgamated-tools/goauth/commit/363518fbccd7392b22e8678b74d3f0b5d435de9c))
+* resolve 8 recurring grumpy review patterns (bare slog, TOTP test bug, token expiry inconsistency) ([#568](https://github.com/amalgamated-tools/goauth/issues/568)) ([ffa5850](https://github.com/amalgamated-tools/goauth/commit/ffa5850a30eb7774a58e904db60674e4ab151eb2))
+
 ## [0.7.0](https://github.com/amalgamated-tools/goauth/compare/v0.6.1...v0.7.0) (2026-06-09)
 
 
