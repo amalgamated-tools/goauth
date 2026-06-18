@@ -52,18 +52,8 @@ type OAuth2Handler struct {
 	OAuthConfig oauth2.Config
 	// Provider fetches the user's identity from the OAuth2 provider after code
 	// exchange. Must be non-nil.
-	Provider      OAuth2IdentityProvider
-	CookieName    string
-	SecureCookies bool
-	// Sessions is optional; nil disables session tracking and refresh tokens.
-	Sessions auth.SessionStore
-	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
-	// DefaultRefreshTokenTTL when Sessions is non-nil.
-	RefreshTokenTTL time.Duration
-	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. Must be non-empty when Sessions is set; call Validate at
-	// startup to catch this misconfiguration early.
-	RefreshCookieName string
+	Provider OAuth2IdentityProvider
+	SessionConfig
 	// LinkNonces is the store used to persist single-use account-linking nonces.
 	// When nil, CreateLinkNonce and Link return HTTP 503.
 	LinkNonces auth.OIDCLinkNonceStore
@@ -90,7 +80,7 @@ func (h *OAuth2Handler) Validate() error {
 	if err := requireField("OAuth2Handler", "JWT", h.JWT); err != nil {
 		return err
 	}
-	return validateSessionConfig("OAuth2Handler", h.Sessions, h.RefreshCookieName)
+	return h.SessionConfig.validate("OAuth2Handler")
 }
 
 func (h *OAuth2Handler) loginRedirectURL() string {

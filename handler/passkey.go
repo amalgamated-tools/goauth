@@ -35,22 +35,13 @@ var (
 // PasskeyHandler holds dependencies for WebAuthn endpoints.
 // URLParamFunc extracts URL parameters (router-agnostic).
 type PasskeyHandler struct {
-	Users         auth.UserStore
-	Passkeys      auth.PasskeyStore
-	WebAuthn      webAuthnProvider
-	JWT           *auth.JWTManager
-	CookieName    string
-	SecureCookies bool
-	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
-	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
-	// DefaultRefreshTokenTTL when Sessions is non-nil.
-	RefreshTokenTTL time.Duration
-	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. Must be non-empty when Sessions is set; call Validate at
-	// startup to catch this misconfiguration early.
-	RefreshCookieName string
-	URLParamFunc      func(r *http.Request, key string) string
-	Logger            *slog.Logger
+	Users    auth.UserStore
+	Passkeys auth.PasskeyStore
+	WebAuthn webAuthnProvider
+	JWT      *auth.JWTManager
+	SessionConfig
+	URLParamFunc func(r *http.Request, key string) string
+	Logger       *slog.Logger
 }
 
 // Validate checks that the handler is correctly configured and returns an error
@@ -75,7 +66,7 @@ func (h *PasskeyHandler) Validate() error {
 			return errors.New("PasskeyHandler misconfigured: JWT is required when WebAuthn is configured")
 		}
 	}
-	return validateSessionConfig("PasskeyHandler", h.Sessions, h.RefreshCookieName)
+	return h.SessionConfig.validate("PasskeyHandler")
 }
 
 type passkeyUser struct {

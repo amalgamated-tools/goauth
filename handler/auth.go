@@ -12,26 +12,17 @@ import (
 )
 
 // DefaultRefreshTokenTTL is the default lifetime for refresh tokens when
-// Sessions is configured on AuthHandler.
+// Sessions is configured on a handler.
 const DefaultRefreshTokenTTL = 7 * 24 * time.Hour
 
 var dummyLoginBcryptHash = auth.MustGenerateDummyBcryptHash("dummy-login-password")
 
 // AuthHandler holds dependencies for email/password auth endpoints.
 type AuthHandler struct {
-	Users    auth.UserStore
-	JWT      *auth.JWTManager
-	Sessions auth.SessionStore // optional; nil disables session tracking and refresh tokens
-	Logger   *slog.Logger
-	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
-	// DefaultRefreshTokenTTL when Sessions is non-nil.
-	RefreshTokenTTL time.Duration
-	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. Required when Sessions is non-nil; omitting it causes
-	// token issuance to return HTTP 500 "server misconfiguration".
-	RefreshCookieName   string
-	CookieName          string
-	SecureCookies       bool
+	Users  auth.UserStore
+	JWT    *auth.JWTManager
+	Logger *slog.Logger
+	SessionConfig
 	DisableSignup       bool
 	RequireVerification bool
 }
@@ -93,7 +84,7 @@ func (h *AuthHandler) Validate() error {
 	if err := requireField("AuthHandler", "JWT", h.JWT); err != nil {
 		return err
 	}
-	return validateSessionConfig("AuthHandler", h.Sessions, h.RefreshCookieName)
+	return h.SessionConfig.validate("AuthHandler")
 }
 
 // Signup creates a new user account.

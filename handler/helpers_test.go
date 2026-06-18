@@ -336,12 +336,14 @@ func (m *mockTokenCreator) CreateTokenWithSession(userID, sessionID string) (str
 
 func newAuthHandlerWithSessions(store auth.UserStore, sessions auth.SessionStore) *AuthHandler {
 	return &AuthHandler{
-		Users:             store,
-		JWT:               newTestJWT(),
-		Sessions:          sessions,
-		CookieName:        "auth",
-		RefreshCookieName: "refresh",
-		SecureCookies:     false,
+		Users: store,
+		JWT:   newTestJWT(),
+		SessionConfig: SessionConfig{
+			Sessions:          sessions,
+			CookieName:        "auth",
+			RefreshCookieName: "refresh",
+			SecureCookies:     false,
+		},
 	}
 }
 

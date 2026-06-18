@@ -51,6 +51,29 @@ func validateSessionConfig(handlerName string, sessions auth.SessionStore, refre
 	return nil
 }
 
+// SessionConfig holds the shared session-management fields used by handlers
+// that support stateful login flows (AuthHandler, MagicLinkHandler,
+// OAuth2Handler, OIDCHandler, and PasskeyHandler). Embed this struct in a
+// handler to avoid repeating the same five fields across every handler type.
+type SessionConfig struct {
+	CookieName    string
+	SecureCookies bool
+	// Sessions is optional; nil disables session tracking and refresh tokens.
+	Sessions auth.SessionStore
+	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
+	// DefaultRefreshTokenTTL when Sessions is non-nil.
+	RefreshTokenTTL time.Duration
+	// RefreshCookieName is the name of the HttpOnly cookie used to store the
+	// refresh token. Must be non-empty when Sessions is set; call Validate at
+	// startup to catch this misconfiguration early.
+	RefreshCookieName string
+}
+
+// validate returns an error when Sessions is set without a RefreshCookieName.
+func (c SessionConfig) validate(handlerName string) error {
+	return validateSessionConfig(handlerName, c.Sessions, c.RefreshCookieName)
+}
+
 // logOrDefault returns the given logger, falling back to slog.Default() when it
 // is nil.
 func logOrDefault(l *slog.Logger) *slog.Logger {
