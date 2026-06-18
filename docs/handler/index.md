@@ -138,6 +138,18 @@ type AuthResponse struct {
 }
 ```
 
+## Shared constants and cookie helpers
+
+`handler.DefaultRefreshTokenTTL` (7 days) is the default lifetime for refresh tokens, the refresh cookie `Max-Age`, and server-side session expiry. Reference it directly when configuring `RefreshTokenTTL` on any handler that supports sessions:
+
+```go
+h.RefreshTokenTTL = handler.DefaultRefreshTokenTTL // 7 days
+```
+
+When `RefreshTokenTTL` is unset or ≤ 0 and `Sessions` is non-nil, handlers fall back to this default automatically.
+
+For low-level utilities that set and clear auth and refresh cookies in custom handlers, see [Cookie helpers](cookies.md).
+
 ## Error responses
 
 All handlers return errors as JSON with the `Content-Type: application/json` header. The shape is always:

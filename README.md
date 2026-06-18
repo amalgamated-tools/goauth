@@ -32,13 +32,15 @@ jwtMgr, err := auth.NewJWTManager("your-secret-at-least-32-bytes-long", 15*time.
 
 // 3. Wire up handlers.
 authHandler := &handler.AuthHandler{
-    Users:             userStore,
-    JWT:               jwtMgr,
-    CookieName:        "session",
-    SecureCookies:     true,
-    Sessions:          sessionStore,      // enables server-side sessions + refresh tokens
-    RefreshTokenTTL:   7 * 24 * time.Hour,
-    RefreshCookieName: "refresh",         // required when Sessions is set
+    Users: userStore,
+    JWT:   jwtMgr,
+    SessionConfig: handler.SessionConfig{
+        CookieName:        "session",
+        SecureCookies:     true,
+        Sessions:          sessionStore,      // enables server-side sessions + refresh tokens
+        RefreshTokenTTL:   7 * 24 * time.Hour,
+        RefreshCookieName: "refresh",         // required when Sessions is set
+    },
 }
 apiKeyHandler := &handler.APIKeyHandler{
     APIKeys:      apiKeyStore,
@@ -512,13 +514,15 @@ All handlers use `net/http` only and are compatible with any router. Router-spec
 h := &handler.AuthHandler{
     Users:             userStore,
     JWT:               jwtMgr,
-    CookieName:        "session",
-    SecureCookies:     true,
     DisableSignup:     false,    // set true to prevent self-registration
-    Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
-    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // 7-day default (handler.DefaultRefreshTokenTTL); only used when Sessions is set
-    RefreshCookieName: "refresh",  // required when Sessions is set; stores refresh token in an HttpOnly cookie
     RequireVerification: true,     // optional; rejects login for unverified email addresses
+    SessionConfig: handler.SessionConfig{
+        CookieName:        "session",
+        SecureCookies:     true,
+        Sessions:          sessionStore, // optional; enables session tracking and refresh tokens
+        RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // 7-day default (handler.DefaultRefreshTokenTTL); only used when Sessions is set
+        RefreshCookieName: "refresh",  // required when Sessions is set; stores refresh token in an HttpOnly cookie
+    },
 }
 
 // Routes
@@ -726,9 +730,11 @@ h := &handler.OAuth2Handler{
         Endpoint:     github.Endpoint, // from golang.org/x/oauth2/github
         Scopes:       []string{"read:user", "user:email"},
     },
-    CookieName:    "session",
-    SecureCookies: true,
     LoginRedirect: "github_login=1", // redirects to /?github_login=1 on success; defaults to "oauth2_login=1"
+    SessionConfig: handler.SessionConfig{
+        CookieName:    "session",
+        SecureCookies: true,
+    },
 }
 
 // Optional: enable server-side session tracking and refresh token rotation.
@@ -925,13 +931,15 @@ wa, err := webauthn.New(&webauthn.Config{
 })
 
 h := &handler.PasskeyHandler{
-    Users:         userStore,
-    Passkeys:      passkeyStore,
-    WebAuthn:      wa,         // set to nil to disable passkeys
-    JWT:           jwtMgr,
-    CookieName:    "session",
-    SecureCookies: true,
-    URLParamFunc:  chi.URLParam,
+    Users:        userStore,
+    Passkeys:     passkeyStore,
+    WebAuthn:     wa,         // set to nil to disable passkeys
+    JWT:          jwtMgr,
+    URLParamFunc: chi.URLParam,
+    SessionConfig: handler.SessionConfig{
+        CookieName:    "session",
+        SecureCookies: true,
+    },
 }
 
 // Public routes
@@ -1088,15 +1096,17 @@ All TOTP endpoints return `{"error": "<message>"}` JSON on failure. The table be
 
 ```go
 h := &handler.MagicLinkHandler{
-    Users:             userStore,
-    MagicLinks:        magicLinkStore,
-    JWT:               jwtMgr,
-    Sender:            func(ctx context.Context, email, token string) error { /* send email */ return nil },
-    CookieName:        "session",
-    SecureCookies:     true,
-    Sessions:          sessionStore,      // optional
-    RefreshTokenTTL:   7 * 24 * time.Hour,
-    RefreshCookieName: "refresh",
+    Users:      userStore,
+    MagicLinks: magicLinkStore,
+    JWT:        jwtMgr,
+    Sender:     func(ctx context.Context, email, token string) error { /* send email */ return nil },
+    SessionConfig: handler.SessionConfig{
+        CookieName:        "session",
+        SecureCookies:     true,
+        Sessions:          sessionStore,      // optional
+        RefreshTokenTTL:   7 * 24 * time.Hour,
+        RefreshCookieName: "refresh",
+    },
 }
 
 POST /auth/magic-link/request   → h.RequestMagicLink   // send one-time login link (200 whether or not email is registered)

@@ -59,6 +59,10 @@ type resetPasswordRequest struct {
 // the raw token via SendResetEmail. Always returns 200 OK to avoid leaking
 // whether the email address is registered.
 func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Request) {
+	if h.SendResetEmail == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "email sending not configured")
+		return
+	}
 	if h.RateLimiter != nil && !h.RateLimiter.Allow(r) {
 		writeError(r.Context(), w, http.StatusTooManyRequests, "too many requests")
 		return
@@ -102,10 +106,9 @@ func (h *PasswordResetHandler) RequestReset(w http.ResponseWriter, r *http.Reque
 
 		if err := h.SendResetEmail(r.Context(), user.Email, rawToken); err != nil {
 			logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: send email", slog.Any("error", err))
-			// Delete the orphaned token so state stays consistent.
-			if delErr := h.Resets.DeletePasswordResetToken(r.Context(), token.ID); delErr != nil {
-				logOrDefault(h.Logger).ErrorContext(r.Context(), "password reset: cleanup token after email failure", slog.Any("error", delErr))
-			}
+			cleanupOrphanedToken(r.Context(), h.Logger, "password reset token", func() error {
+				return h.Resets.DeletePasswordResetToken(r.Context(), token.ID)
+			})
 		}
 	}
 

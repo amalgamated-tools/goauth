@@ -21,20 +21,11 @@ const (
 
 // OIDCHandler holds dependencies for OIDC auth endpoints.
 type OIDCHandler struct {
-	Users         auth.UserStore
-	JWT           *auth.JWTManager
-	Provider      *oidc.Provider
-	OAuthConfig   oauth2.Config
-	CookieName    string
-	SecureCookies bool
-	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
-	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
-	// DefaultRefreshTokenTTL when Sessions is non-nil.
-	RefreshTokenTTL time.Duration
-	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. Must be non-empty when Sessions is set; call Validate at
-	// startup to catch this misconfiguration early.
-	RefreshCookieName string
+	Users       auth.UserStore
+	JWT         *auth.JWTManager
+	Provider    *oidc.Provider
+	OAuthConfig oauth2.Config
+	SessionConfig
 	// LinkNonces is the store used to persist single-use account-linking nonces.
 	// When nil, CreateLinkNonce and Link return HTTP 503.
 	LinkNonces auth.OIDCLinkNonceStore
@@ -60,7 +51,7 @@ func NewOIDCHandler(ctx context.Context, users auth.UserStore, jwt *auth.JWTMana
 			RedirectURL: redirectURI, Endpoint: provider.Endpoint(),
 			Scopes: []string{oidc.ScopeOpenID, "email", "profile"},
 		},
-		CookieName: cookieName, SecureCookies: secureCookies,
+		SessionConfig:   SessionConfig{CookieName: cookieName, SecureCookies: secureCookies},
 		IDTokenVerifier: provider.Verifier(&oidc.Config{ClientID: clientID}),
 	}, nil
 }
@@ -81,7 +72,7 @@ func (h *OIDCHandler) Validate() error {
 	if err := requireField("OIDCHandler", "Provider", h.Provider); err != nil {
 		return err
 	}
-	if err := validateSessionConfig("OIDCHandler", h.Sessions, h.RefreshCookieName); err != nil {
+	if err := h.SessionConfig.Validate("OIDCHandler"); err != nil {
 		return err
 	}
 	if h.IDTokenVerifier == nil {

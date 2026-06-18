@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -336,12 +339,14 @@ func (m *mockTokenCreator) CreateTokenWithSession(userID, sessionID string) (str
 
 func newAuthHandlerWithSessions(store auth.UserStore, sessions auth.SessionStore) *AuthHandler {
 	return &AuthHandler{
-		Users:             store,
-		JWT:               newTestJWT(),
-		Sessions:          sessions,
-		CookieName:        "auth",
-		RefreshCookieName: "refresh",
-		SecureCookies:     false,
+		Users: store,
+		JWT:   newTestJWT(),
+		SessionConfig: SessionConfig{
+			Sessions:          sessions,
+			CookieName:        "auth",
+			RefreshCookieName: "refresh",
+			SecureCookies:     false,
+		},
 	}
 }
 
@@ -707,6 +712,31 @@ func TestRequireField(t *testing.T) {
 		err := requireField("AuthHandler", "Users", &mockUserStore{})
 
 		require.NoError(t, err)
+	})
+}
+
+func TestCleanupOrphanedToken(t *testing.T) {
+	t.Run("ignores err not found", func(t *testing.T) {
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+		cleanupOrphanedToken(context.Background(), logger, "verification token", func() error {
+			return auth.ErrNotFound
+		})
+
+		require.Empty(t, strings.TrimSpace(logs.String()))
+	})
+
+	t.Run("logs delete error", func(t *testing.T) {
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+		cleanupOrphanedToken(context.Background(), logger, "verification token", func() error {
+			return errors.New("db error")
+		})
+
+		require.Contains(t, logs.String(), "failed to delete orphaned verification token")
+		require.Contains(t, logs.String(), "db error")
 	})
 }
 

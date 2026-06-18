@@ -73,6 +73,7 @@ Reset tokens are consumed (deleted) after successful use.
 | `RequestReset` | 400 Bad Request | Missing `email` field |
 | `RequestReset` | 429 Too Many Requests | Rate limit exceeded (only when `RateLimiter` is configured) |
 | `RequestReset` | 500 Internal Server Error | Store failure during user lookup, token creation, or token generation |
+| `RequestReset` | 503 Service Unavailable | `SendResetEmail` is `nil` (not configured) |
 | `ResetPassword` | 200 OK | `{"message": "password reset successfully"}` |
 | `ResetPassword` | 400 Bad Request | Missing `token` or `newPassword`; password outside 8–72 bytes; invalid, expired, or unrecognised token (`ErrNotFound`, `ErrExpiredToken`, or `ErrInvalidToken` from store); OIDC-only account (no password set) |
 | `ResetPassword` | 500 Internal Server Error | Internal failure during token lookup, user lookup, password hashing, or password update |

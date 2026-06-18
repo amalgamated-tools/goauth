@@ -51,6 +51,29 @@ func validateSessionConfig(handlerName string, sessions auth.SessionStore, refre
 	return nil
 }
 
+// SessionConfig holds the shared session-management fields used by handlers
+// that support stateful login flows (AuthHandler, MagicLinkHandler,
+// OAuth2Handler, OIDCHandler, and PasskeyHandler). Embed this struct in a
+// handler to avoid repeating the same five fields across every handler type.
+type SessionConfig struct {
+	CookieName    string
+	SecureCookies bool
+	// Sessions is optional; nil disables session tracking and refresh tokens.
+	Sessions auth.SessionStore
+	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
+	// DefaultRefreshTokenTTL when Sessions is non-nil.
+	RefreshTokenTTL time.Duration
+	// RefreshCookieName is the name of the HttpOnly cookie used to store the
+	// refresh token. Must be non-empty when Sessions is set; call Validate at
+	// startup to catch this misconfiguration early.
+	RefreshCookieName string
+}
+
+// Validate returns an error when Sessions is set without a RefreshCookieName.
+func (c SessionConfig) Validate(handlerName string) error {
+	return validateSessionConfig(handlerName, c.Sessions, c.RefreshCookieName)
+}
+
 // logOrDefault returns the given logger, falling back to slog.Default() when it
 // is nil.
 func logOrDefault(l *slog.Logger) *slog.Logger {
@@ -58,6 +81,19 @@ func logOrDefault(l *slog.Logger) *slog.Logger {
 		return l
 	}
 	return slog.Default()
+}
+
+// cleanupOrphanedToken best-effort deletes a token after email sending fails.
+// Deletion errors are logged but never returned to callers.
+func cleanupOrphanedToken(ctx context.Context, logger *slog.Logger, description string, del func() error, attrs ...slog.Attr) {
+	if err := del(); err != nil && !errors.Is(err, auth.ErrNotFound) {
+		args := make([]any, 0, len(attrs)+1)
+		args = append(args, slog.Any("error", err))
+		for _, a := range attrs {
+			args = append(args, a)
+		}
+		logOrDefault(logger).ErrorContext(ctx, "failed to delete orphaned "+description, args...)
+	}
 }
 
 // lookupUserByID fetches the user with the given ID, writing the appropriate
