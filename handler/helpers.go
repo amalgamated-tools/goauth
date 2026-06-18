@@ -61,7 +61,7 @@ func logOrDefault(l *slog.Logger) *slog.Logger {
 }
 
 // lookupUserByID fetches the user with the given ID, writing the appropriate
-// HTTP error response and returning false when the user cannot be found.
+// HTTP error response and returning false when the lookup fails (not found or internal error).
 func lookupUserByID(
 	w http.ResponseWriter,
 	r *http.Request,
