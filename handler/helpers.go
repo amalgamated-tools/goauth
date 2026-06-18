@@ -75,7 +75,7 @@ func lookupUserByID(
 			writeError(r.Context(), w, http.StatusNotFound, "user not found")
 			return nil, false
 		}
-		logOrDefault(logger).ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
+		logOrDefault(logger).ErrorContext(r.Context(), "failed to fetch user", slog.String("user_id", userID), slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
 		return nil, false
 	}
