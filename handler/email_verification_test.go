@@ -86,6 +86,13 @@ func TestEmailVerificationValidate_fullyConfigured_ok(t *testing.T) {
 	require.NoError(t, h.Validate())
 }
 
+func TestSendVerification_nilSendEmail_returns503(t *testing.T) {
+	h := newEmailVerificationHandler(&mockUserStore{}, &mockEmailVerificationStore{})
+	h.SendEmail = nil
+	w := postJSON(t, h.SendVerification, `{"email":"alice@test.com"}`)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
 // validToken is a 64-hex-char plaintext token (32 bytes).
 const validToken = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
 

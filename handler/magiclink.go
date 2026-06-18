@@ -20,20 +20,11 @@ type MagicLinkSender func(ctx context.Context, email, token string) error
 
 // MagicLinkHandler holds dependencies for magic link (passwordless) endpoints.
 type MagicLinkHandler struct {
-	Users         auth.UserStore
-	MagicLinks    auth.MagicLinkStore
-	JWT           tokenCreator
-	Sender        MagicLinkSender
-	CookieName    string
-	SecureCookies bool
-	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
-	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
-	// DefaultRefreshTokenTTL when Sessions is non-nil.
-	RefreshTokenTTL time.Duration
-	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. Must be non-empty when Sessions is set; call Validate at
-	// startup to catch this misconfiguration early.
-	RefreshCookieName string
+	Users      auth.UserStore
+	MagicLinks auth.MagicLinkStore
+	JWT        tokenCreator
+	Sender     MagicLinkSender
+	SessionConfig
 	// TokenTTL is how long a magic link token is valid. Defaults to
 	// defaultMagicLinkTokenTTL (15 minutes) when unset or zero.
 	TokenTTL time.Duration
@@ -67,15 +58,20 @@ func (h *MagicLinkHandler) Validate() error {
 	if err := requireField("MagicLinkHandler", "Sender", h.Sender); err != nil {
 		return err
 	}
-	return validateSessionConfig("MagicLinkHandler", h.Sessions, h.RefreshCookieName)
+	return h.SessionConfig.Validate("MagicLinkHandler")
 }
 
 // RequestMagicLink handles POST requests to generate a one-time login link.
 //
 // It creates a token, stores its SHA-256 hash, and invokes the Sender. The
 // response is always 200 regardless of whether the email is registered, so
-// that callers cannot enumerate valid addresses.
+// that callers cannot enumerate valid addresses. Returns 503 if Sender is nil
+// (misconfiguration).
 func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Request) {
+	if h.Sender == nil {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "email sending not configured")
+		return
+	}
 	var req magicLinkRequestBody
 	if !decodeJSON(r, w, &req) {
 		return
@@ -103,10 +99,10 @@ func (h *MagicLinkHandler) RequestMagicLink(w http.ResponseWriter, r *http.Reque
 	if err := h.Sender(r.Context(), req.Email, token); err != nil {
 		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to send magic link email",
 			slog.Any("error", err))
-		// Delete the orphaned token so state stays consistent.
-		if _, delErr := h.MagicLinks.FindAndDeleteMagicLink(r.Context(), tokenHash); delErr != nil && !errors.Is(delErr, auth.ErrNotFound) {
-			logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to delete orphaned magic link", slog.Any("error", delErr))
-		}
+		cleanupOrphanedToken(r.Context(), h.Logger, "magic link", func() error {
+			_, delErr := h.MagicLinks.FindAndDeleteMagicLink(r.Context(), tokenHash)
+			return delErr
+		})
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK,
@@ -128,7 +124,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 	link, err := h.MagicLinks.FindAndDeleteMagicLink(r.Context(), tokenHash)
 	if err != nil {
 		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired token")
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired token")
 			return
 		}
 		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to find magic link", slog.Any("error", err))
@@ -136,7 +132,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if isExpired(link.ExpiresAt) {
-		writeError(r.Context(), w, http.StatusUnauthorized, "invalid or expired token")
+		writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired token")
 		return
 	}
 
@@ -147,7 +143,7 @@ func (h *MagicLinkHandler) VerifyMagicLink(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	jwtToken, refreshToken, ok := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
+	jwtToken, refreshToken, ok := issueTokens(w, r, h.Logger, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}

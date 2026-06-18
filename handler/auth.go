@@ -12,26 +12,17 @@ import (
 )
 
 // DefaultRefreshTokenTTL is the default lifetime for refresh tokens when
-// Sessions is configured on AuthHandler.
+// Sessions is configured on a handler.
 const DefaultRefreshTokenTTL = 7 * 24 * time.Hour
 
 var dummyLoginBcryptHash = auth.MustGenerateDummyBcryptHash("dummy-login-password")
 
 // AuthHandler holds dependencies for email/password auth endpoints.
 type AuthHandler struct {
-	Users    auth.UserStore
-	JWT      *auth.JWTManager
-	Sessions auth.SessionStore // optional; nil disables session tracking and refresh tokens
-	Logger   *slog.Logger
-	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
-	// DefaultRefreshTokenTTL when Sessions is non-nil.
-	RefreshTokenTTL time.Duration
-	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. Required when Sessions is non-nil; omitting it causes
-	// token issuance to return HTTP 500 "server misconfiguration".
-	RefreshCookieName   string
-	CookieName          string
-	SecureCookies       bool
+	Users  auth.UserStore
+	JWT    *auth.JWTManager
+	Logger *slog.Logger
+	SessionConfig
 	DisableSignup       bool
 	RequireVerification bool
 }
@@ -93,7 +84,7 @@ func (h *AuthHandler) Validate() error {
 	if err := requireField("AuthHandler", "JWT", h.JWT); err != nil {
 		return err
 	}
-	return validateSessionConfig("AuthHandler", h.Sessions, h.RefreshCookieName)
+	return h.SessionConfig.Validate("AuthHandler")
 }
 
 // Signup creates a new user account.
@@ -135,7 +126,7 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, refreshToken, ok := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
+	token, refreshToken, ok := issueTokens(w, r, h.Logger, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}
@@ -184,7 +175,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, refreshToken, ok := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
+	token, refreshToken, ok := issueTokens(w, r, h.Logger, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}
@@ -278,7 +269,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, refreshToken, ok := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
+	token, refreshToken, ok := issueTokens(w, r, h.Logger, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}
@@ -290,14 +281,8 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 // Me returns the current user's profile.
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
-	user, err := h.Users.FindByID(r.Context(), userID)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "user not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to get user", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to get user")
+	user, ok := lookupUserByID(w, r, h.Logger, h.Users, userID)
+	if !ok {
 		return
 	}
 	writeJSON(r.Context(), w, http.StatusOK, ToUserDTO(user))
@@ -339,14 +324,8 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.UserIDFromContext(r.Context())
-	user, err := h.Users.FindByID(r.Context(), userID)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "user not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to get user", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to get user")
+	user, ok := lookupUserByID(w, r, h.Logger, h.Users, userID)
+	if !ok {
 		return
 	}
 	if user.PasswordHash == "" {

@@ -116,7 +116,9 @@ The `handler` package uses `*_common.go` files to hold logic shared by multiple 
 - `requireField`: shared `Validate` helper for required dependency checks.
 - `validateSessionConfig`: shared `Validate` helper for session/refresh-cookie configuration.
 - `logOrDefault`: returns the configured logger, falling back to `slog.Default()`.
+- `deleteUserResource`: shared DELETE helper — validates the resource ID from the URL, calls the store's delete function, and handles not-found, store-error, and 204 No Content responses. Used by `APIKeyHandler.Delete`, `SessionHandler.Revoke`, and `PasskeyHandler.DeleteCredential`.
 - `issueTokens`: issues access/refresh tokens, writes auth cookies, and manages session-backed refresh tokens.
+- `listUserResources`: generic (type-parameterized) list helper — fetches resources for the current user, converts each item to a DTO via a caller-supplied function, and writes the JSON response. Accepts separate log and user-facing error messages to avoid leaking internal context to clients. Used by `APIKeyHandler.List`, `SessionHandler.List`, and `PasskeyHandler.ListCredentials`.
 - `writeJSON`: shared JSON response writer.
 - `writeError`: shared JSON error response writer.
 - `setNoCacheHeaders`: applies no-cache headers to sensitive auth responses.

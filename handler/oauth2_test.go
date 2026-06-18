@@ -40,8 +40,7 @@ func newTestOAuth2Handler() *OAuth2Handler {
 		Users:         &mockUserStore{},
 		JWT:           newTestJWT(),
 		Provider:      &mockOAuth2Provider{},
-		CookieName:    "auth",
-		SecureCookies: false,
+		SessionConfig: SessionConfig{CookieName: "auth", SecureCookies: false},
 		LinkNonces:    &mockOIDCLinkNonceStore{},
 	}
 }
@@ -426,7 +425,7 @@ func TestFindOrCreateUser_raceRetry_findByOIDCSubjectError(t *testing.T) {
 		},
 	}
 
-	_, err := findOrCreateUser(context.Background(), store, "sub:1", "race@example.com", "Race User")
+	_, err := findOrCreateUser(context.Background(), nil, store, "sub:1", "race@example.com", "Race User")
 	require.Error(t, err)
 	require.ErrorIs(t, err, storeErr)
 }
@@ -452,7 +451,7 @@ func TestFindOrCreateUser_raceRetry_findByEmailError(t *testing.T) {
 		},
 	}
 
-	_, err := findOrCreateUser(context.Background(), store, "sub:2", "race@example.com", "Race User")
+	_, err := findOrCreateUser(context.Background(), nil, store, "sub:2", "race@example.com", "Race User")
 	require.Error(t, err)
 	require.ErrorIs(t, err, storeErr)
 }

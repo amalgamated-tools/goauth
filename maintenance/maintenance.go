@@ -10,10 +10,21 @@ import (
 	"time"
 )
 
+// logOrDefault returns l when non-nil, otherwise slog.Default().
+func logOrDefault(l *slog.Logger) *slog.Logger {
+	if l != nil {
+		return l
+	}
+	return slog.Default()
+}
+
 // StartCleanup runs each of the provided cleaner functions once immediately,
 // then again on every interval, inside a background goroutine. It is intended
 // for database maintenance tasks such as deleting expired tokens and sessions
 // that should not block request handlers.
+//
+// logger is used for structured error and panic log entries. Pass nil to use
+// slog.Default() resolved at the time each log entry is written.
 //
 // StartCleanup panics if interval is <= 0.
 //
@@ -23,13 +34,13 @@ import (
 //
 // Example usage:
 //
-//	stop := maintenance.StartCleanup(ctx, 10*time.Minute,
+//	stop := maintenance.StartCleanup(ctx, nil, 10*time.Minute,
 //	    magicLinkStore.DeleteExpiredMagicLinks,
 //	    passkeyStore.DeleteExpiredChallenges,
 //	    sessionStore.DeleteExpiredSessions,
 //	)
 //	defer stop()
-func StartCleanup(ctx context.Context, interval time.Duration, cleaners ...func(context.Context) error) (stop func()) {
+func StartCleanup(ctx context.Context, logger *slog.Logger, interval time.Duration, cleaners ...func(context.Context) error) (stop func()) {
 	if interval <= 0 {
 		panic(fmt.Sprintf("StartCleanup: interval must be positive, got %v", interval))
 	}
@@ -51,7 +62,7 @@ func StartCleanup(ctx context.Context, interval time.Duration, cleaners ...func(
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						slog.ErrorContext(ctx, "cleanup task panicked",
+						logOrDefault(logger).ErrorContext(ctx, "cleanup task panicked",
 							slog.String("cleaner_name", names[i]),
 							slog.Any("panic", r),
 							slog.String("stack", string(debug.Stack())),
@@ -59,7 +70,7 @@ func StartCleanup(ctx context.Context, interval time.Duration, cleaners ...func(
 					}
 				}()
 				if err := cleaner(ctx); err != nil {
-					slog.ErrorContext(ctx, "cleanup task failed", slog.String("cleaner_name", names[i]), slog.Any("error", err))
+					logOrDefault(logger).ErrorContext(ctx, "cleanup task failed", slog.String("cleaner_name", names[i]), slog.Any("error", err))
 				}
 			}()
 		}

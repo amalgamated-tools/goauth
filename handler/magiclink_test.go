@@ -19,21 +19,22 @@ func newMagicLinkHandler(users auth.UserStore, links auth.MagicLinkStore, sender
 		MagicLinks:    links,
 		JWT:           newTestJWT(),
 		Sender:        sender,
-		CookieName:    "auth",
-		SecureCookies: false,
+		SessionConfig: SessionConfig{CookieName: "auth", SecureCookies: false},
 	}
 }
 
 func newMagicLinkHandlerWithSessions(users auth.UserStore, links auth.MagicLinkStore, sessions auth.SessionStore) *MagicLinkHandler {
 	return &MagicLinkHandler{
-		Users:             users,
-		MagicLinks:        links,
-		JWT:               newTestJWT(),
-		Sessions:          sessions,
-		Sender:            noopSender,
-		CookieName:        "auth",
-		RefreshCookieName: "refresh",
-		SecureCookies:     false,
+		Users:      users,
+		MagicLinks: links,
+		JWT:        newTestJWT(),
+		Sender:     noopSender,
+		SessionConfig: SessionConfig{
+			Sessions:          sessions,
+			CookieName:        "auth",
+			RefreshCookieName: "refresh",
+			SecureCookies:     false,
+		},
 	}
 }
 
@@ -85,6 +86,13 @@ func TestMagicLinkValidate_sessionsWithRefreshCookieName_ok(t *testing.T) {
 
 func TestMagicLinkValidate_noSessions_ok(t *testing.T) {
 	require.NoError(t, newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender).Validate())
+}
+
+func TestRequestMagicLink_nilSender_returns503(t *testing.T) {
+	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
+	h.Sender = nil
+	w := postJSON(t, h.RequestMagicLink, `{"email":"alice@test.com"}`)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
 // ---------------------------------------------------------------------------
@@ -174,12 +182,12 @@ func TestRequestMagicLink_tokenTTL(t *testing.T) {
 	}
 	ttl := 30 * time.Minute
 	h := &MagicLinkHandler{
-		Users:      &mockUserStore{},
-		MagicLinks: store,
-		JWT:        newTestJWT(),
-		Sender:     noopSender,
-		CookieName: "auth",
-		TokenTTL:   ttl,
+		Users:         &mockUserStore{},
+		MagicLinks:    store,
+		JWT:           newTestJWT(),
+		Sender:        noopSender,
+		SessionConfig: SessionConfig{CookieName: "auth"},
+		TokenTTL:      ttl,
 	}
 
 	before := time.Now()
@@ -342,7 +350,7 @@ func TestVerifyMagicLink_invalidToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=bad", nil)
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestVerifyMagicLink_expiredToken(t *testing.T) {
@@ -359,7 +367,7 @@ func TestVerifyMagicLink_expiredToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth/magic-link/verify?token=sometoken", nil)
 	w := httptest.NewRecorder()
 	h.VerifyMagicLink(w, req)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestVerifyMagicLink_storeError(t *testing.T) {

@@ -35,22 +35,13 @@ var (
 // PasskeyHandler holds dependencies for WebAuthn endpoints.
 // URLParamFunc extracts URL parameters (router-agnostic).
 type PasskeyHandler struct {
-	Users         auth.UserStore
-	Passkeys      auth.PasskeyStore
-	WebAuthn      webAuthnProvider
-	JWT           *auth.JWTManager
-	CookieName    string
-	SecureCookies bool
-	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
-	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
-	// DefaultRefreshTokenTTL when Sessions is non-nil.
-	RefreshTokenTTL time.Duration
-	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. Must be non-empty when Sessions is set; call Validate at
-	// startup to catch this misconfiguration early.
-	RefreshCookieName string
-	URLParamFunc      func(r *http.Request, key string) string
-	Logger            *slog.Logger
+	Users    auth.UserStore
+	Passkeys auth.PasskeyStore
+	WebAuthn webAuthnProvider
+	JWT      *auth.JWTManager
+	SessionConfig
+	URLParamFunc func(r *http.Request, key string) string
+	Logger       *slog.Logger
 }
 
 // Validate checks that the handler is correctly configured and returns an error
@@ -75,7 +66,7 @@ func (h *PasskeyHandler) Validate() error {
 			return errors.New("PasskeyHandler misconfigured: JWT is required when WebAuthn is configured")
 		}
 	}
-	return validateSessionConfig("PasskeyHandler", h.Sessions, h.RefreshCookieName)
+	return h.SessionConfig.Validate("PasskeyHandler")
 }
 
 type passkeyUser struct {
@@ -122,7 +113,7 @@ func loadWebAuthnCredentials(ctx context.Context, logger *slog.Logger, creds []a
 	for i := range creds {
 		var waCred webauthn.Credential
 		if err := json.Unmarshal([]byte(creds[i].CredentialData), &waCred); err != nil {
-			logger.WarnContext(ctx, "skipping corrupted passkey credential", slog.String("id", creds[i].ID))
+			logger.WarnContext(ctx, "skipping corrupted passkey credential", slog.String("id", creds[i].ID), slog.Any("error", err))
 			continue
 		}
 		result = append(result, waCred)
@@ -181,14 +172,8 @@ func (h *PasskeyHandler) BeginRegistration(w http.ResponseWriter, r *http.Reques
 	}
 
 	userID := auth.UserIDFromContext(r.Context())
-	user, err := h.Users.FindByID(r.Context(), userID)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "user not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
+	user, ok := lookupUserByID(w, r, h.Logger, h.Users, userID)
+	if !ok {
 		return
 	}
 	existingCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
@@ -239,14 +224,8 @@ func (h *PasskeyHandler) FinishRegistration(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	user, err := h.Users.FindByID(r.Context(), userID)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "user not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
+	user, ok := lookupUserByID(w, r, h.Logger, h.Users, userID)
+	if !ok {
 		return
 	}
 	existingCreds, err := h.Passkeys.ListCredentialsByUser(r.Context(), userID)
@@ -375,7 +354,7 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 			slog.Any("error", err))
 	}
 
-	token, refreshToken, ok := issueTokens(w, r, authedUserID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
+	token, refreshToken, ok := issueTokens(w, r, h.Logger, authedUserID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL)
 	if !ok {
 		return
 	}

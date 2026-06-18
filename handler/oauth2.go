@@ -18,7 +18,7 @@ type OAuth2UserInfo struct {
 	Subject string
 	// Email is the user's email address. Must be non-empty.
 	Email string
-	// Name is the user's display name. When empty, Email is used as a fallback.
+	// Name is the user's display name.
 	Name string
 	// EmailVerified reports whether the provider has confirmed the email address.
 	// OAuth2Handler rejects logins (but not link flows) when this is false.
@@ -52,18 +52,8 @@ type OAuth2Handler struct {
 	OAuthConfig oauth2.Config
 	// Provider fetches the user's identity from the OAuth2 provider after code
 	// exchange. Must be non-nil.
-	Provider      OAuth2IdentityProvider
-	CookieName    string
-	SecureCookies bool
-	// Sessions is optional; nil disables session tracking and refresh tokens.
-	Sessions auth.SessionStore
-	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
-	// DefaultRefreshTokenTTL when Sessions is non-nil.
-	RefreshTokenTTL time.Duration
-	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. Must be non-empty when Sessions is set; call Validate at
-	// startup to catch this misconfiguration early.
-	RefreshCookieName string
+	Provider OAuth2IdentityProvider
+	SessionConfig
 	// LinkNonces is the store used to persist single-use account-linking nonces.
 	// When nil, CreateLinkNonce and Link return HTTP 503.
 	LinkNonces auth.OIDCLinkNonceStore
@@ -90,7 +80,7 @@ func (h *OAuth2Handler) Validate() error {
 	if err := requireField("OAuth2Handler", "JWT", h.JWT); err != nil {
 		return err
 	}
-	return validateSessionConfig("OAuth2Handler", h.Sessions, h.RefreshCookieName)
+	return h.SessionConfig.Validate("OAuth2Handler")
 }
 
 func (h *OAuth2Handler) loginRedirectURL() string {
@@ -157,18 +147,18 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if flow.LinkUserID != "" {
-		handleLinkCallback(w, r, h.Users, flow.LinkUserID, info.Subject, "/?oauth2_linked=true", "oauth2_link_error")
+		handleLinkCallback(w, r, h.Logger, h.Users, flow.LinkUserID, info.Subject, "/?oauth2_linked=true", "oauth2_link_error")
 		return
 	}
 
-	user, err := findOrCreateUser(r.Context(), h.Users, info.Subject, info.Email, info.Name)
+	user, err := findOrCreateUser(r.Context(), h.Logger, h.Users, info.Subject, info.Email, info.Name)
 	if err != nil {
 		logOrDefault(h.Logger).ErrorContext(r.Context(), "OAuth2 user resolution failed", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to process user")
 		return
 	}
 
-	if _, _, issueOK := issueTokens(w, r, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL); !issueOK {
+	if _, _, issueOK := issueTokens(w, r, h.Logger, user.ID, h.Sessions, h.JWT, h.CookieName, h.SecureCookies, h.RefreshCookieName, h.RefreshTokenTTL); !issueOK {
 		return
 	}
 
@@ -178,7 +168,7 @@ func (h *OAuth2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 // CreateLinkNonce issues a single-use nonce for OAuth2 account linking.
 // Requires auth middleware to be applied to the route.
 func (h *OAuth2Handler) CreateLinkNonce(w http.ResponseWriter, r *http.Request) {
-	createLinkNonce(w, r, h.LinkNonces, oauth2StateCookieTTL)
+	createLinkNonce(w, r, h.Logger, h.LinkNonces, oauth2StateCookieTTL)
 }
 
 // Link validates the nonce and redirects the browser to the OAuth2 provider to

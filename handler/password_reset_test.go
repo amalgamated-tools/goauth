@@ -53,6 +53,15 @@ func TestPasswordResetValidate_fullyConfigured_ok(t *testing.T) {
 	require.NoError(t, h.Validate())
 }
 
+func TestRequestReset_nilSendResetEmail_returns503(t *testing.T) {
+	h := &PasswordResetHandler{
+		Users:  &mockUserStore{},
+		Resets: &mockPasswordResetStore{},
+	}
+	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
 // validResetStore returns a mockPasswordResetStore whose FindPasswordResetToken
 // returns a non-expired token for the given userID.
 func validResetStore(userID string) *mockPasswordResetStore {
@@ -392,9 +401,10 @@ func TestRequestReset_oidcOnlyUserSkipsToken(t *testing.T) {
 func TestRequestReset_rateLimited(t *testing.T) {
 	rl := auth.NewRateLimiter(0, 1) // rate=0/sec, burst=1: first request passes, second is denied
 	h := &PasswordResetHandler{
-		Users:       &mockUserStore{},
-		Resets:      &mockPasswordResetStore{},
-		RateLimiter: rl,
+		Users:          &mockUserStore{},
+		Resets:         &mockPasswordResetStore{},
+		SendResetEmail: func(ctx context.Context, email, token string) error { return nil },
+		RateLimiter:    rl,
 	}
 	postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`) // consumes the burst
 	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)

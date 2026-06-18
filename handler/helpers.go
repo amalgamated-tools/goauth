@@ -56,6 +56,29 @@ func validateSessionConfig(handlerName string, sessions auth.SessionStore, refre
 	return nil
 }
 
+// SessionConfig holds the shared session-management fields used by handlers
+// that support stateful login flows (AuthHandler, MagicLinkHandler,
+// OAuth2Handler, OIDCHandler, and PasskeyHandler). Embed this struct in a
+// handler to avoid repeating the same five fields across every handler type.
+type SessionConfig struct {
+	CookieName    string
+	SecureCookies bool
+	// Sessions is optional; nil disables session tracking and refresh tokens.
+	Sessions auth.SessionStore
+	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
+	// DefaultRefreshTokenTTL when Sessions is non-nil.
+	RefreshTokenTTL time.Duration
+	// RefreshCookieName is the name of the HttpOnly cookie used to store the
+	// refresh token. Must be non-empty when Sessions is set; call Validate at
+	// startup to catch this misconfiguration early.
+	RefreshCookieName string
+}
+
+// Validate returns an error when Sessions is set without a RefreshCookieName.
+func (c SessionConfig) Validate(handlerName string) error {
+	return validateSessionConfig(handlerName, c.Sessions, c.RefreshCookieName)
+}
+
 // logOrDefault returns the given logger, falling back to slog.Default() when it
 // is nil.
 func logOrDefault(l *slog.Logger) *slog.Logger {
@@ -63,6 +86,41 @@ func logOrDefault(l *slog.Logger) *slog.Logger {
 		return l
 	}
 	return slog.Default()
+}
+
+// cleanupOrphanedToken best-effort deletes a token after email sending fails.
+// Deletion errors are logged but never returned to callers.
+func cleanupOrphanedToken(ctx context.Context, logger *slog.Logger, description string, del func() error, attrs ...slog.Attr) {
+	if err := del(); err != nil && !errors.Is(err, auth.ErrNotFound) {
+		args := make([]any, 0, len(attrs)+1)
+		args = append(args, slog.Any("error", err))
+		for _, a := range attrs {
+			args = append(args, a)
+		}
+		logOrDefault(logger).ErrorContext(ctx, "failed to delete orphaned "+description, args...)
+	}
+}
+
+// lookupUserByID fetches the user with the given ID, writing the appropriate
+// HTTP error response and returning false when the lookup fails (not found or internal error).
+func lookupUserByID(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *slog.Logger,
+	store auth.UserStore,
+	userID string,
+) (*auth.User, bool) {
+	user, err := store.FindByID(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, auth.ErrNotFound) {
+			writeError(r.Context(), w, http.StatusNotFound, "user not found")
+			return nil, false
+		}
+		logOrDefault(logger).ErrorContext(r.Context(), "failed to fetch user", slog.String("user_id", userID), slog.Any("error", err))
+		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
+		return nil, false
+	}
+	return user, true
 }
 
 func deleteUserResource(
@@ -101,6 +159,7 @@ func deleteUserResource(
 func issueTokens(
 	w http.ResponseWriter,
 	r *http.Request,
+	logger *slog.Logger,
 	userID string,
 	sessions auth.SessionStore,
 	jwtMgr tokenCreator,
@@ -110,23 +169,20 @@ func issueTokens(
 	refreshTokenTTL time.Duration,
 ) (accessToken, refreshToken string, ok bool) {
 	if sessions != nil && refreshCookieName == "" {
-		slog.ErrorContext(r.Context(), "issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup")
+		logOrDefault(logger).ErrorContext(r.Context(), "issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup")
 		writeError(r.Context(), w, http.StatusInternalServerError, "server misconfiguration")
 		return "", "", false
 	}
 	if sessions != nil {
 		rawRefresh, err := auth.GenerateRandomHex(32)
 		if err != nil {
-			slog.ErrorContext(r.Context(), "failed to generate refresh token", slog.Any("error", err))
+			logOrDefault(logger).ErrorContext(r.Context(), "failed to generate refresh token", slog.Any("error", err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "failed to create session")
 			return "", "", false
 		}
 		refreshHash := auth.HashHighEntropyToken(rawRefresh)
 
-		ttl := refreshTokenTTL
-		if ttl <= 0 {
-			ttl = DefaultRefreshTokenTTL
-		}
+		ttl := defaultDuration(refreshTokenTTL, DefaultRefreshTokenTTL)
 
 		ip, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
@@ -136,14 +192,14 @@ func issueTokens(
 		sess, err := sessions.CreateSession(r.Context(), userID, refreshHash,
 			r.UserAgent(), ip, time.Now().UTC().Add(ttl))
 		if err != nil {
-			slog.ErrorContext(r.Context(), "failed to create session", slog.Any("error", err))
+			logOrDefault(logger).ErrorContext(r.Context(), "failed to create session", slog.Any("error", err))
 			writeError(r.Context(), w, http.StatusInternalServerError, "failed to create session")
 			return "", "", false
 		}
 
 		accessToken, err = jwtMgr.CreateTokenWithSession(userID, sess.ID)
 		if err != nil {
-			slog.ErrorContext(r.Context(), "failed to create token", slog.Any("error", err))
+			logOrDefault(logger).ErrorContext(r.Context(), "failed to create token", slog.Any("error", err))
 			_ = sessions.DeleteSession(r.Context(), sess.ID, userID)
 			writeError(r.Context(), w, http.StatusInternalServerError, "failed to create token")
 			return "", "", false
@@ -157,7 +213,7 @@ func issueTokens(
 	var err error
 	accessToken, err = jwtMgr.CreateToken(userID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to create token", slog.Any("error", err))
+		logOrDefault(logger).ErrorContext(r.Context(), "failed to create token", slog.Any("error", err))
 		writeError(r.Context(), w, http.StatusInternalServerError, "failed to create token")
 		return "", "", false
 	}

@@ -1,18 +1,18 @@
 ---
 emoji: "🧹"
-name: Daily File Diet
-description: Analyzes the largest Go source file daily and creates an issue to refactor it into smaller files if it exceeds the healthy size threshold
+name: Weekly File Diet
+description: Analyzes the largest Go source file weekly and creates an issue to refactor it into smaller files if it exceeds the healthy size threshold
 on:
   workflow_dispatch:
   schedule:
-    - cron: "daily around 13:00 on weekdays"  # ~Weekdays at 1 PM UTC (scattered)
+    - cron: "0 13 * * 1-5"  # ~Weekdays at 1 PM UTC (scattered)
 
 permissions:
   contents: read
   issues: read
   pull-requests: read
 
-tracker-id: daily-file-diet
+tracker-id: weekly-file-diet
 engine:
   id: copilot
   model: claude-sonnet-4.6
@@ -47,13 +47,13 @@ source: github/gh-aw/.github/workflows/daily-file-diet.md@91ec20513218373c2191ce
 ---
 
 
-# Daily File Diet Agent 🏋️
+# Weekly File Diet Agent 🏋️
 
-You are the Daily File Diet Agent - a code health specialist that monitors file sizes and promotes modular, maintainable codebases by identifying oversized files that need refactoring.
+You are the Weekly File Diet Agent - a code health specialist that monitors file sizes and promotes modular, maintainable codebases by identifying oversized files that need refactoring.
 
 ## Mission
 
-Analyze the Go codebase daily to identify the largest source file and determine if it requires refactoring. Create an issue only when a file exceeds healthy size thresholds, providing specific guidance for splitting it into smaller, more focused files with comprehensive test coverage.
+Analyze the Go codebase weekly to identify the largest source file and determine if it requires refactoring. Create an issue only when a file exceeds healthy size thresholds, providing specific guidance for splitting it into smaller, more focused files with comprehensive test coverage.
 
 ## Current Context
 

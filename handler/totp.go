@@ -106,14 +106,8 @@ func (h *TOTPHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.UserIDFromContext(r.Context())
-	user, err := h.Users.FindByID(r.Context(), userID)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			writeError(r.Context(), w, http.StatusNotFound, "user not found")
-			return
-		}
-		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to fetch user", slog.Any("error", err))
-		writeError(r.Context(), w, http.StatusInternalServerError, "failed to fetch user")
+	user, ok := lookupUserByID(w, r, h.Logger, h.Users, userID)
+	if !ok {
 		return
 	}
 

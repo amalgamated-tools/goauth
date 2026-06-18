@@ -99,11 +99,11 @@ func (m *mockPasskeyStore) DeleteCredential(ctx context.Context, id, userID stri
 // newPasskeyHandler returns a PasskeyHandler with nil WebAuthn (not configured).
 func newPasskeyHandler(passkeys auth.PasskeyStore, users auth.UserStore) *PasskeyHandler {
 	return &PasskeyHandler{
-		Users:      users,
-		Passkeys:   passkeys,
-		WebAuthn:   nil, // not configured
-		JWT:        newTestJWT(),
-		CookieName: "auth",
+		Users:         users,
+		Passkeys:      passkeys,
+		WebAuthn:      nil, // not configured
+		JWT:           newTestJWT(),
+		SessionConfig: SessionConfig{CookieName: "auth"},
 		URLParamFunc: func(r *http.Request, key string) string {
 			return r.URL.Query().Get(key)
 		},
