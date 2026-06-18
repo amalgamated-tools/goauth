@@ -12,18 +12,20 @@ wa, err := webauthn.New(&webauthn.Config{
 })
 
 h := &handler.PasskeyHandler{
-    Users:         userStore,
-    Passkeys:      passkeyStore,
-    WebAuthn:      wa,         // set to nil to disable passkeys
-    JWT:           jwtMgr,
-    CookieName:    "session",
-    SecureCookies: true,
-    URLParamFunc:  chi.URLParam,
-    // Optional: enable session tracking and refresh-token rotation.
-    Sessions:          sessionStore,
-    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // default 7 days
-    RefreshCookieName: "refresh",
-    // Logger:         nil, // optional; when nil, slog.Default() is resolved at each log site
+    Users:        userStore,
+    Passkeys:     passkeyStore,
+    WebAuthn:     wa,         // set to nil to disable passkeys
+    JWT:          jwtMgr,
+    URLParamFunc: chi.URLParam,
+    // Logger:    nil, // optional; when nil, slog.Default() is resolved at each log site
+    SessionConfig: handler.SessionConfig{
+        CookieName:    "session",
+        SecureCookies: true,
+        // Optional: enable session tracking and refresh-token rotation.
+        Sessions:          sessionStore,
+        RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // default 7 days
+        RefreshCookieName: "refresh",
+    },
 }
 
 if err := h.Validate(); err != nil {
