@@ -144,7 +144,7 @@ When `Sessions` is `nil`, `OIDCHandler` issues an access JWT only. The token lif
 
 ## Observability
 
-`OIDCHandler` emits structured log events via `slog` with the request context for trace correlation. All log output — including events emitted during token issuance — goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. To route all `OIDCHandler` log events to a separate destination (e.g. a dedicated handler in a multi-tenant application), set `Logger` to a `*slog.Logger` backed by the desired handler.
+`OIDCHandler` emits structured log events via `slog` with the request context for trace correlation. Handler-emitted log output — including events emitted during token issuance — goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. Note that the shared `writeJSON` helper logs JSON encoding failures via the process-wide default logger, independent of this field. To route `OIDCHandler` log events to a separate destination (e.g. a dedicated handler in a multi-tenant application), set `Logger` to a `*slog.Logger` backed by the desired handler.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|

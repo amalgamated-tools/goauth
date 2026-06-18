@@ -148,7 +148,7 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 
 ## Observability
 
-`PasskeyHandler` emits structured log events via `slog` with the request context for trace correlation. All log output — including events emitted during token issuance — goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used.
+`PasskeyHandler` emits structured log events via `slog` with the request context for trace correlation. Handler-emitted log output — including events emitted during token issuance — goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. Note that the shared `writeJSON` helper logs JSON encoding failures via the process-wide default logger, independent of this field.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
