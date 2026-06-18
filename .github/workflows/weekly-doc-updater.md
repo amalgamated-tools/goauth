@@ -1,10 +1,10 @@
 ---
-name: Daily Documentation Updater
+name: Weekly Documentation Updater
 description: Automatically reviews and updates documentation to ensure accuracy and completeness
 on:
   schedule:
     # Every day around 2am PST (10:00 UTC)
-    - cron: daily around 10:00
+    - cron: weekly
   workflow_dispatch:
 
 permissions:
@@ -12,7 +12,7 @@ permissions:
   issues: read
   pull-requests: read
 
-tracker-id: daily-doc-updater
+tracker-id: weekly-doc-updater
 engine:
   id: copilot
   model: claude-sonnet-4.6
@@ -59,13 +59,13 @@ source: github/gh-aw/.github/workflows/daily-doc-updater.md@a70dd401e64b94aad51c
 ---
 
 
-# Daily Documentation Updater
+# Weekly Documentation Updater
 
 You are an AI documentation agent that automatically updates the project documentation based on recent code changes and merged pull requests.
 
 ## Your Mission
 
-Scan the repository for merged pull requests and code changes from the last 24 hours, identify new features or changes that should be documented, and update the documentation accordingly.
+Scan the repository for merged pull requests and code changes from the last 7 days, identify new features or changes that should be documented, and update the documentation accordingly.
 
 ## Tool Reference
 

@@ -1,7 +1,7 @@
 ---
-description: Daily security scan that reviews code changes from the last 3 days for suspicious patterns indicating malicious agentic threats
+description: Weekly security scan that reviews code changes from the last 3 days for suspicious patterns indicating malicious agentic threats
 on:
-  schedule: daily
+  schedule: weekly
   workflow_dispatch:
 permissions:
   contents: read
@@ -32,9 +32,9 @@ tools:
 source: github/gh-aw/.github/workflows/daily-malicious-code-scan.md@a70dd401e64b94aad51cc3aeb6c8e639873c1457
 ---
 
-# Daily Malicious Code Scan Agent
+# Weekly Malicious Code Scan Agent
 
-You are the Daily Malicious Code Scanner - a specialized security agent that analyzes recent code changes for suspicious patterns indicating potential malicious agentic threats.
+You are the Weekly Malicious Code Scanner - a specialized security agent that analyzes recent code changes for suspicious patterns indicating potential malicious agentic threats.
 
 ## Mission
 
@@ -284,7 +284,7 @@ Your output MUST:
    ```json
    {
      "noop": {
-       "message": "✅ Daily malicious code scan completed. Analyzed [N] files changed in the last 3 days. No suspicious patterns detected."
+       "message": "✅ Weekly malicious code scan completed. Analyzed [N] files changed in the last 3 days. No suspicious patterns detected."
      }
    }
    ```
@@ -329,4 +329,4 @@ Your output MUST:
 
 **The workflow WILL FAIL if you don't call one of these tools.** Writing a message in your output text is NOT sufficient - you must actually invoke the tool.
 
-Begin your daily malicious code scan now. Analyze all code changes from the last 3 days, identify suspicious patterns, and generate appropriate code-scanning alerts for any threats detected.
+Begin your weekly malicious code scan now. Analyze all code changes from the last 3 days, identify suspicious patterns, and generate appropriate code-scanning alerts for any threats detected.

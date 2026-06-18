@@ -3,7 +3,7 @@ name: Go Pattern Detector
 description: Detects common Go code patterns and anti-patterns to maintain code quality and consistency
 on:
   schedule:
-    - cron: "daily around 14:00 on weekdays"  # ~2 PM UTC weekdays
+    - cron: "weekly"
   workflow_dispatch:
 permissions:
   contents: read
