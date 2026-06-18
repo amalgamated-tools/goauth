@@ -257,34 +257,36 @@ func validatePassword(ctx context.Context, w http.ResponseWriter, password strin
 	return true
 }
 
+// setCookie writes an HttpOnly, strict-SameSite cookie. It is the shared
+// implementation for all public cookie helpers in this package.
+func setCookie(w http.ResponseWriter, name, value string, maxAge int, secure bool) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   secure,
+	})
+}
+
 // SetAuthCookie sets an HttpOnly auth cookie.
 func SetAuthCookie(w http.ResponseWriter, token, cookieName string, secure bool) {
-	http.SetCookie(w, &http.Cookie{
-		Name: cookieName, Value: token, Path: "/",
-		MaxAge: 0, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: secure,
-	})
+	setCookie(w, cookieName, token, 0, secure)
 }
 
 // ClearAuthCookie removes the auth cookie.
 func ClearAuthCookie(w http.ResponseWriter, cookieName string, secure bool) {
-	http.SetCookie(w, &http.Cookie{
-		Name: cookieName, Value: "", Path: "/",
-		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: secure,
-	})
+	setCookie(w, cookieName, "", -1, secure)
 }
 
 // SetRefreshCookie sets an HttpOnly refresh token cookie.
 func SetRefreshCookie(w http.ResponseWriter, token, cookieName string, secure bool, maxAge int) {
-	http.SetCookie(w, &http.Cookie{
-		Name: cookieName, Value: token, Path: "/",
-		MaxAge: maxAge, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: secure,
-	})
+	setCookie(w, cookieName, token, maxAge, secure)
 }
 
 // ClearRefreshCookie removes the refresh token cookie.
 func ClearRefreshCookie(w http.ResponseWriter, cookieName string, secure bool) {
-	http.SetCookie(w, &http.Cookie{
-		Name: cookieName, Value: "", Path: "/",
-		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: secure,
-	})
+	setCookie(w, cookieName, "", -1, secure)
 }
