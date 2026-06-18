@@ -107,10 +107,10 @@ func (h *EmailVerificationHandler) SendVerification(w http.ResponseWriter, r *ht
 
 	if err := h.SendEmail(r.Context(), user.Email, plaintext); err != nil {
 		logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to send verification email", slog.String("user_id", user.ID), slog.Any("error", err))
-		// Delete the orphaned token so state stays consistent.
-		if _, delErr := h.Verifications.ConsumeEmailVerification(r.Context(), tokenHash); delErr != nil && !errors.Is(delErr, auth.ErrNotFound) {
-			logOrDefault(h.Logger).ErrorContext(r.Context(), "failed to delete orphaned verification token", slog.String("user_id", user.ID), slog.Any("error", delErr))
-		}
+		cleanupOrphanedToken(r.Context(), h.Logger, "verification token", func() error {
+			_, delErr := h.Verifications.ConsumeEmailVerification(r.Context(), tokenHash)
+			return delErr
+		}, slog.String("user_id", user.ID))
 	}
 
 	writeJSON(r.Context(), w, http.StatusOK, messageBody{Message: verificationOKMessage})
