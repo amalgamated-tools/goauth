@@ -142,7 +142,7 @@ func (h *PasswordResetHandler) ResetPassword(w http.ResponseWriter, r *http.Requ
 		writeError(r.Context(), w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	if time.Now().UTC().After(resetToken.ExpiresAt) {
+	if isExpired(resetToken.ExpiresAt) {
 		writeError(r.Context(), w, http.StatusBadRequest, "invalid or expired reset token")
 		return
 	}

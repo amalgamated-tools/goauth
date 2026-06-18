@@ -36,6 +36,11 @@ func requireField(handlerName, fieldName string, value any) error {
 	return nil
 }
 
+// isExpired reports whether the given time is in the past (UTC).
+func isExpired(t time.Time) bool {
+	return time.Now().UTC().After(t)
+}
+
 // defaultDuration returns d if d is positive, otherwise it returns fallback.
 func defaultDuration(d, fallback time.Duration) time.Duration {
 	if d > 0 {
