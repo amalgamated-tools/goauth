@@ -72,7 +72,7 @@ func (h *OIDCHandler) Validate() error {
 	if err := requireField("OIDCHandler", "Provider", h.Provider); err != nil {
 		return err
 	}
-	if err := h.SessionConfig.validate("OIDCHandler"); err != nil {
+	if err := h.validate("OIDCHandler"); err != nil {
 		return err
 	}
 	if h.IDTokenVerifier == nil {

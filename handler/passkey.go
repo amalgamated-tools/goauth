@@ -66,7 +66,7 @@ func (h *PasskeyHandler) Validate() error {
 			return errors.New("PasskeyHandler misconfigured: JWT is required when WebAuthn is configured")
 		}
 	}
-	return h.SessionConfig.validate("PasskeyHandler")
+	return h.validate("PasskeyHandler")
 }
 
 type passkeyUser struct {
