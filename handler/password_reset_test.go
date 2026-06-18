@@ -53,6 +53,15 @@ func TestPasswordResetValidate_fullyConfigured_ok(t *testing.T) {
 	require.NoError(t, h.Validate())
 }
 
+func TestRequestReset_nilSendResetEmail_returns503(t *testing.T) {
+	h := &PasswordResetHandler{
+		Users:  &mockUserStore{},
+		Resets: &mockPasswordResetStore{},
+	}
+	w := postJSON(t, h.RequestReset, `{"email":"alice@test.com"}`)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
 // validResetStore returns a mockPasswordResetStore whose FindPasswordResetToken
 // returns a non-expired token for the given userID.
 func validResetStore(userID string) *mockPasswordResetStore {

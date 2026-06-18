@@ -87,6 +87,13 @@ func TestMagicLinkValidate_noSessions_ok(t *testing.T) {
 	require.NoError(t, newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender).Validate())
 }
 
+func TestRequestMagicLink_nilSender_returns503(t *testing.T) {
+	h := newMagicLinkHandler(&mockUserStore{}, &mockMagicLinkStore{}, noopSender)
+	h.Sender = nil
+	w := postJSON(t, h.RequestMagicLink, `{"email":"alice@test.com"}`)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
 // ---------------------------------------------------------------------------
 // RequestMagicLink
 // ---------------------------------------------------------------------------
