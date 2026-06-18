@@ -49,7 +49,7 @@ POST   /auth/password        → h.ChangePassword // change password (requires a
 {"email": "alice@example.com", "password": "s3cr3tpassword"}
 ```
 
-`RefreshToken` — preferred source is the `HttpOnly` refresh cookie (set automatically by `Signup`/`Login`). Falls back to a JSON body when the cookie is absent:
+`RefreshToken` — preferred source is the `HttpOnly` refresh cookie (set automatically by `Signup`, `Login`, and `RefreshToken` via token rotation). Falls back to a JSON body when the cookie is absent:
 ```json
 {"refresh_token": "<raw-refresh-token>"}
 ```
