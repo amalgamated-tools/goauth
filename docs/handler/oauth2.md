@@ -215,10 +215,7 @@ When `Sessions` is `nil`, only a stateless access JWT is issued. Token lifetime 
 
 ## Observability
 
-`OAuth2Handler` emits structured log events via `slog` with the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. To route `OAuth2Handler` log events to a separate destination (e.g. a dedicated handler in a multi-tenant application), set `Logger` to a `*slog.Logger` backed by the desired handler.
-
-!!! note "Token issuance logs bypass `Logger`"
-    Events emitted during token issuance (marked † below) originate from the shared `issueTokens` helper, which logs via the package-level `slog.Default()` regardless of the `Logger` field. Configure the process-wide default logger to capture these events.
+`OAuth2Handler` emits structured log events via `slog` with the request context for trace correlation. Handler-emitted log output — including events emitted during token issuance — goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. Note that the shared `writeJSON` helper logs JSON encoding failures via the process-wide default logger, independent of this field. To route `OAuth2Handler` log events to a separate destination (e.g. a dedicated handler in a multi-tenant application), set `Logger` to a `*slog.Logger` backed by the desired handler.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
@@ -227,10 +224,10 @@ When `Sessions` is `nil`, only a stateless access JWT is issued. Token lifetime 
 | `FetchUserInfo` call failure | `ERROR` | `"OAuth2 FetchUserInfo failed"` | `Callback` |
 | User resolution / creation failure | `ERROR` | `"OAuth2 user resolution failed"` | `Callback` |
 | Best-effort subject link failure | `WARN` | `"failed to link OIDC subject to email-matched user"` | `Callback` |
-| Sessions set without `RefreshCookieName` † | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `Callback` |
-| Refresh token generation failure † | `ERROR` | `"failed to generate refresh token"` | `Callback` |
-| Session creation store failure † | `ERROR` | `"failed to create session"` | `Callback` |
-| Access token creation failure † | `ERROR` | `"failed to create token"` | `Callback` |
+| Sessions set without `RefreshCookieName` | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `Callback` |
+| Refresh token generation failure | `ERROR` | `"failed to generate refresh token"` | `Callback` |
+| Session creation store failure | `ERROR` | `"failed to create session"` | `Callback` |
+| Access token creation failure | `ERROR` | `"failed to create token"` | `Callback` |
 | Nonce generation failure | `ERROR` | `"failed to generate link nonce"` | `CreateLinkNonce` |
 | Nonce persistence store failure | `ERROR` | `"failed to store link nonce"` | `CreateLinkNonce` |
 | Link state generation failure | `ERROR` | `"failed to generate link state"` (`provider=oauth2`) | `Link` |

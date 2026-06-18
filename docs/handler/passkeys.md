@@ -148,10 +148,7 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 
 ## Observability
 
-`PasskeyHandler` emits structured log events via `slog` with the request context for trace correlation. All log output goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used.
-
-!!! note "Token issuance logs bypass `Logger`"
-    Events emitted during token issuance (marked † below) originate from the shared `issueTokens` helper, which logs via the package-level `slog.Default()` regardless of the `Logger` field. Configure the process-wide default logger to capture these events.
+`PasskeyHandler` emits structured log events via `slog` with the request context for trace correlation. Handler-emitted log output — including events emitted during token issuance — goes through the handler's `Logger` field; when `Logger` is `nil`, `slog.Default()` is used. Note that the shared `writeJSON` helper logs JSON encoding failures via the process-wide default logger, independent of this field.
 
 | Event | Level | `slog` message | Endpoint |
 |---|---|---|---|
@@ -167,9 +164,9 @@ Set `WebAuthn: nil` to deploy `PasskeyHandler` in a disabled state. `Enabled` re
 | Corrupted credential skipped during decode | `WARN` | `"skipping corrupted passkey credential"` | (internal, during listing) |
 | Credential counter update marshal failure | `WARN` | `"failed to marshal credential for counter update"` | `FinishAuthentication` |
 | Credential counter update store failure | `WARN` | `"failed to update credential counter"` | `FinishAuthentication` |
-| Sessions set without `RefreshCookieName` † | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `FinishAuthentication` |
-| Refresh token generation failure † | `ERROR` | `"failed to generate refresh token"` | `FinishAuthentication` |
-| Session creation store failure † | `ERROR` | `"failed to create session"` | `FinishAuthentication` |
-| Access token creation failure † | `ERROR` | `"failed to create token"` | `FinishAuthentication` |
+| Sessions set without `RefreshCookieName` | `ERROR` | `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` | `FinishAuthentication` |
+| Refresh token generation failure | `ERROR` | `"failed to generate refresh token"` | `FinishAuthentication` |
+| Session creation store failure | `ERROR` | `"failed to create session"` | `FinishAuthentication` |
+| Access token creation failure | `ERROR` | `"failed to create token"` | `FinishAuthentication` |
 
 `WARN`-level events for counter updates do not fail the authentication — the user is logged in successfully. The `WARN` for a corrupted credential skips that credential silently during listing. The `"webauthn finish registration failed"` `WARN` returns HTTP 400 and does not persist any credential.

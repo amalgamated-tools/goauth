@@ -179,7 +179,7 @@ goauth never sets or replaces the global `slog` handler. Configure your own hand
 
 Each handler's documentation lists the specific `slog` messages it emits. ERROR log records generally include an `error` attribute set to the raw Go error value; the misconfiguration message `"issueTokens: Sessions is set but RefreshCookieName is empty — call Validate() at startup"` is an exception.
 
-**Token issuance events always use the process-wide default logger.** Events emitted by the shared internal `issueTokens` helper (session creation, refresh token generation, access token creation, and the misconfiguration message above) call `slog.ErrorContext` directly — they are not routed through a handler's `Logger` field. These events are marked `†` in each handler's observability table. Configure `slog.SetDefault` before starting the server to capture them.
+**Token issuance events use the handler's `Logger` field.** Events emitted by the shared internal `issueTokens` helper (session creation, refresh token generation, access token creation, and the misconfiguration message above) are routed through the calling handler's `Logger` field. When `Logger` is `nil`, they fall back to `slog.Default()`. Configure the handler's `Logger` (or `slog.SetDefault`) before starting the server to capture them.
 
 One additional `ERROR`-level event is shared across all handlers:
 
