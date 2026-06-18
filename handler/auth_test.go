@@ -21,8 +21,7 @@ func newAuthHandler(store auth.UserStore) *AuthHandler {
 	return &AuthHandler{
 		Users:         store,
 		JWT:           newTestJWT(),
-		CookieName:    "auth",
-		SecureCookies: false,
+		SessionConfig: SessionConfig{CookieName: "auth", SecureCookies: false},
 	}
 }
 

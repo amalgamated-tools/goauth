@@ -20,20 +20,11 @@ type MagicLinkSender func(ctx context.Context, email, token string) error
 
 // MagicLinkHandler holds dependencies for magic link (passwordless) endpoints.
 type MagicLinkHandler struct {
-	Users         auth.UserStore
-	MagicLinks    auth.MagicLinkStore
-	JWT           tokenCreator
-	Sender        MagicLinkSender
-	CookieName    string
-	SecureCookies bool
-	Sessions      auth.SessionStore // optional; nil disables session tracking and refresh tokens
-	// RefreshTokenTTL is the lifetime of refresh tokens. Defaults to
-	// DefaultRefreshTokenTTL when Sessions is non-nil.
-	RefreshTokenTTL time.Duration
-	// RefreshCookieName is the name of the HttpOnly cookie used to store the
-	// refresh token. Must be non-empty when Sessions is set; call Validate at
-	// startup to catch this misconfiguration early.
-	RefreshCookieName string
+	Users      auth.UserStore
+	MagicLinks auth.MagicLinkStore
+	JWT        tokenCreator
+	Sender     MagicLinkSender
+	SessionConfig
 	// TokenTTL is how long a magic link token is valid. Defaults to
 	// defaultMagicLinkTokenTTL (15 minutes) when unset or zero.
 	TokenTTL time.Duration
@@ -67,7 +58,7 @@ func (h *MagicLinkHandler) Validate() error {
 	if err := requireField("MagicLinkHandler", "Sender", h.Sender); err != nil {
 		return err
 	}
-	return validateSessionConfig("MagicLinkHandler", h.Sessions, h.RefreshCookieName)
+	return h.SessionConfig.Validate("MagicLinkHandler")
 }
 
 // RequestMagicLink handles POST requests to generate a one-time login link.

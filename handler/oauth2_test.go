@@ -40,8 +40,7 @@ func newTestOAuth2Handler() *OAuth2Handler {
 		Users:         &mockUserStore{},
 		JWT:           newTestJWT(),
 		Provider:      &mockOAuth2Provider{},
-		CookieName:    "auth",
-		SecureCookies: false,
+		SessionConfig: SessionConfig{CookieName: "auth", SecureCookies: false},
 		LinkNonces:    &mockOIDCLinkNonceStore{},
 	}
 }

@@ -28,8 +28,7 @@ func newTestOIDCHandler() *OIDCHandler {
 	return &OIDCHandler{
 		Users:         &mockUserStore{},
 		JWT:           newTestJWT(),
-		CookieName:    "auth",
-		SecureCookies: false,
+		SessionConfig: SessionConfig{CookieName: "auth", SecureCookies: false},
 		LinkNonces:    &mockOIDCLinkNonceStore{},
 	}
 }
