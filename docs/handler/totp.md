@@ -42,6 +42,20 @@ Enrollment is a two-step flow:
 1. `Generate` returns a secret and `otpauth://` URI for the QR code.
 2. `Enroll` verifies the first code from the authenticator app and persists the secret.
 
+## Request bodies
+
+`Enroll` — supply the secret from `Generate` and the first code from the authenticator app:
+```json
+{"secret": "<base32-encoded-secret>", "code": "123456"}
+```
+
+`Verify` — supply a current code from the authenticator app:
+```json
+{"code": "123456"}
+```
+
+`Generate`, `Status`, and `Disable` require no request body.
+
 ## Response types
 
 | Route | HTTP status | Response body | Notable error codes |

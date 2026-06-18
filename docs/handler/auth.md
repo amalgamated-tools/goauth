@@ -37,6 +37,35 @@ PUT    /auth/me              → h.UpdateProfile  // update display name (requir
 POST   /auth/password        → h.ChangePassword // change password (requires auth)
 ```
 
+## Request bodies
+
+`Signup`:
+```json
+{"name": "Alice", "email": "alice@example.com", "password": "s3cr3tpassword"}
+```
+
+`Login`:
+```json
+{"email": "alice@example.com", "password": "s3cr3tpassword"}
+```
+
+`RefreshToken` — preferred source is the `HttpOnly` refresh cookie (set automatically by `Signup`, `Login`, and `RefreshToken` via token rotation). Falls back to a JSON body when the cookie is absent:
+```json
+{"refresh_token": "<raw-refresh-token>"}
+```
+
+`UpdateProfile`:
+```json
+{"name": "Alice B."}
+```
+
+`ChangePassword`:
+```json
+{"currentPassword": "old-password", "newPassword": "new-password"}
+```
+
+Note the **camelCase** field names (`currentPassword`, `newPassword`).
+
 ## Response types
 
 `Signup`, `Login`, and `RefreshToken` return an `AuthResponse` containing `token`, `refresh_token` (when `Sessions` is set), and `user` (a `UserDTO`). These responses also set `Cache-Control: no-store` and `Pragma: no-cache` to prevent tokens from being stored in browser or proxy caches.
