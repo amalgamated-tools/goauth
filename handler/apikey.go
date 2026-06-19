@@ -48,8 +48,11 @@ type apiKeyCreateResponse struct {
 // ToAPIKeyDTO converts an auth.APIKey to an APIKeyDTO.
 func ToAPIKeyDTO(k *auth.APIKey) APIKeyDTO {
 	return APIKeyDTO{
-		ID: k.ID, Name: k.Name, KeyPrefix: k.KeyPrefix,
-		LastUsedAt: k.LastUsedAt, CreatedAt: k.CreatedAt,
+		ID:         k.ID,
+		Name:       k.Name,
+		KeyPrefix:  k.KeyPrefix,
+		LastUsedAt: k.LastUsedAt,
+		CreatedAt:  k.CreatedAt,
 	}
 }
 

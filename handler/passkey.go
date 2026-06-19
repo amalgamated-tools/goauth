@@ -105,7 +105,12 @@ type PasskeyCredentialDTO struct {
 
 // ToPasskeyCredentialDTO converts an auth.PasskeyCredential to a PasskeyCredentialDTO.
 func ToPasskeyCredentialDTO(c auth.PasskeyCredential) PasskeyCredentialDTO {
-	return PasskeyCredentialDTO{ID: c.ID, Name: c.Name, AAGUID: c.AAGUID, CreatedAt: c.CreatedAt}
+	return PasskeyCredentialDTO{
+		ID:        c.ID,
+		Name:      c.Name,
+		AAGUID:    c.AAGUID,
+		CreatedAt: c.CreatedAt,
+	}
 }
 
 func loadWebAuthnCredentials(ctx context.Context, logger *slog.Logger, creds []auth.PasskeyCredential) []webauthn.Credential {
@@ -299,10 +304,11 @@ func (h *PasskeyHandler) FinishAuthentication(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var authedUserID, authedCredentialID string
-	var authedUser *auth.User
-	var listCredsErr error
-	var userLookupErr error
+	var (
+		authedUserID, authedCredentialID string
+		authedUser                       *auth.User
+		listCredsErr, userLookupErr      error
+	)
 
 	handler := webauthn.DiscoverableUserHandler(func(rawID, userHandle []byte) (webauthn.User, error) {
 		credID := base64.RawURLEncoding.EncodeToString(rawID)

@@ -67,8 +67,11 @@ type UserDTO struct {
 // ToUserDTO converts an auth.User to a UserDTO.
 func ToUserDTO(u *auth.User) UserDTO {
 	return UserDTO{
-		ID: u.ID, Name: u.Name, Email: u.Email,
-		OIDCLinked: u.OIDCSubject != nil, IsAdmin: u.IsAdmin,
+		ID:            u.ID,
+		Name:          u.Name,
+		Email:         u.Email,
+		OIDCLinked:    u.OIDCSubject != nil,
+		IsAdmin:       u.IsAdmin,
 		EmailVerified: u.EmailVerified,
 	}
 }
