@@ -23,7 +23,7 @@ const DefaultRateLimiterMaxVisitors = 10_000
 // RateLimiter implements a per-IP token-bucket rate limiter.
 type RateLimiter struct {
 	mu             sync.Mutex
-	visitors       map[string]*visitor
+	visitors       map[string]visitor
 	nextCleanup    time.Time
 	rate           float64
 	burst          int
@@ -61,7 +61,7 @@ func newRateLimiter(rate float64, burst int, trustedProxies []*net.IPNet) *RateL
 		copy(copied, trustedProxies)
 	}
 	return &RateLimiter{
-		visitors:       make(map[string]*visitor),
+		visitors:       make(map[string]visitor),
 		nextCleanup:    time.Now().Add(cleanup),
 		rate:           rate,
 		burst:          burst,
@@ -87,7 +87,7 @@ func (rl *RateLimiter) allow(key string) bool {
 	}
 
 	if rl.visitors == nil {
-		rl.visitors = make(map[string]*visitor)
+		rl.visitors = make(map[string]visitor)
 	}
 	v, exists := rl.visitors[key]
 	if !exists {
@@ -96,7 +96,7 @@ func (rl *RateLimiter) allow(key string) bool {
 		if rl.maxVisitors > 0 && len(rl.visitors) >= rl.maxVisitors {
 			return false
 		}
-		rl.visitors[key] = &visitor{tokens: float64(rl.burst) - 1, lastSeen: now}
+		rl.visitors[key] = visitor{tokens: float64(rl.burst) - 1, lastSeen: now}
 		return true
 	}
 
@@ -107,11 +107,12 @@ func (rl *RateLimiter) allow(key string) bool {
 	}
 	v.lastSeen = now
 
-	if v.tokens < 1 {
-		return false
+	allowed := v.tokens >= 1
+	if allowed {
+		v.tokens--
 	}
-	v.tokens--
-	return true
+	rl.visitors[key] = v
+	return allowed
 }
 
 func (rl *RateLimiter) clientIP(r *http.Request) string {
