@@ -150,6 +150,36 @@ When `RefreshTokenTTL` is unset or ≤ 0 and `Sessions` is non-nil, handlers fal
 
 For low-level utilities that set and clear auth and refresh cookies in custom handlers, see [Cookie helpers](cookies.md).
 
+## SessionConfig
+
+`SessionConfig` is an embedded struct shared by `AuthHandler`, `MagicLinkHandler`, `OAuth2Handler`, `OIDCHandler`, and `PasskeyHandler`. It groups all cookie and session fields together:
+
+| Field | Type | Description |
+|---|---|---|
+| `CookieName` | `string` | Name of the `HttpOnly` cookie used to store the access token. |
+| `SecureCookies` | `bool` | When `true`, sets the `Secure` attribute on all cookies (recommended in production). |
+| `Sessions` | `auth.SessionStore` | Optional. When set, enables server-side session tracking and refresh-token rotation. |
+| `RefreshTokenTTL` | `time.Duration` | Lifetime of refresh tokens. Defaults to `DefaultRefreshTokenTTL` (7 days) when `Sessions` is non-nil. |
+| `RefreshCookieName` | `string` | Name of the `HttpOnly` cookie used to store the refresh token. Required when `Sessions` is set. |
+
+In a composite literal, provide `SessionConfig` as an embedded field key:
+
+```go
+h := &handler.AuthHandler{
+    Users: userStore,
+    JWT:   jwtMgr,
+    SessionConfig: handler.SessionConfig{
+        CookieName:        "session",
+        SecureCookies:     true,
+        Sessions:          sessionStore,
+        RefreshTokenTTL:   handler.DefaultRefreshTokenTTL,
+        RefreshCookieName: "refresh",
+    },
+}
+```
+
+`SessionConfig.Validate(handlerName string) error` returns an error when `Sessions` is set without a `RefreshCookieName`. Each handler's own `Validate()` calls this automatically — you do not need to call it directly.
+
 ## Error responses
 
 All handlers return errors as JSON with the `Content-Type: application/json` header. The shape is always:

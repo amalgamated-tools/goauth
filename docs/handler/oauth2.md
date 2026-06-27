@@ -83,19 +83,18 @@ h := &handler.OAuth2Handler{
         Endpoint:     github.Endpoint, // from golang.org/x/oauth2/github
         Scopes:       []string{"read:user", "user:email"},
     },
-    Provider:      &handler.GitHubProvider{},
-    CookieName:    "session",
-    SecureCookies: true,
-
-    // Optional: enable server-side sessions and refresh-token rotation.
-    Sessions:          sessionStore,
-    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL,
-    RefreshCookieName: "refresh",
-
+    Provider: &handler.GitHubProvider{},
+    SessionConfig: handler.SessionConfig{
+        CookieName:    "session",
+        SecureCookies: true,
+        // Optional: enable server-side sessions and refresh-token rotation.
+        Sessions:          sessionStore,
+        RefreshTokenTTL:   handler.DefaultRefreshTokenTTL,
+        RefreshCookieName: "refresh",
+    },
     // Optional: customise the post-login redirect query parameter.
     LoginRedirect: "github_login=1", // redirects to /?github_login=1
-
-    // Logger:      nil, // optional; when nil, slog.Default() is resolved at each log site
+    // Logger:     nil, // optional; when nil, slog.Default() is resolved at each log site
 }
 
 if err := h.Validate(); err != nil {

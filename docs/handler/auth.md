@@ -8,14 +8,16 @@
 h := &handler.AuthHandler{
     Users:               userStore,
     JWT:                 jwtMgr,
-    CookieName:          "session",
-    SecureCookies:       true,
-    DisableSignup:       false,    // set true to prevent self-registration
-    Sessions:            sessionStore, // optional; enables session tracking and refresh tokens
-    RefreshTokenTTL:     handler.DefaultRefreshTokenTTL, // defaults to 7 days when Sessions is set
-    RefreshCookieName:   "refresh",  // required when Sessions is set; stores refresh token in an HttpOnly cookie
-    RequireVerification: true,       // optional; rejects login for unverified email addresses
-    // Logger:           nil, // optional; when nil, slog.Default() is resolved at each log site
+    DisableSignup:       false, // set true to prevent self-registration
+    RequireVerification: true,  // optional; rejects login for unverified email addresses
+    SessionConfig: handler.SessionConfig{
+        CookieName:        "session",
+        SecureCookies:     true,
+        Sessions:          sessionStore,                    // optional; enables session tracking and refresh tokens
+        RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // defaults to 7 days when Sessions is set
+        RefreshCookieName: "refresh",                      // required when Sessions is set
+    },
+    // Logger: nil, // optional; when nil, slog.Default() is resolved at each log site
 }
 
 if err := h.Validate(); err != nil {
