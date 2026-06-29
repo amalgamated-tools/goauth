@@ -103,7 +103,8 @@ func hotpCodeWithMAC(mac hash.Hash, counter uint64) string {
 	var msg [8]byte
 	binary.BigEndian.PutUint64(msg[:], counter)
 	_, _ = mac.Write(msg[:])
-	h := mac.Sum(nil)
+	var hBuf [sha1.Size]byte // stack-allocated; avoids the 20-byte heap alloc that mac.Sum(nil) would cause
+	h := mac.Sum(hBuf[:0])
 
 	offset := h[len(h)-1] & 0x0f
 	truncated := (uint32(h[offset]&0x7f) << 24) |
