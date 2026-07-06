@@ -21,7 +21,6 @@ const (
 )
 
 var (
-	totpFormat    = fmt.Sprintf("%%0%dd", totpDigits)
 	totpEncoding  = base32.StdEncoding.WithPadding(base32.NoPadding) // precomputed once; avoids per-call heap alloc on the hot path
 	totpDigitsStr = strconv.Itoa(totpDigits)                         // precomputed; avoids a per-call alloc in TOTPProvisioningURI
 	totpPeriodStr = strconv.Itoa(totpPeriod)                         // precomputed; avoids a per-call alloc in TOTPProvisioningURI
@@ -112,7 +111,14 @@ func hotpCodeWithMAC(mac hash.Hash, counter uint64) string {
 		uint32(h[offset+3])
 
 	otp := truncated % totpModulo
-	return fmt.Sprintf(totpFormat, otp)
+	// Format as a zero-padded totpDigits-wide decimal without fmt.Sprintf to
+	// avoid format-parsing overhead and interface boxing on this hot path.
+	var code [totpDigits]byte
+	for i := totpDigits - 1; i >= 0; i-- {
+		code[i] = byte('0' + otp%10)
+		otp /= 10
+	}
+	return string(code[:])
 }
 
 // hotpCode computes a single HOTP value per RFC 4226 §5.3.
