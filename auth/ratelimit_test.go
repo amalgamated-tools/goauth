@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -40,7 +41,9 @@ func TestRateLimiter_refillsOverTime(t *testing.T) {
 	// Manually advance the visitor's lastSeen into the past so that the next
 	// allow call sees elapsed time.
 	rl.mu.Lock()
-	rl.visitors["key"].lastSeen = time.Now().Add(-100 * time.Millisecond)
+	v := rl.visitors["key"]
+	v.lastSeen = time.Now().Add(-100 * time.Millisecond)
+	rl.visitors["key"] = v
 	rl.mu.Unlock()
 
 	require.True(t, rl.allow("key"))
@@ -79,7 +82,7 @@ func TestRateLimiter_maxVisitorsCapRestoredAfterCleanup(t *testing.T) {
 
 	// Fill the map to capacity with a stale entry.
 	rl.mu.Lock()
-	rl.visitors["stale"] = &visitor{tokens: 5, lastSeen: time.Now().Add(-rl.cleanup - time.Second)}
+	rl.visitors["stale"] = visitor{tokens: 5, lastSeen: time.Now().Add(-rl.cleanup - time.Second)}
 	rl.mu.Unlock()
 
 	// The allow call triggers cleanup (nextCleanup is in the past), evicts
@@ -101,7 +104,7 @@ func TestRateLimiter_cleanup(t *testing.T) {
 	rl := newTestRateLimiter(10, 5)
 	// Add a stale visitor.
 	rl.mu.Lock()
-	rl.visitors["stale"] = &visitor{tokens: 5, lastSeen: time.Now().Add(-rl.cleanup - time.Second)}
+	rl.visitors["stale"] = visitor{tokens: 5, lastSeen: time.Now().Add(-rl.cleanup - time.Second)}
 	rl.mu.Unlock()
 
 	// This call should trigger cleanup and remove "stale".
@@ -329,4 +332,41 @@ func TestRateLimiter_clientIP_withTrustedProxies(t *testing.T) {
 	req.RemoteAddr = "10.0.0.1:0"
 	req.Header.Set("X-Forwarded-For", "5.6.7.8")
 	require.Equal(t, "5.6.7.8", rl.clientIP(req))
+}
+
+// ---------------------------------------------------------------------------
+// Benchmarks
+// ---------------------------------------------------------------------------
+
+// BenchmarkRateLimiterAllow_existingKey measures the hot path: a key already
+// in the map being allowed repeatedly. This is the dominant case in production,
+// where the same IP sends many requests over time.
+// Run with: go test -bench=BenchmarkRateLimiterAllow_existingKey -benchmem ./auth/
+func BenchmarkRateLimiterAllow_existingKey(b *testing.B) {
+	rl := NewRateLimiter(float64(b.N)+1, b.N+1) // tokens never run out
+	const key = "192.0.2.1"
+	rl.allow(key) // prime the map entry
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rl.allow(key)
+	}
+}
+
+// BenchmarkRateLimiterAllow_newVisitors measures the allocation cost of adding
+// new visitor entries. In the old pointer-map design, each new visitor required
+// a separate heap allocation (*visitor). The value-map design stores visitor
+// state inline in the map bucket, eliminating that per-visitor allocation.
+// Run with: go test -bench=BenchmarkRateLimiterAllow_newVisitors -benchmem ./auth/
+func BenchmarkRateLimiterAllow_newVisitors(b *testing.B) {
+	rl := NewRateLimiter(1, 1).WithMaxVisitors(b.N + 1)
+	keys := make([]string, b.N)
+	for i := range keys {
+		keys[i] = strconv.Itoa(i) // unique key per slot, allocated outside timed loop
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rl.allow(keys[i])
+	}
 }
