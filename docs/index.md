@@ -34,13 +34,15 @@ jwtMgr, err := auth.NewJWTManager("your-secret-at-least-32-bytes-long", 15*time.
 
 // 3. Wire up handlers.
 authHandler := &handler.AuthHandler{
-    Users:             userStore,
-    JWT:               jwtMgr,
-    CookieName:        "session",
-    SecureCookies:     true,
-    Sessions:          sessionStore,      // enables server-side sessions + refresh tokens
-    RefreshTokenTTL:   7 * 24 * time.Hour,
-    RefreshCookieName: "refresh",         // required when Sessions is set
+    Users: userStore,
+    JWT:   jwtMgr,
+    SessionConfig: handler.SessionConfig{
+        CookieName:        "session",
+        SecureCookies:     true,
+        Sessions:          sessionStore,      // enables server-side sessions + refresh tokens
+        RefreshTokenTTL:   7 * 24 * time.Hour,
+        RefreshCookieName: "refresh",         // required when Sessions is set
+    },
 }
 apiKeyHandler := &handler.APIKeyHandler{
     APIKeys:      apiKeyStore,

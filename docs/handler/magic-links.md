@@ -6,20 +6,22 @@
 
 ```go
 h := &handler.MagicLinkHandler{
-    Users:             userStore,
-    MagicLinks:        magicLinkStore,
-    JWT:               jwtMgr,
-    Sender:            func(ctx context.Context, email, token string) error {
+    Users:      userStore,
+    MagicLinks: magicLinkStore,
+    JWT:        jwtMgr,
+    Sender: func(ctx context.Context, email, token string) error {
         /* compose and send the login email */
         return nil
     },
-    CookieName:        "session",
-    SecureCookies:     true,
-    Sessions:          sessionStore,      // optional
-    RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // default 7 days
-    RefreshCookieName: "refresh",
-    TokenTTL:          15 * time.Minute,  // optional; defaults to 15 minutes
-    // Logger:         nil, // optional; when nil, slog.Default() is resolved at each log site
+    TokenTTL: 15 * time.Minute, // optional; defaults to 15 minutes
+    // Logger: nil, // optional; when nil, slog.Default() is resolved at each log site
+    SessionConfig: handler.SessionConfig{
+        CookieName:        "session",
+        SecureCookies:     true,
+        Sessions:          sessionStore,      // optional
+        RefreshTokenTTL:   handler.DefaultRefreshTokenTTL, // default 7 days
+        RefreshCookieName: "refresh",
+    },
 }
 
 if err := h.Validate(); err != nil {
