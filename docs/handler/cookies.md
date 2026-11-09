@@ -2,21 +2,38 @@
 
 The handler package exposes low-level cookie helpers for setting and clearing auth and refresh cookies. These are used internally by all handlers but are also available for custom flows.
 
+All cookie helpers share the same base attributes via a private `setCookie` helper:
+
+| Attribute | Value |
+|---|---|
+| `Path` | `"/"` |
+| `HttpOnly` | `true` |
+| `SameSite` | `Strict` |
+| `Secure` | caller-controlled |
+
 ## Auth cookie
 
 ```go
-handler.SetAuthCookie(w, token, cookieName, secure)   // HttpOnly, SameSite=Strict
+handler.SetAuthCookie(w, token, cookieName, secure)
 handler.ClearAuthCookie(w, cookieName, secure)
 ```
+
+`SetAuthCookie` sets `MaxAge: 0`, which creates a **session cookie** — the browser discards it when the session ends (tab or window closes). Use this for short-lived access tokens whose lifetime is already bounded by the JWT expiry.
+
+`ClearAuthCookie` sets `MaxAge: -1` to instruct the browser to delete the cookie immediately.
 
 ## Refresh cookie
 
 ```go
-handler.SetRefreshCookie(w, token, cookieName, secure, maxAge) // HttpOnly, SameSite=Strict
+handler.SetRefreshCookie(w, token, cookieName, secure, maxAge)
 handler.ClearRefreshCookie(w, cookieName, secure)
 ```
 
-Auth and refresh cookies are set with `HttpOnly` and `SameSite=Strict`. Pass `secure: true` in production to also set the `Secure` flag.
+`SetRefreshCookie` accepts an explicit `maxAge` (in seconds) so the refresh cookie persists across browser sessions. Pass the `RefreshTokenTTL` value (converted to seconds) for consistent expiry between the cookie and the server-side session record.
+
+`ClearRefreshCookie` sets `MaxAge: -1` to delete the cookie immediately.
+
+Pass `secure: true` in production to also set the `Secure` flag on all cookies.
 
 ## Token issuance flow
 
